@@ -90,8 +90,14 @@
   /* table */
   table{width:100%;border-collapse:collapse;font-size:13px;}
   table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);border-bottom:1px solid var(--border);padding:8px 10px;white-space:nowrap;}
+  table th.sortable{cursor:pointer;user-select:none;}
+  table th.sortable:hover{color:var(--brand);}
+  .sortArrow{font-size:9px;letter-spacing:0;margin-left:3px;opacity:.35;display:inline-block;}
+  .sortArrow.active{opacity:1;color:var(--brand);font-weight:700;}
   table td{padding:9px 10px;border-bottom:1px solid #f0efec;vertical-align:middle;}
   table tr:hover td{background:#fafaf9;}
+  tr.blockHeader td{border-bottom:none;}
+  tr.blockHeader:hover td{background:inherit !important;}
   .tableWrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
   .num{font-variant-numeric:tabular-nums;text-align:right;}
   .rowActions{display:flex;gap:6px;justify-content:flex-end;}
@@ -107,10 +113,17 @@
   /* modal */
   #modalOverlay{position:fixed;inset:0;background:rgba(11,11,11,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
   #modalBox{background:var(--surface);border-radius:14px;padding:20px;width:440px;max-width:100%;max-height:88vh;overflow-y:auto;}
+  #modalBox.wide{width:680px;}
   #modalBox h2{margin:0 0 14px;font-size:16px;}
   .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
   .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .formGrid .full{grid-column:1 / -1;}
+
+  /* tarjeta de cuenta bancaria (proveedores) — una por cuenta, con espacio suficiente para CLABEs de 18 dígitos */
+  .cuentaRow{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fafaf9;}
+  .cuentaRow .cuentaHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .cuentaRow .cuentaHead b{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.03em;}
+  .cuentaRow input{font-variant-numeric:tabular-nums;}
 
   /* toast */
   #toastContainer{position:fixed;bottom:16px;right:16px;display:flex;flex-direction:column;gap:8px;z-index:60;}
@@ -145,7 +158,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.0 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.3 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -182,7 +195,7 @@
 
 <script>
 /* =========================================================
-   CxP Portal — Grupo Nero — Frontend v5.0
+   CxP Portal — Grupo Nero — Frontend v5.3
    Backend: Google Apps Script Web App (ver Code.gs)
    ========================================================= */
 
@@ -199,7 +212,15 @@ const state = {
   usuarios: [], log: [],
   view: 'dashboard',
   filtrosCxp: { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'todas', texto:'' },
-  filtrosPagos: { estado:'todos' }
+  filtrosPagos: { estado:'todos' },
+  // Orden por columna (flechitas) — uno independiente por cada tabla/pestaña
+  sortCxp:         { col: null, dir: 'asc' },
+  sortProveedores: { col: null, dir: 'asc' },
+  sortPagos:       { col: null, dir: 'asc' },
+  sortAging:       { col: null, dir: 'asc' },
+  sortCuentas:     { col: null, dir: 'asc' },
+  sortUsuarios:    { col: null, dir: 'asc' },
+  sortAuditoria:   { col: null, dir: 'asc' }
 };
 
 /* ---------------- API ---------------- */
@@ -317,6 +338,50 @@ function esc(s) {
 
 function can(roles) { return roles.includes(state.rol); }
 
+/* ---------------- Ordenamiento por columna (flechitas A-Z / Z-A / fechas / números) ---------------- */
+
+// Indicador visual (flecha) que se pinta junto al encabezado de cada columna ordenable
+function sortIndicator(sortState, col) {
+  const activo = sortState && sortState.col === col;
+  if (!activo) return `<span class="sortArrow">⇅</span>`;
+  return `<span class="sortArrow active">${sortState.dir === 'asc' ? '▲' : '▼'}</span>`;
+}
+
+// Alterna asc/desc (o cambia de columna) y vuelve a pintar la tabla correspondiente
+function toggleSort(stateKey, col, renderFnName) {
+  const s = state[stateKey];
+  if (s.col === col) s.dir = (s.dir === 'asc' ? 'desc' : 'asc');
+  else { s.col = col; s.dir = 'asc'; }
+  window[renderFnName]();
+}
+
+// Encabezado <th> clicable con su flechita — getters indica qué función de orden corresponde a cada columna
+function sortTh(label, col, stateKey, renderFnName) {
+  return `<th class="sortable" onclick="toggleSort('${stateKey}','${col}','${renderFnName}')">${esc(label)}${sortIndicator(state[stateKey], col)}</th>`;
+}
+
+// Ordena un arreglo de registros según sortState.col/dir usando los getters dados (uno por nombre de columna).
+// Orden estable: si no hay columna activa, regresa la lista sin tocar (cada vista define su propio orden por defecto).
+function sortRows(rows, sortState, getters) {
+  if (!sortState || !sortState.col) return rows;
+  const getter = getters[sortState.col];
+  if (!getter) return rows;
+  const conIndice = rows.map((r, i) => ({ r, i }));
+  conIndice.sort((A, B) => {
+    let a = getter(A.r), b = getter(B.r);
+    if (a == null) a = '';
+    if (b == null) b = '';
+    if (typeof a === 'string') a = a.toLowerCase();
+    if (typeof b === 'string') b = b.toLowerCase();
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return A.i - B.i; // estable
+  });
+  let out = conIndice.map(x => x.r);
+  if (sortState.dir === 'desc') out.reverse();
+  return out;
+}
+
 /* ---------------- UI: shell, nav, toasts, modal, loading ---------------- */
 
 function showLoading(v) { document.getElementById('loadingOverlay').classList.toggle('hidden', !v); }
@@ -329,8 +394,11 @@ function toast(msg, type) {
   setTimeout(() => el.remove(), 4200);
 }
 
-function openModal(html) {
-  document.getElementById('modalBox').innerHTML = html;
+function openModal(html, opts) {
+  opts = opts || {};
+  const box = document.getElementById('modalBox');
+  box.className = opts.wide ? 'wide' : '';
+  box.innerHTML = html;
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
@@ -507,13 +575,18 @@ function limpiarFiltrosCxp() {
   renderCxp();
 }
 
-function renderCxpTable() {
-  const lista = cxpFiltradas();
-  const wrap = document.getElementById('cxpTableWrap');
-  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin resultados con los filtros actuales.</div></div>`; return; }
-  wrap.innerHTML = `<div class="tableWrap"><table>
-    <thead><tr><th>Proveedor</th><th>Concepto</th><th>Sucursal</th><th>Vence</th><th>Monto</th><th>Saldo</th><th>Estado</th><th></th></tr></thead>
-    <tbody>${lista.map(c => `
+// Orden de los bloques automáticos en Cuentas × Pagar: las vencidas siempre arriba (urgente),
+// luego las por vencer, luego las vigentes (vencen en más de 7 días), y al final las liquidadas
+// — en cuanto una cuenta queda pagada, "baja" sola a este último bloque la próxima vez que se pinta la tabla.
+const BLOQUES_CXP = [
+  { est:'vencida',   titulo:'Vencidas',   emoji:'🔴', color:'var(--critical)', bg:'var(--critical-bg)' },
+  { est:'proxima',   titulo:'Por vencer', emoji:'🟡', color:'var(--warning)',  bg:'var(--warning-bg)'  },
+  { est:'vigente',   titulo:'Vigentes',   emoji:'⚪', color:'var(--ink-2)',    bg:'#f0efec'             },
+  { est:'liquidada', titulo:'Liquidadas', emoji:'🟢', color:'var(--good)',     bg:'var(--good-bg)'     }
+];
+
+function renderCxpRow(c) {
+  return `
       <tr>
         <td>${esc(c.provNombre)}</td>
         <td>${esc(c.concepto || '')}</td>
@@ -527,7 +600,45 @@ function renderCxpTable() {
           ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="formCxp('${c.id}')">Editar</button>` : ''}
           ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('cxp','${c.id}','esta CxP')">Eliminar</button>` : ''}
         </div></td>
-      </tr>`).join('')}</tbody>
+      </tr>`;
+}
+
+function renderCxpTable() {
+  const lista = cxpFiltradas();
+  const wrap = document.getElementById('cxpTableWrap');
+  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin resultados con los filtros actuales.</div></div>`; return; }
+
+  const getters = {
+    provNombre: c => c.provNombre,
+    concepto: c => c.concepto || '',
+    sucursal: c => c.sucursal || '',
+    fecha_vencimiento: c => c.fecha_vencimiento || '',
+    monto: c => Number(c.monto) || 0,
+    saldo: c => Number(c.saldo) || 0
+  };
+
+  let filasHtml = '';
+  BLOQUES_CXP.forEach(b => {
+    let items = lista.filter(c => c.est === b.est);
+    if (!items.length) return;
+    items = state.sortCxp.col
+      ? sortRows(items, state.sortCxp, getters)
+      : [...items].sort((a, b2) => (a.fecha_vencimiento || '').localeCompare(b2.fecha_vencimiento || '')); // por defecto: la que vence más pronto primero
+    filasHtml += `<tr class="blockHeader"><td colspan="8" style="background:${b.bg};color:${b.color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">${b.emoji} ${b.titulo} (${items.length})</td></tr>`;
+    filasHtml += items.map(renderCxpRow).join('');
+  });
+
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Proveedor','provNombre','sortCxp','renderCxpTable')}
+      ${sortTh('Concepto','concepto','sortCxp','renderCxpTable')}
+      ${sortTh('Sucursal','sucursal','sortCxp','renderCxpTable')}
+      ${sortTh('Vence','fecha_vencimiento','sortCxp','renderCxpTable')}
+      ${sortTh('Monto','monto','sortCxp','renderCxpTable')}
+      ${sortTh('Saldo','saldo','sortCxp','renderCxpTable')}
+      <th>Estado</th><th></th>
+    </tr></thead>
+    <tbody>${filasHtml}</tbody>
   </table></div>`;
 }
 
@@ -574,6 +685,7 @@ function formCxp(id) {
             <select id="cxp_cuenta_destino_id">${opcionesCuentasDestino(provIdInicial, ip.cuenta_destino_id)}</select>
           </div>
           <div class="field full"><label>Referencia sugerida</label><input id="cxp_referencia_sugerida" value="${esc(ip.referencia_sugerida||'')}" placeholder="Ej. nombre/sucursal que factura"></div>
+          <div class="field full"><label>Pagar desde</label><input id="cxp_pagar_desde" value="${esc(ip.pagar_desde||'')}" placeholder="Ej. Cuenta BBVA de la empresa, Efectivo, caja sucursal…"></div>
         </div>
       </div>
       <div class="modalActions">
@@ -599,7 +711,8 @@ async function guardarCxp(ev, id) {
     notas: document.getElementById('cxp_notas').value,
     instrucciones_pago: {
       cuenta_destino_id: document.getElementById('cxp_cuenta_destino_id').value,
-      referencia_sugerida: document.getElementById('cxp_referencia_sugerida').value
+      referencia_sugerida: document.getElementById('cxp_referencia_sugerida').value,
+      pagar_desde: document.getElementById('cxp_pagar_desde').value
     }
   };
   try {
@@ -635,6 +748,7 @@ function formPago(cxpId) {
             ${cuentasOrigen.map(cu => `<option value="${esc(cu.id)}">${esc(cu.nombre || cu.banco || cu.id)}</option>`).join('')}
           </select>
         </div>
+        <div class="field full"><label>Pagar desde</label><input id="pg_pagar_desde" value="${esc(ip.pagar_desde||'')}" placeholder="Si no es ninguna de las cuentas de arriba: Efectivo, otra cuenta específica, etc."></div>
         <div class="field full"><label>Cuenta destino (del proveedor)</label>
           <select id="pg_cuenta_destino_id">${opcionesCuentasDestino(c.proveedor_id, ip.cuenta_destino_id)}</select>
           ${cuentasDestino.length > 1 ? `<p style="font-size:11px;color:var(--muted);margin:4px 0 0">El proveedor tiene ${cuentasDestino.length} cuentas registradas — si la sugerida no sirve, elige otra aquí.</p>` : ''}
@@ -658,6 +772,7 @@ async function guardarPago(ev, cxpId) {
     id: 'pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     cxp_id: cxpId,
     cuenta_id: document.getElementById('pg_cuenta_id').value,
+    pagar_desde: document.getElementById('pg_pagar_desde').value,
     cuenta_destino_id: document.getElementById('pg_cuenta_destino_id').value,
     monto: document.getElementById('pg_monto').value,
     fecha: document.getElementById('pg_fecha').value,
@@ -717,19 +832,43 @@ function renderPagos() {
 }
 
 function renderPagosTable() {
-  let lista = [...state.pagos].sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+  let lista = state.pagos.map(p => {
+    const c = state.cxp.find(x => String(x.id) === String(p.cxp_id));
+    return { ...p, provNombre: c ? proveedorNombre(c.proveedor_id) : '—', concepto: c ? c.concepto : '—' };
+  });
   if (state.filtrosPagos.estado !== 'todos') lista = lista.filter(p => (p.estado || 'validado') === state.filtrosPagos.estado);
   const wrap = document.getElementById('pagosTableWrap');
   if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin pagos registrados.</div></div>`; return; }
+
+  const getters = {
+    fecha: p => p.fecha || '',
+    provNombre: p => p.provNombre,
+    concepto: p => p.concepto || '',
+    monto: p => Number(p.monto) || 0,
+    pagar_desde: p => p.pagar_desde || '',
+    referencia: p => p.referencia || '',
+    capturado_por: p => p.capturado_por || ''
+  };
+  lista = state.sortPagos.col ? sortRows(lista, state.sortPagos, getters) : [...lista].sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+
   wrap.innerHTML = `<div class="tableWrap"><table>
-    <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Monto</th><th>Referencia</th><th>Capturó</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr>
+      ${sortTh('Fecha','fecha','sortPagos','renderPagosTable')}
+      ${sortTh('Proveedor','provNombre','sortPagos','renderPagosTable')}
+      ${sortTh('Concepto','concepto','sortPagos','renderPagosTable')}
+      ${sortTh('Monto','monto','sortPagos','renderPagosTable')}
+      ${sortTh('Pagó desde','pagar_desde','sortPagos','renderPagosTable')}
+      ${sortTh('Referencia','referencia','sortPagos','renderPagosTable')}
+      ${sortTh('Capturó','capturado_por','sortPagos','renderPagosTable')}
+      <th>Estado</th><th></th>
+    </tr></thead>
     <tbody>${lista.map(p => {
-      const c = state.cxp.find(x => String(x.id) === String(p.cxp_id));
       return `<tr>
         <td>${fmtFecha(p.fecha)}</td>
-        <td>${esc(c ? proveedorNombre(c.proveedor_id) : '—')}</td>
-        <td>${esc(c ? c.concepto : '—')}</td>
+        <td>${esc(p.provNombre)}</td>
+        <td>${esc(p.concepto)}</td>
         <td class="num">${money(p.monto)}</td>
+        <td>${esc(p.pagar_desde || '—')}</td>
         <td>${esc(p.referencia || '—')}</td>
         <td>${esc(p.capturado_por || '—')}</td>
         <td>${badgeEstadoPago(p)}</td>
@@ -774,6 +913,13 @@ function renderAging() {
 
   const totalGeneral = Object.values(totales).reduce((a,b) => a+b, 0);
 
+  __agingFilas = proveedoresConSaldo.map(prov => {
+    const v = buckets.vigente[prov]||0, b30 = buckets.b30[prov]||0, b60 = buckets.b60[prov]||0, b90 = buckets.b90[prov]||0, b90p = buckets.b90p[prov]||0;
+    return { prov, v, b30, b60, b90, b90p, total: v+b30+b60+b90+b90p };
+  });
+  __agingTotales = totales;
+  __agingTotalGeneral = totalGeneral;
+
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="viewTitle"><span>Antigüedad de saldos (Aging)</span></div>
@@ -784,18 +930,32 @@ function renderAging() {
       <div class="kpi warn"><div class="label">61–90 días</div><div class="value">${money(totales.b90)}</div></div>
       <div class="kpi alert"><div class="label">+90 días</div><div class="value">${money(totales.b90p)}</div></div>
     </div>
-    ${!proveedoresConSaldo.length ? `<div class="tableWrap"><div class="emptyState">No hay saldos pendientes. 🎉</div></div>` : `
-    <div class="tableWrap"><table>
-      <thead><tr><th>Proveedor</th><th>Vigente</th><th>1–30</th><th>31–60</th><th>61–90</th><th>+90</th><th>Total</th></tr></thead>
-      <tbody>${proveedoresConSaldo.map(prov => {
-        const v = buckets.vigente[prov]||0, b30 = buckets.b30[prov]||0, b60 = buckets.b60[prov]||0, b90 = buckets.b90[prov]||0, b90p = buckets.b90p[prov]||0;
-        const total = v+b30+b60+b90+b90p;
-        return `<tr><td>${esc(prov)}</td><td class="num">${money(v)}</td><td class="num">${money(b30)}</td><td class="num">${money(b60)}</td><td class="num">${money(b90)}</td><td class="num" style="color:var(--critical);font-weight:700">${money(b90p)}</td><td class="num" style="font-weight:700">${money(total)}</td></tr>`;
-      }).join('')}
-      <tr style="font-weight:700;background:#fafaf9"><td>Total</td><td class="num">${money(totales.vigente)}</td><td class="num">${money(totales.b30)}</td><td class="num">${money(totales.b60)}</td><td class="num">${money(totales.b90)}</td><td class="num">${money(totales.b90p)}</td><td class="num">${money(totalGeneral)}</td></tr>
-      </tbody>
-    </table></div>`}
+    <div id="agingTableWrap"></div>
   `;
+  renderAgingTable();
+}
+
+let __agingFilas = [], __agingTotales = {}, __agingTotalGeneral = 0;
+
+function renderAgingTable() {
+  const wrap = document.getElementById('agingTableWrap');
+  if (!__agingFilas.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">No hay saldos pendientes. 🎉</div></div>`; return; }
+  const getters = { prov: r => r.prov, v: r => r.v, b30: r => r.b30, b60: r => r.b60, b90: r => r.b90, b90p: r => r.b90p, total: r => r.total };
+  const filas = sortRows(__agingFilas, state.sortAging, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Proveedor','prov','sortAging','renderAgingTable')}
+        ${sortTh('Vigente','v','sortAging','renderAgingTable')}
+        ${sortTh('1–30','b30','sortAging','renderAgingTable')}
+        ${sortTh('31–60','b60','sortAging','renderAgingTable')}
+        ${sortTh('61–90','b90','sortAging','renderAgingTable')}
+        ${sortTh('+90','b90p','sortAging','renderAgingTable')}
+        ${sortTh('Total','total','sortAging','renderAgingTable')}
+      </tr></thead>
+      <tbody>${filas.map(r => `<tr><td>${esc(r.prov)}</td><td class="num">${money(r.v)}</td><td class="num">${money(r.b30)}</td><td class="num">${money(r.b60)}</td><td class="num">${money(r.b90)}</td><td class="num" style="color:var(--critical);font-weight:700">${money(r.b90p)}</td><td class="num" style="font-weight:700">${money(r.total)}</td></tr>`).join('')}
+      <tr style="font-weight:700;background:#fafaf9"><td>Total</td><td class="num">${money(__agingTotales.vigente)}</td><td class="num">${money(__agingTotales.b30)}</td><td class="num">${money(__agingTotales.b60)}</td><td class="num">${money(__agingTotales.b90)}</td><td class="num">${money(__agingTotales.b90p)}</td><td class="num">${money(__agingTotalGeneral)}</td></tr>
+      </tbody>
+    </table></div>`;
 }
 
 /* ---------------- Vista: Proveedores ---------------- */
@@ -806,20 +966,65 @@ function renderProveedores() {
     <div class="viewTitle"><span>Proveedores</span>
       <div class="actions">${can(['admin']) ? `<button class="btn btn-primary btn-sm" onclick="formProveedor()">+ Nuevo proveedor</button>` : ''}</div>
     </div>
-    <div class="tableWrap"><table>
-      <thead><tr><th>Nombre</th><th>RFC</th><th>Email</th><th>Teléfono</th><th>Cuentas</th><th></th></tr></thead>
-      <tbody>${state.proveedores.map(p => `
+    <div id="proveedoresTableWrap"></div>
+  `;
+  renderProveedoresTable();
+}
+
+function renderProveedoresTable() {
+  const wrap = document.getElementById('proveedoresTableWrap');
+  const getters = {
+    nombre: p => p.nombre || '',
+    rfc: p => p.rfc || '',
+    email: p => p.email || '',
+    telefono: p => p.telefono || '',
+    cuentas: p => (p.cuentas||[]).length
+  };
+  const lista = sortRows(state.proveedores, state.sortProveedores, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Nombre','nombre','sortProveedores','renderProveedoresTable')}
+        ${sortTh('RFC','rfc','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Email','email','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Teléfono','telefono','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Cuentas','cuentas','sortProveedores','renderProveedoresTable')}
+        <th></th>
+      </tr></thead>
+      <tbody>${lista.map(p => `
         <tr>
           <td>${esc(p.nombre)}</td><td>${esc(p.rfc||'—')}</td><td>${esc(p.email||'—')}</td><td>${esc(p.telefono||'—')}</td>
           <td>${(p.cuentas||[]).length}</td>
           <td><div class="rowActions">
+            <button class="btn btn-ghost btn-sm" onclick="verCuentasProveedor('${p.id}')">Ver cuentas</button>
             ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
             ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor (y sus CxP/pagos)')">Eliminar</button>` : ''}
           </div></td>
         </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin proveedores.</td></tr>`}
       </tbody>
-    </table></div>
-  `;
+    </table></div>`;
+}
+
+function verCuentasProveedor(id) {
+  const p = state.proveedores.find(x => String(x.id) === String(id));
+  const cuentas = p?.cuentas || [];
+  openModal(`
+    <h2>Cuentas de ${esc(p ? p.nombre : '')}</h2>
+    ${!cuentas.length ? `<p class="emptyState">Este proveedor no tiene cuentas bancarias registradas todavía.</p>` : `
+    <div class="tableWrap" style="border:1px solid var(--border)"><table>
+      <thead><tr><th>Alias</th><th>Banco</th><th>CLABE / Cuenta</th><th>Titular</th></tr></thead>
+      <tbody>${cuentas.map(c => `
+        <tr>
+          <td>${esc(c.alias || '—')}</td>
+          <td>${esc(c.banco || '—')}</td>
+          <td style="font-variant-numeric:tabular-nums">${esc(c.clabe || '—')}</td>
+          <td>${esc(c.titular || '—')}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>`}
+    <div class="modalActions">
+      ${can(['admin']) ? `<button class="btn btn-ghost" onclick="closeModal(); formProveedor('${id}')">Editar cuentas</button>` : ''}
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>
+  `, { wide: cuentas.length > 0 });
 }
 
 let __pvCuentasTmp = [];
@@ -849,18 +1054,23 @@ function formProveedor(id) {
         <button type="submit" class="btn btn-primary">Guardar</button>
       </div>
     </form>
-  `);
+  `, { wide: true });
 }
 
 function renderCuentasProveedorRows() {
   if (!__pvCuentasTmp.length) return `<p class="emptyState" style="padding:10px 0">Sin cuentas registradas.</p>`;
-  return __pvCuentasTmp.map(c => `
-    <div class="cuentaRow" data-id="${esc(c.id||'')}" style="display:grid;grid-template-columns:1fr 1fr 1.3fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end">
-      <div class="field" style="margin-bottom:0"><label>Alias</label><input class="cta_alias" value="${esc(c.alias||'')}" placeholder="Ej. Principal"></div>
-      <div class="field" style="margin-bottom:0"><label>Banco</label><input class="cta_banco" value="${esc(c.banco||'')}"></div>
-      <div class="field" style="margin-bottom:0"><label>CLABE / Cuenta</label><input class="cta_clabe" value="${esc(c.clabe||'')}"></div>
-      <div class="field" style="margin-bottom:0"><label>Titular</label><input class="cta_titular" value="${esc(c.titular||'')}"></div>
-      <button type="button" class="btn btn-danger btn-sm" onclick="eliminarCuentaProveedorTmp(this)">Eliminar</button>
+  return __pvCuentasTmp.map((c, i) => `
+    <div class="cuentaRow" data-id="${esc(c.id||'')}">
+      <div class="cuentaHead">
+        <b>Cuenta ${i+1}</b>
+        <button type="button" class="btn btn-danger btn-sm" onclick="eliminarCuentaProveedorTmp(this)">Eliminar</button>
+      </div>
+      <div class="formGrid">
+        <div class="field"><label>Alias</label><input class="cta_alias" value="${esc(c.alias||'')}" placeholder="Ej. Principal"></div>
+        <div class="field"><label>Banco</label><input class="cta_banco" value="${esc(c.banco||'')}" placeholder="Ej. SANTANDER"></div>
+        <div class="field full"><label>CLABE / Número de cuenta</label><input class="cta_clabe" value="${esc(c.clabe||'')}" placeholder="18 dígitos"></div>
+        <div class="field full"><label>Titular</label><input class="cta_titular" value="${esc(c.titular||'')}"></div>
+      </div>
     </div>`).join('');
 }
 
@@ -919,14 +1129,27 @@ async function guardarProveedor(ev, id) {
 /* ---------------- Vista: Mis Cuentas (cuentas de origen) ---------------- */
 
 function renderCuentas() {
-  const cuentas = state.config.cuentas_origen || [];
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="viewTitle"><span>Mis Cuentas</span>
       <div class="actions"><button class="btn btn-primary btn-sm" onclick="formCuenta()">+ Nueva cuenta</button></div>
     </div>
-    <div class="tableWrap"><table>
-      <thead><tr><th>Nombre</th><th>Banco</th><th>Número / CLABE</th><th></th></tr></thead>
+    <div id="cuentasTableWrap"></div>
+  `;
+  renderCuentasTable();
+}
+
+function renderCuentasTable() {
+  const wrap = document.getElementById('cuentasTableWrap');
+  const getters = { nombre: c => c.nombre || '', banco: c => c.banco || '', numero: c => c.numero || '' };
+  const cuentas = sortRows(state.config.cuentas_origen || [], state.sortCuentas, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Nombre','nombre','sortCuentas','renderCuentasTable')}
+        ${sortTh('Banco','banco','sortCuentas','renderCuentasTable')}
+        ${sortTh('Número / CLABE','numero','sortCuentas','renderCuentasTable')}
+        <th></th>
+      </tr></thead>
       <tbody>${cuentas.map(c => `
         <tr><td>${esc(c.nombre||'')}</td><td>${esc(c.banco||'')}</td><td>${esc(c.numero||'')}</td>
         <td><div class="rowActions">
@@ -934,8 +1157,7 @@ function renderCuentas() {
           <button class="btn btn-danger btn-sm" onclick="eliminarCuenta('${c.id}')">Eliminar</button>
         </div></td></tr>`).join('') || `<tr><td colspan="4" class="emptyState">Sin cuentas registradas.</td></tr>`}
       </tbody>
-    </table></div>
-  `;
+    </table></div>`;
 }
 
 function formCuenta(id) {
@@ -994,17 +1216,30 @@ function renderUsuarios() {
     <div class="viewTitle"><span>Usuarios</span>
       <div class="actions"><button class="btn btn-primary btn-sm" onclick="formUsuario()">+ Nuevo usuario</button></div>
     </div>
-    <div class="tableWrap"><table>
-      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr></thead>
-      <tbody>${state.usuarios.map(u => `
+    <div id="usuariosTableWrap"></div>
+  `;
+  renderUsuariosTable();
+}
+
+function renderUsuariosTable() {
+  const wrap = document.getElementById('usuariosTableWrap');
+  const getters = { nombre: u => u.nombre || '', usuario: u => u.usuario || '', rol: u => ROLES_LABEL[u.rol] || u.rol || '' };
+  const lista = sortRows(state.usuarios, state.sortUsuarios, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Nombre','nombre','sortUsuarios','renderUsuariosTable')}
+        ${sortTh('Usuario','usuario','sortUsuarios','renderUsuariosTable')}
+        ${sortTh('Rol','rol','sortUsuarios','renderUsuariosTable')}
+        <th></th>
+      </tr></thead>
+      <tbody>${lista.map(u => `
         <tr><td>${esc(u.nombre)}</td><td>${esc(u.usuario)}</td><td>${esc(ROLES_LABEL[u.rol] || u.rol)}</td>
         <td><div class="rowActions">
           <button class="btn btn-ghost btn-sm" onclick="formUsuario('${u.id}')">Editar</button>
           <button class="btn btn-danger btn-sm" onclick="confirmarEliminarUsuario('${u.id}')">Eliminar</button>
         </div></td></tr>`).join('')}
       </tbody>
-    </table></div>
-  `;
+    </table></div>`;
 }
 
 function formUsuario(id) {
@@ -1074,9 +1309,32 @@ function renderAuditoria() {
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="viewTitle"><span>Auditoría — quién hizo qué y cuándo</span></div>
-    <div class="tableWrap"><table>
-      <thead><tr><th>Fecha</th><th>Usuario</th><th>Rol</th><th>Acción</th><th>Entidad</th><th>Detalle</th></tr></thead>
-      <tbody>${state.log.map(l => `
+    <div id="auditoriaTableWrap"></div>
+  `;
+  renderAuditoriaTable();
+}
+
+function renderAuditoriaTable() {
+  const wrap = document.getElementById('auditoriaTableWrap');
+  const getters = {
+    fecha: l => l.fecha || '',
+    usuario_nombre: l => l.usuario_nombre || '',
+    rol: l => ROLES_LABEL[l.rol] || l.rol || '',
+    accion: l => l.accion || '',
+    entidad: l => l.entidad || '',
+    detalle: l => l.detalle || ''
+  };
+  const lista = state.sortAuditoria.col ? sortRows(state.log, state.sortAuditoria, getters) : state.log;
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha','fecha','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Usuario','usuario_nombre','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Rol','rol','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Acción','accion','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Entidad','entidad','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Detalle','detalle','sortAuditoria','renderAuditoriaTable')}
+      </tr></thead>
+      <tbody>${lista.map(l => `
         <tr>
           <td>${new Date(l.fecha).toLocaleString('es-MX')}</td>
           <td>${esc(l.usuario_nombre)}</td>
@@ -1086,8 +1344,7 @@ function renderAuditoria() {
           <td>${esc(l.detalle||'')}</td>
         </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin movimientos registrados todavía.</td></tr>`}
       </tbody>
-    </table></div>
-  `;
+    </table></div>`;
 }
 
 /* ---------------- Vista: Exportar ---------------- */
