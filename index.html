@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control CxP — Grupo Nero</title>
+<style>
+  :root{
+    --brand:#4f46e5; --brand-dark:#4338ca; --brand-light:#eef0fd;
+    --bg:#f9f9f7; --surface:#ffffff; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+    --border:#e1e0d9; --good:#0ca30c; --warning:#b8860b; --serious:#c2531f; --critical:#d03b3b;
+    --good-bg:#e9f8e9; --warning-bg:#fef6e4; --serious-bg:#fdece3; --critical-bg:#fbe7e7;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;}
+  .hidden{display:none !important;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;font-size:14px;}
+
+  /* ---- Login ---- */
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,var(--brand) 0%,var(--brand-dark) 100%);}
+  .loginCard{background:var(--surface);border-radius:14px;padding:36px 32px;width:340px;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .loginCard h1{font-size:20px;margin:0 0 2px;color:var(--brand);}
+  .loginCard .sub{color:var(--muted);font-size:13px;margin:0 0 20px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px;font-weight:600;}
+  .field input, .field select{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+  .field input:focus, .field select:focus{outline:2px solid var(--brand-light);border-color:var(--brand);}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:1px solid transparent;font-weight:600;font-size:13px;}
+  .btn-primary{background:var(--brand);color:#fff;width:100%;justify-content:center;}
+  .btn-primary:hover{background:var(--brand-dark);}
+  .btn-ghost{background:transparent;color:var(--ink-2);border-color:var(--border);}
+  .btn-ghost:hover{background:#f2f2f0;}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px;}
+  .btn-danger{background:var(--critical-bg);color:var(--critical);}
+  .btn-ok{background:var(--good-bg);color:var(--good);}
+  .loginErr{background:var(--critical-bg);color:var(--critical);padding:8px 10px;border-radius:8px;font-size:12px;margin-bottom:12px;}
+  .footNote{text-align:center;color:var(--muted);font-size:11px;margin-top:18px;}
+
+  /* ---- App shell ---- */
+  header.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+  .brand .titles{line-height:1.15;}
+  .brand .titles b{display:block;font-size:14px;}
+  .brand .titles span{font-size:11px;color:var(--muted);}
+  .who{display:flex;align-items:center;gap:12px;}
+  .who .name{text-align:right;line-height:1.1;}
+  .who .name b{display:block;font-size:13px;}
+  .who .name span{font-size:11px;color:var(--muted);}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--brand-light);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;}
+
+  nav.tabs{display:flex;gap:4px;padding:8px 16px 0;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;position:sticky;top:55px;z-index:19;}
+  nav.tabs button{background:transparent;border:none;padding:9px 14px;font-size:13px;color:var(--ink-2);border-bottom:2px solid transparent;white-space:nowrap;font-weight:600;}
+  nav.tabs button.active{color:var(--brand);border-bottom-color:var(--brand);}
+  nav.tabs button:hover{color:var(--brand);}
+
+  main{padding:18px 20px 60px;max-width:1280px;margin:0 auto;}
+  .viewTitle{font-size:18px;margin:4px 0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .viewTitle .actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;}
+  .cardTitle{font-size:13px;font-weight:700;color:var(--ink-2);margin:0 0 12px;text-transform:uppercase;letter-spacing:.03em;}
+
+  /* KPI tiles */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+  .kpi .label{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .kpi .value{font-size:24px;font-weight:700;}
+  .kpi.alert .value{color:var(--critical);}
+  .kpi.warn .value{color:var(--warning);}
+
+  /* charts grid */
+  .chartsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;}
+  .chartEmpty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center;}
+  .barRow{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+  .barRow .barLbl{width:110px;flex:0 0 110px;font-size:12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .barRow .barTrack{flex:1;background:#f2f2f0;border-radius:5px;height:16px;position:relative;}
+  .barRow .barFill{height:100%;border-radius:5px;background:var(--brand);}
+  .barRow .barVal{width:92px;flex:0 0 92px;text-align:right;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;}
+
+  /* filters */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;}
+  .filters .f{display:flex;flex-direction:column;gap:4px;}
+  .filters .f label{font-size:11px;color:var(--muted);font-weight:600;}
+  .filters input, .filters select{padding:7px 8px;border:1px solid var(--border);border-radius:7px;min-width:130px;}
+  .filters .fGrow{flex:1;min-width:180px;}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);border-bottom:1px solid var(--border);padding:8px 10px;white-space:nowrap;}
+  table td{padding:9px 10px;border-bottom:1px solid #f0efec;vertical-align:middle;}
+  table tr:hover td{background:#fafaf9;}
+  .tableWrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+  .num{font-variant-numeric:tabular-nums;text-align:right;}
+  .rowActions{display:flex;gap:6px;justify-content:flex-end;}
+  .emptyState{padding:30px;text-align:center;color:var(--muted);}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+  .badge-good{background:var(--good-bg);color:var(--good);}
+  .badge-warning{background:var(--warning-bg);color:var(--warning);}
+  .badge-serious{background:var(--serious-bg);color:var(--serious);}
+  .badge-critical{background:var(--critical-bg);color:var(--critical);}
+  .badge-muted{background:#f0efec;color:var(--ink-2);}
+
+  /* modal */
+  #modalOverlay{position:fixed;inset:0;background:rgba(11,11,11,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  #modalBox{background:var(--surface);border-radius:14px;padding:20px;width:440px;max-width:100%;max-height:88vh;overflow-y:auto;}
+  #modalBox h2{margin:0 0 14px;font-size:16px;}
+  .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .formGrid .full{grid-column:1 / -1;}
+
+  /* toast */
+  #toastContainer{position:fixed;bottom:16px;right:16px;display:flex;flex-direction:column;gap:8px;z-index:60;}
+  .toast{background:var(--ink);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;box-shadow:0 6px 16px rgba(0,0,0,.2);max-width:320px;}
+  .toast.error{background:var(--critical);}
+  .toast.ok{background:var(--good);}
+
+  .loadingOverlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:40;}
+  .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  @media (max-width:640px){
+    .formGrid{grid-template-columns:1fr;}
+    .who .name{display:none;}
+  }
+</style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginScreen">
+    <form class="loginCard" id="loginForm">
+      <h1>Control CxP</h1>
+      <p class="sub">Grupo Nero</p>
+      <div id="loginError" class="loginErr hidden"></div>
+      <div class="field">
+        <label>Usuario</label>
+        <input type="text" id="loginUsuario" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="loginPin" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
+      <p class="footNote">v5.0 · Datos seguros en Google Sheets</p>
+    </form>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">CxP</div>
+        <div class="titles"><b>Control CxP</b><span>GrupoNero</span></div>
+      </div>
+      <div class="who">
+        <div class="name"><b id="whoNombre">—</b><span id="whoRol">—</span></div>
+        <div class="avatar" id="whoAvatar">—</div>
+        <button class="btn btn-ghost btn-sm" onclick="logout()">Cerrar sesión</button>
+      </div>
+    </header>
+    <nav class="tabs" id="tabs"></nav>
+    <main id="main"></main>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modalOverlay" class="hidden">
+    <div id="modalBox"></div>
+  </div>
+
+  <!-- TOASTS -->
+  <div id="toastContainer"></div>
+
+  <!-- LOADING -->
+  <div class="loadingOverlay hidden" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div>Cargando…</div>
+  </div>
+
+<script>
+/* =========================================================
+   CxP Portal — Grupo Nero — Frontend v5.0
+   Backend: Google Apps Script Web App (ver Code.gs)
+   ========================================================= */
+
+const API_URL = 'https://script.google.com/macros/s/AKfycbwcWXBtZqChQ8ghl4PtQss8wiYAYZzVLfNElYBcd8WBdx0ehDrpK9Yr7iADIOU_agv8TA/exec';
+// Sin almacenamiento local: la sesión vive solo en memoria (variable JS) mientras la
+// pestaña está abierta. Google Sheets es la única base de datos; GitHub Pages solo
+// sirve este HTML estático. Al recargar la página siempre se vuelve a pedir login.
+
+const ROLES_LABEL = { admin:'Administrador', capturista:'Capturista', tesorero:'Tesorero', viewer:'Solo lectura' };
+
+const state = {
+  token: null, nombre: null, rol: null,
+  proveedores: [], cxp: [], pagos: [], config: { cuentas_origen: [] },
+  usuarios: [], log: [],
+  view: 'dashboard',
+  filtrosCxp: { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'todas', texto:'' },
+  filtrosPagos: { estado:'todos' }
+};
+
+/* ---------------- API ---------------- */
+
+async function api(action, payload) {
+  const body = { action, token: state.token, payload: payload || {} };
+  let res;
+  try {
+    res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS en Apps Script
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    throw new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
+  }
+  let json;
+  try { json = await res.json(); }
+  catch (err) { throw new Error('Respuesta inválida del servidor.'); }
+  if (!json.ok) throw new Error(json.error || 'Error desconocido.');
+  return json;
+}
+
+/* ---------------- Sesión (solo en memoria, nada en disco/local) ---------------- */
+
+async function login(usuario, pin) {
+  const r = await api('login', { usuario, pin });
+  state.token = r.token; state.nombre = r.nombre; state.rol = r.rol;
+  await bootApp();
+}
+
+async function logout() {
+  try { await api('logout', {}); } catch (e) {}
+  location.reload();
+}
+
+/* ---------------- Carga de datos ---------------- */
+
+async function loadData() {
+  const r = await api('getData', {});
+  state.proveedores = r.proveedores; state.cxp = r.cxp; state.pagos = r.pagos; state.config = r.config;
+}
+
+async function loadUsuarios() {
+  const r = await api('getUsuarios', {});
+  state.usuarios = r.usuarios;
+}
+
+async function loadLog() {
+  const r = await api('getLog', {});
+  state.log = r.log;
+}
+
+/* ---------------- Helpers de dominio ---------------- */
+
+function proveedorNombre(id) {
+  const p = state.proveedores.find(p => String(p.id) === String(id));
+  return p ? p.nombre : '(sin proveedor)';
+}
+
+function pagosDeCxp(cxpId) {
+  return state.pagos.filter(p => String(p.cxp_id) === String(cxpId));
+}
+
+function saldoCxp(cxpId, monto) {
+  const pagado = pagosDeCxp(cxpId).reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  return (Number(monto) || 0) - pagado;
+}
+
+function diasEntre(a, b) { return Math.round((a - b) / 86400000); }
+
+function estadoCxp(c) {
+  const saldo = saldoCxp(c.id, c.monto);
+  if (saldo <= 0.01) return 'liquidada';
+  if (!c.fecha_vencimiento) return 'vigente';
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
+  const dias = diasEntre(fv, hoy); // positivo = vencida hace N días
+  if (dias > 0) return 'vencida';
+  if (dias >= -7) return 'proxima';
+  return 'vigente';
+}
+
+function badgeEstadoCxp(estado) {
+  const map = {
+    liquidada: ['badge-good', 'Liquidada'],
+    vencida:   ['badge-critical', 'Vencida'],
+    proxima:   ['badge-warning', 'Por vencer'],
+    vigente:   ['badge-muted', 'Vigente']
+  };
+  const [cls, label] = map[estado] || map.vigente;
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function badgeEstadoPago(p) {
+  if (p.estado === 'pendiente_validacion') return `<span class="badge badge-warning">Pendiente de validar</span>`;
+  return `<span class="badge badge-good">Validado</span>`;
+}
+
+function money(n) {
+  n = Number(n) || 0;
+  return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtFecha(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt)) return String(d);
+  return dt.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function can(roles) { return roles.includes(state.rol); }
+
+/* ---------------- UI: shell, nav, toasts, modal, loading ---------------- */
+
+function showLoading(v) { document.getElementById('loadingOverlay').classList.toggle('hidden', !v); }
+
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+function openModal(html) {
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
+
+const TABS = [
+  { id:'dashboard',   label:'Dashboard',        roles:['admin','capturista','tesorero','viewer'] },
+  { id:'cxp',         label:'Cuentas × Pagar',  roles:['admin','capturista','tesorero','viewer'] },
+  { id:'proveedores', label:'Proveedores',      roles:['admin','capturista','tesorero','viewer'] },
+  { id:'pagos',       label:'Pagos Realizados', roles:['admin','capturista','tesorero','viewer'] },
+  { id:'aging',       label:'Antigüedad',       roles:['admin','capturista','tesorero','viewer'] },
+  { id:'cuentas',     label:'Mis Cuentas',      roles:['admin'] },
+  { id:'usuarios',    label:'Usuarios',         roles:['admin'] },
+  { id:'auditoria',   label:'Auditoría',        roles:['admin'] },
+  { id:'exportar',    label:'Exportar',         roles:['admin','capturista','tesorero','viewer'] }
+];
+
+function renderTabs() {
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = TABS.filter(t => can(t.roles)).map(t =>
+    `<button data-tab="${t.id}" class="${state.view === t.id ? 'active' : ''}" onclick="setView('${t.id}')">${t.label}</button>`
+  ).join('');
+}
+
+async function setView(view) {
+  state.view = view;
+  renderTabs();
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  try {
+    if (view === 'dashboard')   renderDashboard();
+    else if (view === 'cxp')    renderCxp();
+    else if (view === 'proveedores') renderProveedores();
+    else if (view === 'pagos')  renderPagos();
+    else if (view === 'aging')  renderAging();
+    else if (view === 'cuentas') renderCuentas();
+    else if (view === 'usuarios') { showLoading(true); await loadUsuarios(); showLoading(false); renderUsuarios(); }
+    else if (view === 'auditoria') { showLoading(true); await loadLog(); showLoading(false); renderAuditoria(); }
+    else if (view === 'exportar') renderExportar();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+/* ---------------- Gráficas (SVG inline, sin dependencias externas) ---------------- */
+
+function svgBarChart(data, opts) {
+  opts = opts || {};
+  const color = opts.color || '#4f46e5';
+  if (!data.length) return `<div class="chartEmpty">Sin datos para mostrar.</div>`;
+  const max = Math.max(...data.map(d => d.value), 1);
+  return data.map(d => {
+    const pct = Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0);
+    return `<div class="barRow">
+      <div class="barLbl" title="${esc(d.label)}">${esc(d.label)}</div>
+      <div class="barTrack"><div class="barFill" style="width:${pct}%;background:${color}" title="${esc(d.label)}: ${esc(opts.fmt ? opts.fmt(d.value) : d.value)}"></div></div>
+      <div class="barVal">${opts.fmt ? opts.fmt(d.value) : d.value}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- Vista: Dashboard ---------------- */
+
+function renderDashboard() {
+  const pendientes = state.cxp.map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c) }))
+    .filter(c => c.saldo > 0.01);
+
+  const totalPendiente = pendientes.reduce((s, c) => s + c.saldo, 0);
+  const totalVencido = pendientes.filter(c => c.est === 'vencida').reduce((s, c) => s + c.saldo, 0);
+  const totalProximo = pendientes.filter(c => c.est === 'proxima').reduce((s, c) => s + c.saldo, 0);
+  const totalValidar = state.pagos.filter(p => p.estado === 'pendiente_validacion').length;
+
+  // Por sucursal
+  const porSucursal = {};
+  pendientes.forEach(c => { const key = c.sucursal || '(sin sucursal)'; porSucursal[key] = (porSucursal[key] || 0) + c.saldo; });
+  const dataSucursal = Object.entries(porSucursal).sort((a,b) => b[1]-a[1]).map(([label,value]) => ({label,value}));
+
+  // Top 5 proveedores
+  const porProveedor = {};
+  pendientes.forEach(c => { const key = c.proveedor_id; porProveedor[key] = (porProveedor[key] || 0) + c.saldo; });
+  const dataProveedor = Object.entries(porProveedor)
+    .map(([id,value]) => ({ label: proveedorNombre(id), value }))
+    .sort((a,b) => b.value-a.value).slice(0,5);
+
+  // Flujo de pagos por semana del mes actual
+  const hoy = new Date();
+  const mesActual = hoy.getMonth(), anioActual = hoy.getFullYear();
+  const semanas = [0,0,0,0,0];
+  state.pagos.forEach(p => {
+    if (!p.fecha) return;
+    const f = new Date(p.fecha);
+    if (f.getMonth() !== mesActual || f.getFullYear() !== anioActual) return;
+    const semana = Math.min(4, Math.floor((f.getDate() - 1) / 7));
+    semanas[semana] += Number(p.monto) || 0;
+  });
+  const dataSemanas = semanas.map((v,i) => ({ label: 'Semana ' + (i+1), value: v }));
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Dashboard</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Total pendiente</div><div class="value">${money(totalPendiente)}</div></div>
+      <div class="kpi alert"><div class="label">Vencido</div><div class="value">${money(totalVencido)}</div></div>
+      <div class="kpi warn"><div class="label">Por vencer (7 días)</div><div class="value">${money(totalProximo)}</div></div>
+      <div class="kpi ${totalValidar ? 'warn' : ''}"><div class="label">Pagos por validar</div><div class="value">${totalValidar}</div></div>
+    </div>
+    <div class="chartsGrid">
+      <div class="card"><div class="cardTitle">Pendiente por sucursal</div>${svgBarChart(dataSucursal, { fmt: money })}</div>
+      <div class="card"><div class="cardTitle">Top 5 proveedores (saldo pendiente)</div>${svgBarChart(dataProveedor, { fmt: money, color:'#eb6834' })}</div>
+      <div class="card"><div class="cardTitle">Flujo de pagos — ${hoy.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</div>${svgBarChart(dataSemanas, { fmt: money, color:'#1baf7a' })}</div>
+    </div>
+  `;
+}
+
+/* ---------------- Vista: Cuentas × Pagar ---------------- */
+
+function cxpFiltradas() {
+  const f = state.filtrosCxp;
+  return state.cxp.map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c), provNombre: proveedorNombre(c.proveedor_id) }))
+    .filter(c => {
+      if (f.sucursal && c.sucursal !== f.sucursal) return false;
+      if (f.proveedor && String(c.proveedor_id) !== String(f.proveedor)) return false;
+      if (f.desde && (!c.fecha_vencimiento || c.fecha_vencimiento < f.desde)) return false;
+      if (f.hasta && (!c.fecha_vencimiento || c.fecha_vencimiento > f.hasta)) return false;
+      if (f.estado === 'vencidas' && c.est !== 'vencida') return false;
+      if (f.estado === 'urgentes' && !(c.est === 'vencida' || c.est === 'proxima')) return false;
+      if (f.estado === 'pendientes' && c.saldo <= 0.01) return false;
+      if (f.estado === 'liquidadas' && c.est !== 'liquidada') return false;
+      if (f.texto) {
+        const t = f.texto.toLowerCase();
+        const hay = (c.concepto || '') + ' ' + c.provNombre + ' ' + (c.folio || '') + ' ' + (c.sucursal || '');
+        if (!hay.toLowerCase().includes(t)) return false;
+      }
+      return true;
+    })
+    .sort((a,b) => (a.fecha_vencimiento||'').localeCompare(b.fecha_vencimiento||''));
+}
+
+function renderCxp() {
+  const sucursales = [...new Set(state.cxp.map(c => c.sucursal).filter(Boolean))].sort();
+  const lista = cxpFiltradas();
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle">
+      <span>Cuentas × Pagar</span>
+      <div class="actions">${can(['admin','capturista']) ? `<button class="btn btn-primary btn-sm" onclick="formCxp()">+ Nueva CxP</button>` : ''}</div>
+    </div>
+    <div class="filters">
+      <div class="f fGrow"><label>Buscar</label><input id="fTexto" placeholder="Proveedor, concepto, folio…" value="${esc(state.filtrosCxp.texto)}" oninput="state.filtrosCxp.texto=this.value; renderCxpTable();"></div>
+      <div class="f"><label>Sucursal</label><select id="fSucursal" onchange="state.filtrosCxp.sucursal=this.value; renderCxpTable();">
+        <option value="">Todas</option>${sucursales.map(s => `<option value="${esc(s)}" ${state.filtrosCxp.sucursal===s?'selected':''}>${esc(s)}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Proveedor</label><select id="fProveedor" onchange="state.filtrosCxp.proveedor=this.value; renderCxpTable();">
+        <option value="">Todos</option>${state.proveedores.map(p => `<option value="${p.id}" ${String(state.filtrosCxp.proveedor)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Vence desde</label><input type="date" value="${esc(state.filtrosCxp.desde)}" onchange="state.filtrosCxp.desde=this.value; renderCxpTable();"></div>
+      <div class="f"><label>Vence hasta</label><input type="date" value="${esc(state.filtrosCxp.hasta)}" onchange="state.filtrosCxp.hasta=this.value; renderCxpTable();"></div>
+      <div class="f"><label>Estado</label><select onchange="state.filtrosCxp.estado=this.value; renderCxpTable();">
+        <option value="todas" ${state.filtrosCxp.estado==='todas'?'selected':''}>Todas</option>
+        <option value="pendientes" ${state.filtrosCxp.estado==='pendientes'?'selected':''}>Con saldo pendiente</option>
+        <option value="vencidas" ${state.filtrosCxp.estado==='vencidas'?'selected':''}>Solo vencidas</option>
+        <option value="urgentes" ${state.filtrosCxp.estado==='urgentes'?'selected':''}>Urgentes (vencidas + por vencer)</option>
+        <option value="liquidadas" ${state.filtrosCxp.estado==='liquidadas'?'selected':''}>Liquidadas</option>
+      </select></div>
+      <div class="f"><button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosCxp()">Limpiar</button></div>
+    </div>
+    <div id="cxpTableWrap"></div>
+  `;
+  renderCxpTable();
+}
+
+function limpiarFiltrosCxp() {
+  state.filtrosCxp = { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'todas', texto:'' };
+  renderCxp();
+}
+
+function renderCxpTable() {
+  const lista = cxpFiltradas();
+  const wrap = document.getElementById('cxpTableWrap');
+  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin resultados con los filtros actuales.</div></div>`; return; }
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr><th>Proveedor</th><th>Concepto</th><th>Sucursal</th><th>Vence</th><th>Monto</th><th>Saldo</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${lista.map(c => `
+      <tr>
+        <td>${esc(c.provNombre)}</td>
+        <td>${esc(c.concepto || '')}</td>
+        <td>${esc(c.sucursal || '')}</td>
+        <td>${fmtFecha(c.fecha_vencimiento)}</td>
+        <td class="num">${money(c.monto)}</td>
+        <td class="num">${money(c.saldo)}</td>
+        <td>${badgeEstadoCxp(c.est)}</td>
+        <td><div class="rowActions">
+          ${can(['admin','capturista','tesorero']) && c.saldo > 0.01 ? `<button class="btn btn-ok btn-sm" onclick="formPago('${c.id}')">Registrar pago</button>` : ''}
+          ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="formCxp('${c.id}')">Editar</button>` : ''}
+          ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('cxp','${c.id}','esta CxP')">Eliminar</button>` : ''}
+        </div></td>
+      </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function formCxp(id) {
+  const c = id ? state.cxp.find(x => String(x.id) === String(id)) : null;
+  openModal(`
+    <h2>${c ? 'Editar' : 'Nueva'} Cuenta por Pagar</h2>
+    <form id="cxpForm" onsubmit="return guardarCxp(event, '${id || ''}')">
+      <div class="formGrid">
+        <div class="field full"><label>Proveedor</label>
+          <select id="cxp_proveedor_id" required>${state.proveedores.map(p => `<option value="${p.id}" ${c && String(c.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select>
+        </div>
+        <div class="field full"><label>Concepto</label><input id="cxp_concepto" value="${esc(c?.concepto||'')}" required></div>
+        <div class="field"><label>Monto</label><input type="number" step="0.01" id="cxp_monto" value="${c?.monto||''}" required></div>
+        <div class="field"><label>Sucursal</label><input id="cxp_sucursal" value="${esc(c?.sucursal||'')}"></div>
+        <div class="field"><label>Fecha factura</label><input type="date" id="cxp_fecha_factura" value="${esc(c?.fecha_factura||'')}"></div>
+        <div class="field"><label>Fecha vencimiento</label><input type="date" id="cxp_fecha_vencimiento" value="${esc(c?.fecha_vencimiento||'')}" required></div>
+        <div class="field"><label>Folio</label><input id="cxp_folio" value="${esc(c?.folio||'')}"></div>
+        <div class="field"><label>UUID CFDI</label><input id="cxp_uuid_cfdi" value="${esc(c?.uuid_cfdi||'')}"></div>
+        <div class="field full"><label>Notas</label><input id="cxp_notas" value="${esc(c?.notas||'')}"></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarCxp(ev, id) {
+  ev.preventDefault();
+  const record = {
+    id: id || ('cxp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
+    proveedor_id: document.getElementById('cxp_proveedor_id').value,
+    concepto: document.getElementById('cxp_concepto').value,
+    monto: document.getElementById('cxp_monto').value,
+    sucursal: document.getElementById('cxp_sucursal').value,
+    fecha_factura: document.getElementById('cxp_fecha_factura').value,
+    fecha_vencimiento: document.getElementById('cxp_fecha_vencimiento').value,
+    folio: document.getElementById('cxp_folio').value,
+    uuid_cfdi: document.getElementById('cxp_uuid_cfdi').value,
+    notas: document.getElementById('cxp_notas').value
+  };
+  try {
+    showLoading(true);
+    await api('save', { entity: 'cxp', record });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('CxP guardada correctamente.', 'ok');
+    renderCxp();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  return false;
+}
+
+/* ---------------- Registrar / validar pagos ---------------- */
+
+function formPago(cxpId) {
+  const c = state.cxp.find(x => String(x.id) === String(cxpId));
+  const saldo = saldoCxp(cxpId, c.monto);
+  const cuentas = state.config.cuentas_origen || [];
+  openModal(`
+    <h2>Registrar pago — ${esc(proveedorNombre(c.proveedor_id))}</h2>
+    <p style="color:var(--muted);font-size:12px;margin-top:-8px">Saldo pendiente: <b>${money(saldo)}</b></p>
+    <form onsubmit="return guardarPago(event, '${cxpId}')">
+      <div class="formGrid">
+        <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${saldo}" required></div>
+        <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${new Date().toISOString().slice(0,10)}" required></div>
+        <div class="field full"><label>Cuenta de origen</label>
+          <select id="pg_cuenta_id">
+            <option value="">(no especificada)</option>
+            ${cuentas.map(cu => `<option value="${cu.id}">${esc(cu.nombre || cu.banco || cu.id)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field full"><label>Referencia</label><input id="pg_referencia"></div>
+        <div class="field full"><label>Banco origen</label><input id="pg_banco_origen"></div>
+        <div class="field full"><label>Notas</label><input id="pg_notas"></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted)">${state.rol === 'admin' ? 'Como administrador, este pago quedará validado automáticamente.' : 'Este pago quedará pendiente de validación por el administrador.'}</p>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar pago</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarPago(ev, cxpId) {
+  ev.preventDefault();
+  const record = {
+    id: 'pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    cxp_id: cxpId,
+    cuenta_id: document.getElementById('pg_cuenta_id').value,
+    monto: document.getElementById('pg_monto').value,
+    fecha: document.getElementById('pg_fecha').value,
+    referencia: document.getElementById('pg_referencia').value,
+    banco_origen: document.getElementById('pg_banco_origen').value,
+    notas: document.getElementById('pg_notas').value
+  };
+  try {
+    showLoading(true);
+    await api('save', { entity: 'pagos', record });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Pago registrado.', 'ok');
+    setView(state.view);
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  return false;
+}
+
+function confirmarValidarPago(id) {
+  openModal(`
+    <h2>Validar pago</h2>
+    <p>¿Confirmas que este pago fue capturado correctamente y debe marcarse como <b>validado</b>?</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-ok" onclick="validarPago('${id}')">Confirmar</button>
+    </div>
+  `);
+}
+
+async function validarPago(id) {
+  try {
+    showLoading(true);
+    await api('validarPago', { id });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Pago validado.', 'ok');
+    renderPagos();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Vista: Pagos Realizados ---------------- */
+
+function renderPagos() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Pagos Realizados</span></div>
+    <div class="filters">
+      <div class="f"><label>Estado</label><select onchange="state.filtrosPagos.estado=this.value; renderPagosTable();">
+        <option value="todos" ${state.filtrosPagos.estado==='todos'?'selected':''}>Todos</option>
+        <option value="pendiente_validacion" ${state.filtrosPagos.estado==='pendiente_validacion'?'selected':''}>Pendientes de validar</option>
+        <option value="validado" ${state.filtrosPagos.estado==='validado'?'selected':''}>Validados</option>
+      </select></div>
+    </div>
+    <div id="pagosTableWrap"></div>
+  `;
+  renderPagosTable();
+}
+
+function renderPagosTable() {
+  let lista = [...state.pagos].sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+  if (state.filtrosPagos.estado !== 'todos') lista = lista.filter(p => (p.estado || 'validado') === state.filtrosPagos.estado);
+  const wrap = document.getElementById('pagosTableWrap');
+  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin pagos registrados.</div></div>`; return; }
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Monto</th><th>Referencia</th><th>Capturó</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${lista.map(p => {
+      const c = state.cxp.find(x => String(x.id) === String(p.cxp_id));
+      return `<tr>
+        <td>${fmtFecha(p.fecha)}</td>
+        <td>${esc(c ? proveedorNombre(c.proveedor_id) : '—')}</td>
+        <td>${esc(c ? c.concepto : '—')}</td>
+        <td class="num">${money(p.monto)}</td>
+        <td>${esc(p.referencia || '—')}</td>
+        <td>${esc(p.capturado_por || '—')}</td>
+        <td>${badgeEstadoPago(p)}</td>
+        <td><div class="rowActions">
+          ${can(['admin']) && p.estado === 'pendiente_validacion' ? `<button class="btn btn-ok btn-sm" onclick="confirmarValidarPago('${p.id}')">✓ Validar</button>` : ''}
+          ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('pagos','${p.id}','este pago')">Eliminar</button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+/* ---------------- Vista: Antigüedad de saldos (Aging) ---------------- */
+
+function renderAging() {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const buckets = { vigente:{}, b30:{}, b60:{}, b90:{}, b90p:{} };
+  const totales = { vigente:0, b30:0, b60:0, b90:0, b90p:0 };
+
+  state.cxp.forEach(c => {
+    const saldo = saldoCxp(c.id, c.monto);
+    if (saldo <= 0.01) return;
+    const prov = proveedorNombre(c.proveedor_id);
+    let bucket = 'vigente';
+    if (c.fecha_vencimiento) {
+      const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
+      const dias = diasEntre(hoy, fv);
+      if (dias > 90) bucket = 'b90p';
+      else if (dias > 60) bucket = 'b90';
+      else if (dias > 30) bucket = 'b60';
+      else if (dias > 0) bucket = 'b30';
+      else bucket = 'vigente';
+    }
+    buckets[bucket][prov] = (buckets[bucket][prov] || 0) + saldo;
+    totales[bucket] += saldo;
+  });
+
+  const proveedoresConSaldo = [...new Set([
+    ...Object.keys(buckets.vigente), ...Object.keys(buckets.b30), ...Object.keys(buckets.b60),
+    ...Object.keys(buckets.b90), ...Object.keys(buckets.b90p)
+  ])].sort();
+
+  const totalGeneral = Object.values(totales).reduce((a,b) => a+b, 0);
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Antigüedad de saldos (Aging)</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Vigente</div><div class="value">${money(totales.vigente)}</div></div>
+      <div class="kpi"><div class="label">1–30 días</div><div class="value">${money(totales.b30)}</div></div>
+      <div class="kpi warn"><div class="label">31–60 días</div><div class="value">${money(totales.b60)}</div></div>
+      <div class="kpi warn"><div class="label">61–90 días</div><div class="value">${money(totales.b90)}</div></div>
+      <div class="kpi alert"><div class="label">+90 días</div><div class="value">${money(totales.b90p)}</div></div>
+    </div>
+    ${!proveedoresConSaldo.length ? `<div class="tableWrap"><div class="emptyState">No hay saldos pendientes. 🎉</div></div>` : `
+    <div class="tableWrap"><table>
+      <thead><tr><th>Proveedor</th><th>Vigente</th><th>1–30</th><th>31–60</th><th>61–90</th><th>+90</th><th>Total</th></tr></thead>
+      <tbody>${proveedoresConSaldo.map(prov => {
+        const v = buckets.vigente[prov]||0, b30 = buckets.b30[prov]||0, b60 = buckets.b60[prov]||0, b90 = buckets.b90[prov]||0, b90p = buckets.b90p[prov]||0;
+        const total = v+b30+b60+b90+b90p;
+        return `<tr><td>${esc(prov)}</td><td class="num">${money(v)}</td><td class="num">${money(b30)}</td><td class="num">${money(b60)}</td><td class="num">${money(b90)}</td><td class="num" style="color:var(--critical);font-weight:700">${money(b90p)}</td><td class="num" style="font-weight:700">${money(total)}</td></tr>`;
+      }).join('')}
+      <tr style="font-weight:700;background:#fafaf9"><td>Total</td><td class="num">${money(totales.vigente)}</td><td class="num">${money(totales.b30)}</td><td class="num">${money(totales.b60)}</td><td class="num">${money(totales.b90)}</td><td class="num">${money(totales.b90p)}</td><td class="num">${money(totalGeneral)}</td></tr>
+      </tbody>
+    </table></div>`}
+  `;
+}
+
+/* ---------------- Vista: Proveedores ---------------- */
+
+function renderProveedores() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Proveedores</span>
+      <div class="actions">${can(['admin']) ? `<button class="btn btn-primary btn-sm" onclick="formProveedor()">+ Nuevo proveedor</button>` : ''}</div>
+    </div>
+    <div class="tableWrap"><table>
+      <thead><tr><th>Nombre</th><th>RFC</th><th>Email</th><th>Teléfono</th><th>Cuentas</th><th></th></tr></thead>
+      <tbody>${state.proveedores.map(p => `
+        <tr>
+          <td>${esc(p.nombre)}</td><td>${esc(p.rfc||'—')}</td><td>${esc(p.email||'—')}</td><td>${esc(p.telefono||'—')}</td>
+          <td>${(p.cuentas||[]).length}</td>
+          <td><div class="rowActions">
+            ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
+            ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor (y sus CxP/pagos)')">Eliminar</button>` : ''}
+          </div></td>
+        </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin proveedores.</td></tr>`}
+      </tbody>
+    </table></div>
+  `;
+}
+
+function formProveedor(id) {
+  const p = id ? state.proveedores.find(x => String(x.id) === String(id)) : null;
+  openModal(`
+    <h2>${p ? 'Editar' : 'Nuevo'} proveedor</h2>
+    <form onsubmit="return guardarProveedor(event, '${id||''}')">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre</label><input id="pv_nombre" value="${esc(p?.nombre||'')}" required></div>
+        <div class="field"><label>RFC</label><input id="pv_rfc" value="${esc(p?.rfc||'')}"></div>
+        <div class="field"><label>Email</label><input type="email" id="pv_email" value="${esc(p?.email||'')}"></div>
+        <div class="field"><label>Teléfono</label><input id="pv_telefono" value="${esc(p?.telefono||'')}"></div>
+        <div class="field full"><label>Notas</label><input id="pv_notas" value="${esc(p?.notas||'')}"></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarProveedor(ev, id) {
+  ev.preventDefault();
+  const existente = id ? state.proveedores.find(x => String(x.id) === String(id)) : null;
+  const record = {
+    id: id || ('prov_' + Date.now()),
+    nombre: document.getElementById('pv_nombre').value,
+    rfc: document.getElementById('pv_rfc').value,
+    email: document.getElementById('pv_email').value,
+    telefono: document.getElementById('pv_telefono').value,
+    notas: document.getElementById('pv_notas').value,
+    cuentas: existente ? existente.cuentas : []
+  };
+  try {
+    showLoading(true);
+    await api('save', { entity: 'prov', record });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Proveedor guardado.', 'ok');
+    renderProveedores();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  return false;
+}
+
+/* ---------------- Vista: Mis Cuentas (cuentas de origen) ---------------- */
+
+function renderCuentas() {
+  const cuentas = state.config.cuentas_origen || [];
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Mis Cuentas</span>
+      <div class="actions"><button class="btn btn-primary btn-sm" onclick="formCuenta()">+ Nueva cuenta</button></div>
+    </div>
+    <div class="tableWrap"><table>
+      <thead><tr><th>Nombre</th><th>Banco</th><th>Número / CLABE</th><th></th></tr></thead>
+      <tbody>${cuentas.map(c => `
+        <tr><td>${esc(c.nombre||'')}</td><td>${esc(c.banco||'')}</td><td>${esc(c.numero||'')}</td>
+        <td><div class="rowActions">
+          <button class="btn btn-ghost btn-sm" onclick="formCuenta('${c.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarCuenta('${c.id}')">Eliminar</button>
+        </div></td></tr>`).join('') || `<tr><td colspan="4" class="emptyState">Sin cuentas registradas.</td></tr>`}
+      </tbody>
+    </table></div>
+  `;
+}
+
+function formCuenta(id) {
+  const cuentas = state.config.cuentas_origen || [];
+  const c = id ? cuentas.find(x => String(x.id) === String(id)) : null;
+  openModal(`
+    <h2>${c ? 'Editar' : 'Nueva'} cuenta</h2>
+    <form onsubmit="return guardarCuenta(event, '${id||''}')">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre / alias</label><input id="ct_nombre" value="${esc(c?.nombre||'')}" required></div>
+        <div class="field"><label>Banco</label><input id="ct_banco" value="${esc(c?.banco||'')}"></div>
+        <div class="field"><label>Número / CLABE</label><input id="ct_numero" value="${esc(c?.numero||'')}"></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarCuenta(ev, id) {
+  ev.preventDefault();
+  const cuentas = [...(state.config.cuentas_origen || [])];
+  const nueva = { id: id || ('cta_' + Date.now()), nombre: document.getElementById('ct_nombre').value, banco: document.getElementById('ct_banco').value, numero: document.getElementById('ct_numero').value };
+  const idx = cuentas.findIndex(c => String(c.id) === String(id));
+  if (idx >= 0) cuentas[idx] = nueva; else cuentas.push(nueva);
+  try {
+    showLoading(true);
+    await api('saveConfig', { cuentas_origen: cuentas });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Cuenta guardada.', 'ok');
+    renderCuentas();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  return false;
+}
+
+async function eliminarCuenta(id) {
+  const cuentas = (state.config.cuentas_origen || []).filter(c => String(c.id) !== String(id));
+  try {
+    showLoading(true);
+    await api('saveConfig', { cuentas_origen: cuentas });
+    await loadData();
+    showLoading(false);
+    toast('Cuenta eliminada.', 'ok');
+    renderCuentas();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Vista: Usuarios ---------------- */
+
+function renderUsuarios() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Usuarios</span>
+      <div class="actions"><button class="btn btn-primary btn-sm" onclick="formUsuario()">+ Nuevo usuario</button></div>
+    </div>
+    <div class="tableWrap"><table>
+      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr></thead>
+      <tbody>${state.usuarios.map(u => `
+        <tr><td>${esc(u.nombre)}</td><td>${esc(u.usuario)}</td><td>${esc(ROLES_LABEL[u.rol] || u.rol)}</td>
+        <td><div class="rowActions">
+          <button class="btn btn-ghost btn-sm" onclick="formUsuario('${u.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmarEliminarUsuario('${u.id}')">Eliminar</button>
+        </div></td></tr>`).join('')}
+      </tbody>
+    </table></div>
+  `;
+}
+
+function formUsuario(id) {
+  const u = id ? state.usuarios.find(x => String(x.id) === String(id)) : null;
+  openModal(`
+    <h2>${u ? 'Editar' : 'Nuevo'} usuario</h2>
+    <form onsubmit="return guardarUsuario(event, '${id||''}')">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre</label><input id="us_nombre" value="${esc(u?.nombre||'')}" required></div>
+        <div class="field"><label>Usuario (login)</label><input id="us_usuario" value="${esc(u?.usuario||'')}" required></div>
+        <div class="field"><label>Rol</label><select id="us_rol">${Object.entries(ROLES_LABEL).map(([k,v]) => `<option value="${k}" ${u?.rol===k?'selected':''}>${v}</option>`).join('')}</select></div>
+        <div class="field full"><label>Contraseña ${u ? '(dejar en blanco para no cambiar)' : ''}</label><input id="us_pin" type="password" ${u?'':'required'}></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarUsuario(ev, id) {
+  ev.preventDefault();
+  const record = {
+    id: id || undefined,
+    nombre: document.getElementById('us_nombre').value,
+    usuario: document.getElementById('us_usuario').value,
+    rol: document.getElementById('us_rol').value,
+    pin: document.getElementById('us_pin').value
+  };
+  try {
+    showLoading(true);
+    await api('saveUsuario', record);
+    await loadUsuarios();
+    closeModal(); showLoading(false);
+    toast('Usuario guardado.', 'ok');
+    renderUsuarios();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  return false;
+}
+
+function confirmarEliminarUsuario(id) {
+  openModal(`
+    <h2>Eliminar usuario</h2>
+    <p>¿Confirmas eliminar a este usuario? No podrá volver a iniciar sesión.</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="eliminarUsuario('${id}')">Eliminar</button>
+    </div>
+  `);
+}
+
+async function eliminarUsuario(id) {
+  try {
+    showLoading(true);
+    await api('deleteUsuario', { id });
+    await loadUsuarios();
+    closeModal(); showLoading(false);
+    toast('Usuario eliminado.', 'ok');
+    renderUsuarios();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Vista: Auditoría ---------------- */
+
+function renderAuditoria() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Auditoría — quién hizo qué y cuándo</span></div>
+    <div class="tableWrap"><table>
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Rol</th><th>Acción</th><th>Entidad</th><th>Detalle</th></tr></thead>
+      <tbody>${state.log.map(l => `
+        <tr>
+          <td>${new Date(l.fecha).toLocaleString('es-MX')}</td>
+          <td>${esc(l.usuario_nombre)}</td>
+          <td>${esc(ROLES_LABEL[l.rol] || l.rol)}</td>
+          <td>${esc(l.accion)}</td>
+          <td>${esc(l.entidad)}${l.entidad_id ? ' · ' + esc(l.entidad_id) : ''}</td>
+          <td>${esc(l.detalle||'')}</td>
+        </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin movimientos registrados todavía.</td></tr>`}
+      </tbody>
+    </table></div>
+  `;
+}
+
+/* ---------------- Vista: Exportar ---------------- */
+
+function renderExportar() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Exportar</span></div>
+    <div class="card">
+      <div class="cardTitle">Descargar datos en CSV</div>
+      <div class="actions" style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="exportarCxpCsv()">Cuentas × Pagar</button>
+        <button class="btn btn-ghost" onclick="exportarPagosCsv()">Pagos Realizados</button>
+        <button class="btn btn-ghost" onclick="exportarProveedoresCsv()">Proveedores</button>
+      </div>
+    </div>
+  `;
+}
+
+function descargarCsv(filename, headers, rows) {
+  const esc2 = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const csv = [headers.map(esc2).join(',')].concat(rows.map(r => r.map(esc2).join(','))).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function exportarCxpCsv() {
+  const rows = state.cxp.map(c => [c.id, proveedorNombre(c.proveedor_id), c.concepto, c.sucursal, c.fecha_factura, c.fecha_vencimiento, c.monto, saldoCxp(c.id, c.monto), c.folio, c.uuid_cfdi]);
+  descargarCsv('cxp_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','fecha_factura','fecha_vencimiento','monto','saldo','folio','uuid_cfdi'], rows);
+}
+function exportarPagosCsv() {
+  const rows = state.pagos.map(p => [p.id, p.cxp_id, p.monto, p.fecha, p.referencia, p.banco_origen, p.capturado_por, p.estado, p.validado_por, p.fecha_validacion]);
+  descargarCsv('pagos_' + new Date().toISOString().slice(0,10) + '.csv', ['id','cxp_id','monto','fecha','referencia','banco_origen','capturado_por','estado','validado_por','fecha_validacion'], rows);
+}
+function exportarProveedoresCsv() {
+  const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc, p.email, p.telefono, p.notas]);
+  descargarCsv('proveedores_' + new Date().toISOString().slice(0,10) + '.csv', ['id','nombre','rfc','email','telefono','notas'], rows);
+}
+
+/* ---------------- Eliminar genérico ---------------- */
+
+function confirmarEliminar(entity, id, descripcion) {
+  openModal(`
+    <h2>Confirmar eliminación</h2>
+    <p>¿Seguro que deseas eliminar ${esc(descripcion)}? Esta acción no se puede deshacer.</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="eliminarRegistro('${entity}','${id}')">Eliminar</button>
+    </div>
+  `);
+}
+
+async function eliminarRegistro(entity, id) {
+  try {
+    showLoading(true);
+    await api('delete', { entity, id });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Eliminado correctamente.', 'ok');
+    setView(state.view);
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Boot ---------------- */
+
+async function bootApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('whoNombre').textContent = state.nombre;
+  document.getElementById('whoRol').textContent = ROLES_LABEL[state.rol] || state.rol;
+  document.getElementById('whoAvatar').textContent = (state.nombre || '?').slice(0,1).toUpperCase();
+  showLoading(true);
+  try {
+    await loadData();
+    showLoading(false);
+    renderTabs();
+    setView('dashboard');
+  } catch (err) {
+    showLoading(false);
+    toast(err.message, 'error');
+    if (/sesión inválida|sesión expirada/i.test(err.message)) { location.reload(); }
+  }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const errBox = document.getElementById('loginError');
+  errBox.classList.add('hidden');
+  btn.textContent = 'Entrando…'; btn.disabled = true;
+  try {
+    await login(document.getElementById('loginUsuario').value.trim(), document.getElementById('loginPin').value.trim());
+  } catch (err) {
+    errBox.textContent = err.message; errBox.classList.remove('hidden');
+  } finally {
+    btn.textContent = 'Iniciar sesión'; btn.disabled = false;
+  }
+});
+
+</script>
+</body>
+</html>
