@@ -277,7 +277,7 @@ function estadoCxp(c) {
   if (!c.fecha_vencimiento) return 'vigente';
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
-  const dias = diasEntre(fv, hoy); // positivo = vencida hace N días
+  const dias = diasEntre(hoy, fv); // positivo = vencida hace N días
   if (dias > 0) return 'vencida';
   if (dias >= -7) return 'proxima';
   return 'vigente';
@@ -531,14 +531,32 @@ function renderCxpTable() {
   </table></div>`;
 }
 
+function opcionesCuentasDestino(provId, selectedId) {
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cuentas = prov?.cuentas || [];
+  if (!cuentas.length) return `<option value="">(el proveedor no tiene cuentas registradas)</option>`;
+  return `<option value="">(sin especificar)</option>` + cuentas.map(cu => {
+    const label = (cu.alias || cu.banco || 'Cuenta') + (cu.banco && cu.alias ? ' — ' + cu.banco : '') + (cu.clabe ? ' (' + cu.clabe + ')' : '');
+    return `<option value="${esc(cu.id)}" ${String(cu.id)===String(selectedId||'')?'selected':''}>${esc(label)}</option>`;
+  }).join('');
+}
+
+function actualizarCuentasDestinoCxp() {
+  const provId = document.getElementById('cxp_proveedor_id').value;
+  const sel = document.getElementById('cxp_cuenta_destino_id');
+  if (sel) sel.innerHTML = opcionesCuentasDestino(provId, '');
+}
+
 function formCxp(id) {
   const c = id ? state.cxp.find(x => String(x.id) === String(id)) : null;
+  const ip = c?.instrucciones_pago || {};
+  const provIdInicial = c?.proveedor_id || (state.proveedores[0] && state.proveedores[0].id) || '';
   openModal(`
     <h2>${c ? 'Editar' : 'Nueva'} Cuenta por Pagar</h2>
     <form id="cxpForm" onsubmit="return guardarCxp(event, '${id || ''}')">
       <div class="formGrid">
         <div class="field full"><label>Proveedor</label>
-          <select id="cxp_proveedor_id" required>${state.proveedores.map(p => `<option value="${p.id}" ${c && String(c.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select>
+          <select id="cxp_proveedor_id" required onchange="actualizarCuentasDestinoCxp()">${state.proveedores.map(p => `<option value="${p.id}" ${c && String(c.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select>
         </div>
         <div class="field full"><label>Concepto</label><input id="cxp_concepto" value="${esc(c?.concepto||'')}" required></div>
         <div class="field"><label>Monto</label><input type="number" step="0.01" id="cxp_monto" value="${c?.monto||''}" required></div>
@@ -548,6 +566,15 @@ function formCxp(id) {
         <div class="field"><label>Folio</label><input id="cxp_folio" value="${esc(c?.folio||'')}"></div>
         <div class="field"><label>UUID CFDI</label><input id="cxp_uuid_cfdi" value="${esc(c?.uuid_cfdi||'')}"></div>
         <div class="field full"><label>Notas</label><input id="cxp_notas" value="${esc(c?.notas||'')}"></div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Datos sugeridos para cuando se registre el pago de esta factura — la referencia puede variar según la sucursal o razón social a la que viene facturado; se puede ajustar también al momento de pagar.</p>
+        <div class="formGrid">
+          <div class="field full"><label>Cuenta del proveedor a pagar</label>
+            <select id="cxp_cuenta_destino_id">${opcionesCuentasDestino(provIdInicial, ip.cuenta_destino_id)}</select>
+          </div>
+          <div class="field full"><label>Referencia sugerida</label><input id="cxp_referencia_sugerida" value="${esc(ip.referencia_sugerida||'')}" placeholder="Ej. nombre/sucursal que factura"></div>
+        </div>
       </div>
       <div class="modalActions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -569,7 +596,11 @@ async function guardarCxp(ev, id) {
     fecha_vencimiento: document.getElementById('cxp_fecha_vencimiento').value,
     folio: document.getElementById('cxp_folio').value,
     uuid_cfdi: document.getElementById('cxp_uuid_cfdi').value,
-    notas: document.getElementById('cxp_notas').value
+    notas: document.getElementById('cxp_notas').value,
+    instrucciones_pago: {
+      cuenta_destino_id: document.getElementById('cxp_cuenta_destino_id').value,
+      referencia_sugerida: document.getElementById('cxp_referencia_sugerida').value
+    }
   };
   try {
     showLoading(true);
@@ -587,7 +618,10 @@ async function guardarCxp(ev, id) {
 function formPago(cxpId) {
   const c = state.cxp.find(x => String(x.id) === String(cxpId));
   const saldo = saldoCxp(cxpId, c.monto);
-  const cuentas = state.config.cuentas_origen || [];
+  const cuentasOrigen = state.config.cuentas_origen || [];
+  const prov = state.proveedores.find(p => String(p.id) === String(c.proveedor_id));
+  const cuentasDestino = prov?.cuentas || [];
+  const ip = c.instrucciones_pago || {};
   openModal(`
     <h2>Registrar pago — ${esc(proveedorNombre(c.proveedor_id))}</h2>
     <p style="color:var(--muted);font-size:12px;margin-top:-8px">Saldo pendiente: <b>${money(saldo)}</b></p>
@@ -595,13 +629,17 @@ function formPago(cxpId) {
       <div class="formGrid">
         <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${saldo}" required></div>
         <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${new Date().toISOString().slice(0,10)}" required></div>
-        <div class="field full"><label>Cuenta de origen</label>
+        <div class="field full"><label>Cuenta de origen (la nuestra)</label>
           <select id="pg_cuenta_id">
             <option value="">(no especificada)</option>
-            ${cuentas.map(cu => `<option value="${cu.id}">${esc(cu.nombre || cu.banco || cu.id)}</option>`).join('')}
+            ${cuentasOrigen.map(cu => `<option value="${esc(cu.id)}">${esc(cu.nombre || cu.banco || cu.id)}</option>`).join('')}
           </select>
         </div>
-        <div class="field full"><label>Referencia</label><input id="pg_referencia"></div>
+        <div class="field full"><label>Cuenta destino (del proveedor)</label>
+          <select id="pg_cuenta_destino_id">${opcionesCuentasDestino(c.proveedor_id, ip.cuenta_destino_id)}</select>
+          ${cuentasDestino.length > 1 ? `<p style="font-size:11px;color:var(--muted);margin:4px 0 0">El proveedor tiene ${cuentasDestino.length} cuentas registradas — si la sugerida no sirve, elige otra aquí.</p>` : ''}
+        </div>
+        <div class="field full"><label>Referencia</label><input id="pg_referencia" value="${esc(ip.referencia_sugerida||'')}"></div>
         <div class="field full"><label>Banco origen</label><input id="pg_banco_origen"></div>
         <div class="field full"><label>Notas</label><input id="pg_notas"></div>
       </div>
@@ -620,6 +658,7 @@ async function guardarPago(ev, cxpId) {
     id: 'pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     cxp_id: cxpId,
     cuenta_id: document.getElementById('pg_cuenta_id').value,
+    cuenta_destino_id: document.getElementById('pg_cuenta_destino_id').value,
     monto: document.getElementById('pg_monto').value,
     fecha: document.getElementById('pg_fecha').value,
     referencia: document.getElementById('pg_referencia').value,
@@ -783,8 +822,11 @@ function renderProveedores() {
   `;
 }
 
+let __pvCuentasTmp = [];
+
 function formProveedor(id) {
   const p = id ? state.proveedores.find(x => String(x.id) === String(id)) : null;
+  __pvCuentasTmp = (p?.cuentas || []).map(c => ({ ...c }));
   openModal(`
     <h2>${p ? 'Editar' : 'Nuevo'} proveedor</h2>
     <form onsubmit="return guardarProveedor(event, '${id||''}')">
@@ -795,6 +837,13 @@ function formProveedor(id) {
         <div class="field"><label>Teléfono</label><input id="pv_telefono" value="${esc(p?.telefono||'')}"></div>
         <div class="field full"><label>Notas</label><input id="pv_notas" value="${esc(p?.notas||'')}"></div>
       </div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="viewTitle" style="margin-bottom:6px"><span style="font-size:14px">Cuentas bancarias del proveedor</span>
+          <div class="actions"><button type="button" class="btn btn-ghost btn-sm" onclick="agregarCuentaProveedorTmp()">+ Agregar cuenta</button></div>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Registra todas las cuentas donde este proveedor puede recibir pago. Si al pagar una no sirve, se podrá elegir otra desde la misma CxP sin tener que volver aquí.</p>
+        <div id="pvCuentasList">${renderCuentasProveedorRows()}</div>
+      </div>
       <div class="modalActions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar</button>
@@ -803,9 +852,50 @@ function formProveedor(id) {
   `);
 }
 
+function renderCuentasProveedorRows() {
+  if (!__pvCuentasTmp.length) return `<p class="emptyState" style="padding:10px 0">Sin cuentas registradas.</p>`;
+  return __pvCuentasTmp.map(c => `
+    <div class="cuentaRow" data-id="${esc(c.id||'')}" style="display:grid;grid-template-columns:1fr 1fr 1.3fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end">
+      <div class="field" style="margin-bottom:0"><label>Alias</label><input class="cta_alias" value="${esc(c.alias||'')}" placeholder="Ej. Principal"></div>
+      <div class="field" style="margin-bottom:0"><label>Banco</label><input class="cta_banco" value="${esc(c.banco||'')}"></div>
+      <div class="field" style="margin-bottom:0"><label>CLABE / Cuenta</label><input class="cta_clabe" value="${esc(c.clabe||'')}"></div>
+      <div class="field" style="margin-bottom:0"><label>Titular</label><input class="cta_titular" value="${esc(c.titular||'')}"></div>
+      <button type="button" class="btn btn-danger btn-sm" onclick="eliminarCuentaProveedorTmp(this)">Eliminar</button>
+    </div>`).join('');
+}
+
+function leerCuentasProveedorDesdeDOM() {
+  const rows = document.querySelectorAll('#pvCuentasList .cuentaRow');
+  const out = [];
+  rows.forEach(row => {
+    out.push({
+      id: row.dataset.id || ('cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6)),
+      alias: row.querySelector('.cta_alias').value.trim(),
+      banco: row.querySelector('.cta_banco').value.trim(),
+      clabe: row.querySelector('.cta_clabe').value.trim(),
+      titular: row.querySelector('.cta_titular').value.trim()
+    });
+  });
+  __pvCuentasTmp = out;
+}
+
+function agregarCuentaProveedorTmp() {
+  leerCuentasProveedorDesdeDOM();
+  __pvCuentasTmp.push({ id: 'cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), alias:'', banco:'', clabe:'', titular:'' });
+  document.getElementById('pvCuentasList').innerHTML = renderCuentasProveedorRows();
+}
+
+function eliminarCuentaProveedorTmp(btn) {
+  leerCuentasProveedorDesdeDOM();
+  const id = btn.closest('.cuentaRow').dataset.id;
+  __pvCuentasTmp = __pvCuentasTmp.filter(c => c.id !== id);
+  document.getElementById('pvCuentasList').innerHTML = renderCuentasProveedorRows();
+}
+
 async function guardarProveedor(ev, id) {
   ev.preventDefault();
-  const existente = id ? state.proveedores.find(x => String(x.id) === String(id)) : null;
+  leerCuentasProveedorDesdeDOM();
+  const cuentas = __pvCuentasTmp.filter(c => c.alias || c.banco || c.clabe || c.titular);
   const record = {
     id: id || ('prov_' + Date.now()),
     nombre: document.getElementById('pv_nombre').value,
@@ -813,7 +903,7 @@ async function guardarProveedor(ev, id) {
     email: document.getElementById('pv_email').value,
     telefono: document.getElementById('pv_telefono').value,
     notas: document.getElementById('pv_notas').value,
-    cuentas: existente ? existente.cuentas : []
+    cuentas
   };
   try {
     showLoading(true);
