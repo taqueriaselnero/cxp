@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.8 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.9 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -324,6 +324,24 @@ function parseFechaLocal(str) {
   if (partes.length !== 3 || partes.some(n => !Number.isFinite(n))) return null;
   const [y, m, d] = partes;
   return new Date(y, m - 1, d);
+}
+
+// Los <input type="date"> a veces muestran un año "a medio escribir" (p.ej. 6 dígitos) mientras
+// el usuario teclea directo en el widget nativo del navegador — es un comportamiento del propio
+// input, no de este código, pero por seguridad nunca dejamos pasar un valor que no sea
+// exactamente "AAAA-MM-DD" al estado de filtros (si no es válido, se trata como "sin filtro").
+function fechaInputValida(v) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+}
+
+// Compara dos fechas "sólo-día" (vía parseFechaLocal) para ordenar — robusto aunque el backend
+// mande "AAAA-MM-DD" o un datetime ISO completo (ver nota en cxpFiltradas). Vacías al final.
+function cmpFecha(a, b) {
+  const da = parseFechaLocal(a), db = parseFechaLocal(b);
+  if (!da && !db) return 0;
+  if (!da) return 1;
+  if (!db) return -1;
+  return da - db;
 }
 
 function estadoCxp(c) {
@@ -670,7 +688,7 @@ function verNotasProveedorDashboard(provId) {
   const notas = state.cxp
     .map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c) }))
     .filter(c => String(c.proveedor_id) === String(provId) && c.saldo > 0.01)
-    .sort((a,b) => (a.fecha_vencimiento||'').localeCompare(b.fecha_vencimiento||''));
+    .sort((a,b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento));
   const total = notas.reduce((s,c) => s + c.saldo, 0);
 
   openModal(`
@@ -711,7 +729,7 @@ async function verCapturaCxp(cxpId, provId) {
 function renderCapturaCxp(c, provId, logError) {
   const saldo = saldoCxp(c.id, c.monto);
   const ip = c.instrucciones_pago || {};
-  const pagos = pagosDeCxp(c.id).sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
+  const pagos = pagosDeCxp(c.id).sort((a,b) => cmpFecha(a.fecha, b.fecha));
 
   let captura = null, ediciones = [];
   if (can(['admin']) && state.log) {
@@ -778,12 +796,24 @@ function renderCapturaCxp(c, provId, logError) {
 
 function cxpFiltradas() {
   const f = state.filtrosCxp;
+  // IMPORTANTE: "Vence desde/hasta" se compara con parseFechaLocal (día calendario), NO con
+  // comparación de strings. Google Sheets puede guardar fecha_vencimiento como un valor de
+  // fecha real (si Sheets auto-detectó el texto capturado) y entonces el backend lo manda como
+  // un datetime ISO completo ("AAAA-MM-DDТnn:nn:nn.nnnZ") en vez del "AAAA-MM-DD" plano que
+  // escribe el <input type="date">. Comparar esos dos strings directamente rompía el filtro
+  // (p.ej. "2026-10-05T06:00:00.000Z" > "2026-10-05" siempre es true, así que "hasta" fallaba
+  // incluso para la cuenta que vence justo ese día) — por eso "Hoy" mostraba "Sin resultados".
+  const fDesde = f.desde ? parseFechaLocal(f.desde) : null;
+  const fHasta = f.hasta ? parseFechaLocal(f.hasta) : null;
   return state.cxp.map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c), provNombre: proveedorNombre(c.proveedor_id) }))
     .filter(c => {
       if (f.sucursal && c.sucursal !== f.sucursal) return false;
       if (f.proveedor && String(c.proveedor_id) !== String(f.proveedor)) return false;
-      if (f.desde && (!c.fecha_vencimiento || c.fecha_vencimiento < f.desde)) return false;
-      if (f.hasta && (!c.fecha_vencimiento || c.fecha_vencimiento > f.hasta)) return false;
+      if (fDesde || fHasta) {
+        const fv = parseFechaLocal(c.fecha_vencimiento);
+        if (fDesde && (!fv || fv < fDesde)) return false;
+        if (fHasta && (!fv || fv > fHasta)) return false;
+      }
       if (f.estado === 'vencidas' && c.est !== 'vencida') return false;
       if (f.estado === 'urgentes' && !(c.est === 'vencida' || c.est === 'proxima')) return false;
       if (f.estado === 'pendientes' && c.saldo <= 0.01) return false;
@@ -795,7 +825,7 @@ function cxpFiltradas() {
       }
       return true;
     })
-    .sort((a,b) => (a.fecha_vencimiento||'').localeCompare(b.fecha_vencimiento||''));
+    .sort((a,b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento));
 }
 
 function renderCxp() {
@@ -816,8 +846,8 @@ function renderCxp() {
       <div class="f"><label>Proveedor</label><select id="fProveedor" onchange="state.filtrosCxp.proveedor=this.value; renderCxpTable();">
         <option value="">Todos</option>${state.proveedores.map(p => `<option value="${p.id}" ${String(state.filtrosCxp.proveedor)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
       </select></div>
-      <div class="f"><label>Vence desde</label><input type="date" value="${esc(state.filtrosCxp.desde)}" onchange="state.filtrosCxp.desde=this.value; renderCxpTable();"></div>
-      <div class="f"><label>Vence hasta</label><input type="date" value="${esc(state.filtrosCxp.hasta)}" onchange="state.filtrosCxp.hasta=this.value; renderCxpTable();"></div>
+      <div class="f"><label>Vence desde</label><input type="date" value="${esc(state.filtrosCxp.desde)}" onchange="state.filtrosCxp.desde=fechaInputValida(this.value); renderCxpTable();"></div>
+      <div class="f"><label>Vence hasta</label><input type="date" value="${esc(state.filtrosCxp.hasta)}" onchange="state.filtrosCxp.hasta=fechaInputValida(this.value); renderCxpTable();"></div>
       <div class="f"><label>Estado</label><select onchange="state.filtrosCxp.estado=this.value; renderCxpTable();">
         <option value="todas" ${state.filtrosCxp.estado==='todas'?'selected':''}>Todas</option>
         <option value="pendientes" ${state.filtrosCxp.estado==='pendientes'?'selected':''}>Con saldo pendiente</option>
@@ -875,7 +905,7 @@ function renderCxpTable() {
     provNombre: c => c.provNombre,
     concepto: c => c.concepto || '',
     sucursal: c => c.sucursal || '',
-    fecha_vencimiento: c => c.fecha_vencimiento || '',
+    fecha_vencimiento: c => { const d = parseFechaLocal(c.fecha_vencimiento); return d ? d.getTime() : 0; },
     monto: c => Number(c.monto) || 0,
     saldo: c => Number(c.saldo) || 0
   };
@@ -886,7 +916,7 @@ function renderCxpTable() {
     if (!items.length) return;
     items = state.sortCxp.col
       ? sortRows(items, state.sortCxp, getters)
-      : [...items].sort((a, b2) => (a.fecha_vencimiento || '').localeCompare(b2.fecha_vencimiento || '')); // por defecto: la que vence más pronto primero
+      : [...items].sort((a, b2) => cmpFecha(a.fecha_vencimiento, b2.fecha_vencimiento)); // por defecto: la que vence más pronto primero
     filasHtml += `<tr class="blockHeader"><td colspan="8" style="background:${b.bg};color:${b.color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">${b.emoji} ${b.titulo} (${items.length})</td></tr>`;
     filasHtml += items.map(renderCxpRow).join('');
   });
@@ -1104,7 +1134,7 @@ function renderPagosTable() {
   if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin pagos registrados.</div></div>`; return; }
 
   const getters = {
-    fecha: p => p.fecha || '',
+    fecha: p => { const d = parseFechaLocal(p.fecha); return d ? d.getTime() : 0; },
     provNombre: p => p.provNombre,
     concepto: p => p.concepto || '',
     monto: p => Number(p.monto) || 0,
@@ -1112,7 +1142,7 @@ function renderPagosTable() {
     referencia: p => p.referencia || '',
     capturado_por: p => p.capturado_por || ''
   };
-  lista = state.sortPagos.col ? sortRows(lista, state.sortPagos, getters) : [...lista].sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+  lista = state.sortPagos.col ? sortRows(lista, state.sortPagos, getters) : [...lista].sort((a,b) => cmpFecha(b.fecha, a.fecha));
 
   wrap.innerHTML = `<div class="tableWrap"><table>
     <thead><tr>
