@@ -7,7 +7,7 @@
 <style>
   :root{
     --brand:#4f46e5; --brand-dark:#4338ca; --brand-light:#eef0fd;
-    --bg:#180D04; --bg-ink:#F2E8D2; --bg-muted:#9A8A70; --border-gold:rgba(200,140,24,.32);
+    --bg:#180D04; --bg-ink:#F2E8D2; --border-gold:rgba(200,140,24,.32);
     --surface:#ffffff; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
     --border:#e1e0d9; --good:#0ca30c; --warning:#b8860b; --serious:#c2531f; --critical:#d03b3b;
     --good-bg:#e9f8e9; --warning-bg:#fef6e4; --serious-bg:#fdece3; --critical-bg:#fbe7e7;
@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.7 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.8 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -314,12 +314,24 @@ function saldoCxp(cxpId, monto) {
 
 function diasEntre(a, b) { return Math.round((a - b) / 86400000); }
 
+// Convierte una fecha "AAAA-MM-DD" (como las que guarda el Sheet, vía <input type="date">) en un Date
+// a medianoche LOCAL. OJO: "new Date('AAAA-MM-DD')" la interpreta como medianoche UTC, y en husos horarios
+// negativos (como México, UTC-6) eso cae en el DÍA ANTERIOR al extraer la fecha local — por eso "Hoy"/"Vencida"
+// podían quedar corridos un día. Esta función evita ese corrimiento parseando los números directamente.
+function parseFechaLocal(str) {
+  if (!str) return null;
+  const partes = String(str).slice(0, 10).split('-').map(Number);
+  if (partes.length !== 3 || partes.some(n => !Number.isFinite(n))) return null;
+  const [y, m, d] = partes;
+  return new Date(y, m - 1, d);
+}
+
 function estadoCxp(c) {
   const saldo = saldoCxp(c.id, c.monto);
   if (saldo <= 0.01) return 'liquidada';
   if (!c.fecha_vencimiento) return 'vigente';
   const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
+  const fv = parseFechaLocal(c.fecha_vencimiento);
   const dias = diasEntre(hoy, fv); // positivo = vencida hace N días
   if (dias > 0) return 'vencida';
   if (dias >= -7) return 'proxima';
@@ -349,8 +361,11 @@ function money(n) {
 
 function fmtFecha(d) {
   if (!d) return '—';
-  const dt = new Date(d);
-  if (isNaN(dt)) return String(d);
+  // Fechas "AAAA-MM-DD" (sin hora) se parsean en local para no mostrar el día anterior por huso horario;
+  // cualquier otro formato (p.ej. timestamps ISO completos del log) usa el parseo normal de Date.
+  const soloFecha = /^\d{4}-\d{2}-\d{2}$/.test(String(d).slice(0,10)) && String(d).length <= 10;
+  const dt = soloFecha ? parseFechaLocal(d) : new Date(d);
+  if (!dt || isNaN(dt)) return String(d);
   return dt.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
 
@@ -525,7 +540,7 @@ function renderDashboard() {
   pendientes.forEach(c => {
     let key = 'sinfecha';
     if (c.fecha_vencimiento) {
-      const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
+      const fv = parseFechaLocal(c.fecha_vencimiento);
       const diffDias = Math.round((fv - hoyN) / 86400000);
       const diffSemanas = Math.round((lunesDeSemana(fv) - inicioSemanaActual) / WEEK_MS);
       if (diffDias < 0) key = 'vencidas';
@@ -549,8 +564,8 @@ function renderDashboard() {
   const semanas = [0,0,0,0,0];
   state.pagos.forEach(p => {
     if (!p.fecha) return;
-    const f = new Date(p.fecha);
-    if (f.getMonth() !== mesActual || f.getFullYear() !== anioActual) return;
+    const f = parseFechaLocal(p.fecha);
+    if (!f || f.getMonth() !== mesActual || f.getFullYear() !== anioActual) return;
     const semana = Math.min(4, Math.floor((f.getDate() - 1) / 7));
     semanas[semana] += Number(p.monto) || 0;
   });
@@ -810,6 +825,7 @@ function renderCxp() {
         <option value="urgentes" ${state.filtrosCxp.estado==='urgentes'?'selected':''}>Urgentes (vencidas + por vencer)</option>
         <option value="liquidadas" ${state.filtrosCxp.estado==='liquidadas'?'selected':''}>Liquidadas</option>
       </select></div>
+      <div class="f"><button class="btn btn-primary btn-sm" onclick="renderCxpTable()">Buscar</button></div>
       <div class="f"><button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosCxp()">Limpiar</button></div>
     </div>
     <div id="cxpTableWrap"></div>
@@ -1141,7 +1157,7 @@ function renderAging() {
     const prov = proveedorNombre(c.proveedor_id);
     let bucket = 'vigente';
     if (c.fecha_vencimiento) {
-      const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
+      const fv = parseFechaLocal(c.fecha_vencimiento);
       const dias = diasEntre(hoy, fv);
       if (dias > 90) bucket = 'b90p';
       else if (dias > 60) bucket = 'b90';
