@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.6 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.7 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -512,8 +512,10 @@ function renderDashboard() {
   const WEEK_MS = 7 * 86400000;
   const BUCKETS_SEMANA = [
     { key:'vencidas',    label:'Vencidas',                   color:'#d03b3b' },
-    { key:'semana0',     label:'Esta semana',                color:'#b8860b' },
-    { key:'semana1',     label:'Próxima semana',             color:'#c2531f' },
+    { key:'hoy',         label:'Hoy',                         color:'#b8860b' },
+    { key:'mañana',      label:'Mañana',                      color:'#b8860b' },
+    { key:'semana0',     label:'Esta semana',                color:'#c2531f' },
+    { key:'semana1',     label:'Próxima semana',             color:'#4f46e5' },
     { key:'semana2',     label:'En 2 semanas',                color:'#4f46e5' },
     { key:'semana3',     label:'En 3 semanas',                color:'#4f46e5' },
     { key:'masadelante', label:'Más adelante (+4 semanas)',  color:'#898781' },
@@ -524,8 +526,11 @@ function renderDashboard() {
     let key = 'sinfecha';
     if (c.fecha_vencimiento) {
       const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
+      const diffDias = Math.round((fv - hoyN) / 86400000);
       const diffSemanas = Math.round((lunesDeSemana(fv) - inicioSemanaActual) / WEEK_MS);
-      if (diffSemanas < 0) key = 'vencidas';
+      if (diffDias < 0) key = 'vencidas';
+      else if (diffDias === 0) key = 'hoy';
+      else if (diffDias === 1) key = 'mañana';
       else if (diffSemanas === 0) key = 'semana0';
       else if (diffSemanas === 1) key = 'semana1';
       else if (diffSemanas === 2) key = 'semana2';
@@ -536,7 +541,7 @@ function renderDashboard() {
   });
   const dataSemanaVenc = BUCKETS_SEMANA
     .map(b => ({ ...b, value: totalesSemana[b.key], inicioIso: inicioSemanaActualIso }))
-    .filter(b => b.value > 0.01 || ['vencidas','semana0','semana1'].includes(b.key));
+    .filter(b => b.value > 0.01 || ['vencidas','hoy','mañana','semana0','semana1'].includes(b.key));
 
   // Flujo de pagos por semana del mes actual
   const hoy = new Date();
@@ -606,6 +611,11 @@ function irAVencimientosSemana(key, inicioIso) {
     state.filtrosCxp.estado = 'vencidas';
   } else if (key === 'sinfecha') {
     // No hay filtro de "sin fecha" en Cuentas × Pagar; se muestran todas las pendientes sin acotar fecha.
+  } else if (key === 'hoy' || key === 'mañana') {
+    const dia = new Date(); dia.setHours(0,0,0,0);
+    if (key === 'mañana') dia.setDate(dia.getDate() + 1);
+    state.filtrosCxp.desde = isoFecha(dia);
+    state.filtrosCxp.hasta = isoFecha(dia);
   } else {
     const inicio = new Date(inicioIso + 'T00:00:00');
     const offsets = { semana0:0, semana1:1, semana2:2, semana3:3 };
