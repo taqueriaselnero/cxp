@@ -79,6 +79,22 @@
   .barRow .barTrack{flex:1;background:#f2f2f0;border-radius:5px;height:16px;position:relative;}
   .barRow .barFill{height:100%;border-radius:5px;background:var(--brand);}
   .barRow .barVal{width:92px;flex:0 0 92px;text-align:right;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .barRow.clickable{cursor:pointer;border-radius:6px;padding:3px 4px;margin:0 -4px 9px;transition:background .12s;}
+  .barRow.clickable:hover{background:#f5f4f1;}
+  .barRow.clickable .barLbl{color:var(--brand);font-weight:600;}
+  .dashScroll{max-height:260px;overflow-y:auto;padding-right:4px;}
+  .notaRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:#fafaf9;transition:background .12s,border-color .12s;}
+  .notaRow:hover{background:#f1f0ed;border-color:var(--brand);}
+  .notaRow .notaMain{min-width:0;}
+  .notaRow .notaConcepto{font-weight:600;font-size:13px;}
+  .notaRow .notaMeta{font-size:11px;color:var(--muted);margin-top:2px;}
+  .notaRow .notaMonto{text-align:right;flex:0 0 auto;}
+  .notaRow .notaMonto .saldo{font-weight:700;font-size:14px;margin-bottom:3px;}
+  .dashTotalRow{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;margin-top:4px;border-top:2px solid var(--ink);font-weight:700;font-size:14px;}
+  .captInfo .captRow{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .captInfo .captRow:last-child{border-bottom:none;}
+  .captInfo .captLbl{color:var(--muted);flex:0 0 auto;}
+  .captInfo .captVal{text-align:right;font-weight:600;}
 
   /* filters */
   .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;}
@@ -158,7 +174,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.3 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.4 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -195,7 +211,7 @@
 
 <script>
 /* =========================================================
-   CxP Portal — Grupo Nero — Frontend v5.3
+   CxP Portal — Grupo Nero — Frontend v5.0
    Backend: Google Apps Script Web App (ver Code.gs)
    ========================================================= */
 
@@ -475,12 +491,46 @@ function renderDashboard() {
   pendientes.forEach(c => { const key = c.sucursal || '(sin sucursal)'; porSucursal[key] = (porSucursal[key] || 0) + c.saldo; });
   const dataSucursal = Object.entries(porSucursal).sort((a,b) => b[1]-a[1]).map(([label,value]) => ({label,value}));
 
-  // Top 5 proveedores
+  // Proveedores con saldo pendiente (lista completa, no solo Top 5 — clic en uno abre el desglose de sus notas)
   const porProveedor = {};
   pendientes.forEach(c => { const key = c.proveedor_id; porProveedor[key] = (porProveedor[key] || 0) + c.saldo; });
   const dataProveedor = Object.entries(porProveedor)
-    .map(([id,value]) => ({ label: proveedorNombre(id), value }))
-    .sort((a,b) => b.value-a.value).slice(0,5);
+    .map(([id,value]) => ({ id, label: proveedorNombre(id), value }))
+    .sort((a,b) => b.value-a.value);
+
+  // Vencimientos por semana: esta semana, próxima semana, en 2/3 semanas… y el resto agrupado más adelante.
+  // Las semanas van de lunes a domingo; clic en una barra filtra Cuentas × Pagar a ese rango de fechas.
+  const hoyN = new Date(); hoyN.setHours(0,0,0,0);
+  const inicioSemanaActual = lunesDeSemana(hoyN);
+  const inicioSemanaActualIso = isoFecha(inicioSemanaActual);
+  const WEEK_MS = 7 * 86400000;
+  const BUCKETS_SEMANA = [
+    { key:'vencidas',    label:'Vencidas',                   color:'#d03b3b' },
+    { key:'semana0',     label:'Esta semana',                color:'#b8860b' },
+    { key:'semana1',     label:'Próxima semana',             color:'#c2531f' },
+    { key:'semana2',     label:'En 2 semanas',                color:'#4f46e5' },
+    { key:'semana3',     label:'En 3 semanas',                color:'#4f46e5' },
+    { key:'masadelante', label:'Más adelante (+4 semanas)',  color:'#898781' },
+    { key:'sinfecha',    label:'Sin fecha de vencimiento',   color:'#898781' }
+  ];
+  const totalesSemana = {}; BUCKETS_SEMANA.forEach(b => totalesSemana[b.key] = 0);
+  pendientes.forEach(c => {
+    let key = 'sinfecha';
+    if (c.fecha_vencimiento) {
+      const fv = new Date(c.fecha_vencimiento); fv.setHours(0,0,0,0);
+      const diffSemanas = Math.round((lunesDeSemana(fv) - inicioSemanaActual) / WEEK_MS);
+      if (diffSemanas < 0) key = 'vencidas';
+      else if (diffSemanas === 0) key = 'semana0';
+      else if (diffSemanas === 1) key = 'semana1';
+      else if (diffSemanas === 2) key = 'semana2';
+      else if (diffSemanas === 3) key = 'semana3';
+      else key = 'masadelante';
+    }
+    totalesSemana[key] += c.saldo;
+  });
+  const dataSemanaVenc = BUCKETS_SEMANA
+    .map(b => ({ ...b, value: totalesSemana[b.key], inicioIso: inicioSemanaActualIso }))
+    .filter(b => b.value > 0.01 || ['vencidas','semana0','semana1'].includes(b.key));
 
   // Flujo de pagos por semana del mes actual
   const hoy = new Date();
@@ -505,11 +555,192 @@ function renderDashboard() {
       <div class="kpi ${totalValidar ? 'warn' : ''}"><div class="label">Pagos por validar</div><div class="value">${totalValidar}</div></div>
     </div>
     <div class="chartsGrid">
+      <div class="card"><div class="cardTitle">Vencimientos por semana</div>${dashVencimientosSemanaHtml(dataSemanaVenc)}</div>
       <div class="card"><div class="cardTitle">Pendiente por sucursal</div>${svgBarChart(dataSucursal, { fmt: money })}</div>
-      <div class="card"><div class="cardTitle">Top 5 proveedores (saldo pendiente)</div>${svgBarChart(dataProveedor, { fmt: money, color:'#eb6834' })}</div>
+      <div class="card">
+        <div class="cardTitle">Proveedores con saldo pendiente (${dataProveedor.length})</div>
+        <div class="dashScroll">${dashProveedoresListHtml(dataProveedor)}</div>
+      </div>
       <div class="card"><div class="cardTitle">Flujo de pagos — ${hoy.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</div>${svgBarChart(dataSemanas, { fmt: money, color:'#1baf7a' })}</div>
     </div>
   `;
+}
+
+// Lunes (00:00) de la semana a la que pertenece una fecha dada — usado para agrupar vencimientos por semana.
+function lunesDeSemana(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  const dow = dt.getDay(); // 0=domingo…6=sábado
+  const diff = dow === 0 ? -6 : 1 - dow;
+  dt.setDate(dt.getDate() + diff);
+  return dt;
+}
+
+// Formatea una fecha como AAAA-MM-DD usando sus partes locales (evita el corrimiento de día de toISOString()).
+function isoFecha(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function dashVencimientosSemanaHtml(buckets) {
+  if (!buckets.length) return `<div class="chartEmpty">Sin cuentas pendientes.</div>`;
+  const max = Math.max(...buckets.map(b => b.value), 1);
+  return buckets.map(b => {
+    const pct = Math.max((b.value / max) * 100, b.value > 0 ? 2 : 0);
+    return `<div class="barRow clickable" onclick="irAVencimientosSemana('${b.key}','${b.inicioIso}')" title="Ver estas cuentas en Cuentas × Pagar">
+      <div class="barLbl" title="${esc(b.label)}">${esc(b.label)}</div>
+      <div class="barTrack"><div class="barFill" style="width:${pct}%;background:${b.color}"></div></div>
+      <div class="barVal">${money(b.value)}</div>
+    </div>`;
+  }).join('');
+}
+
+// Clic en una barra de "Vencimientos por semana" -> filtra Cuentas × Pagar al rango de esa semana (o a "vencidas").
+function irAVencimientosSemana(key, inicioIso) {
+  state.filtrosCxp = { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'pendientes', texto:'' };
+  if (key === 'vencidas') {
+    state.filtrosCxp.estado = 'vencidas';
+  } else if (key === 'sinfecha') {
+    // No hay filtro de "sin fecha" en Cuentas × Pagar; se muestran todas las pendientes sin acotar fecha.
+  } else {
+    const inicio = new Date(inicioIso + 'T00:00:00');
+    const offsets = { semana0:0, semana1:1, semana2:2, semana3:3 };
+    if (key === 'masadelante') {
+      const desde = new Date(inicio); desde.setDate(desde.getDate() + 28);
+      state.filtrosCxp.desde = isoFecha(desde);
+    } else {
+      const off = offsets[key] || 0;
+      const desde = new Date(inicio); desde.setDate(desde.getDate() + off*7);
+      const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 6);
+      state.filtrosCxp.desde = isoFecha(desde);
+      state.filtrosCxp.hasta = isoFecha(hasta);
+    }
+  }
+  setView('cxp');
+}
+
+// Lista completa (no truncada) de proveedores con saldo pendiente, pensada para la tarjeta del Dashboard.
+// Cada renglón es clickable: abre el desglose de "notas" (CxP) pendientes de ese proveedor, con su total.
+function dashProveedoresListHtml(data) {
+  if (!data.length) return `<div class="chartEmpty">Sin saldos pendientes.</div>`;
+  const max = Math.max(...data.map(d => d.value), 1);
+  return data.map(d => {
+    const pct = Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0);
+    return `<div class="barRow clickable" onclick="verNotasProveedorDashboard('${d.id}')" title="Ver notas pendientes de ${esc(d.label)}">
+      <div class="barLbl" title="${esc(d.label)}">${esc(d.label)}</div>
+      <div class="barTrack"><div class="barFill" style="width:${pct}%;background:#eb6834"></div></div>
+      <div class="barVal">${money(d.value)}</div>
+    </div>`;
+  }).join('');
+}
+
+// Modal: desglose de las notas (cuentas por pagar) pendientes de UN proveedor, con el total abajo.
+// Clic en una nota -> detalle de captura (quién la registró, cuándo, y los pagos aplicados).
+function verNotasProveedorDashboard(provId) {
+  const nombre = proveedorNombre(provId);
+  const notas = state.cxp
+    .map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c) }))
+    .filter(c => String(c.proveedor_id) === String(provId) && c.saldo > 0.01)
+    .sort((a,b) => (a.fecha_vencimiento||'').localeCompare(b.fecha_vencimiento||''));
+  const total = notas.reduce((s,c) => s + c.saldo, 0);
+
+  openModal(`
+    <h2>Notas pendientes — ${esc(nombre)}</h2>
+    ${!notas.length ? `<p class="emptyState">Este proveedor no tiene notas pendientes.</p>` : notas.map(c => `
+      <div class="notaRow" onclick="verCapturaCxp('${c.id}','${provId}')" title="Ver información de la captura">
+        <div class="notaMain">
+          <div class="notaConcepto">${esc(c.concepto || '(sin concepto)')}</div>
+          <div class="notaMeta">${esc(c.sucursal || '—')} · Vence ${fmtFecha(c.fecha_vencimiento)}${c.folio ? ' · Folio ' + esc(c.folio) : ''}</div>
+        </div>
+        <div class="notaMonto">
+          <div class="saldo">${money(c.saldo)}</div>
+          ${badgeEstadoCxp(c.est)}
+        </div>
+      </div>`).join('')}
+    ${notas.length ? `<div class="dashTotalRow"><span>Total pendiente</span><span>${money(total)}</span></div>` : ''}
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal(); state.filtrosCxp.proveedor='${provId}'; setView('cxp');">Ver en Cuentas × Pagar</button>
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>
+  `, { wide: true });
+}
+
+// Modal: información de captura de una nota (CxP) — quién la registró y cuándo (log de auditoría, solo
+// disponible para el rol administrador en el backend), historial de ediciones, y los pagos aplicados.
+async function verCapturaCxp(cxpId, provId) {
+  const c = state.cxp.find(x => String(x.id) === String(cxpId));
+  if (!c) { toast('No se encontró esa nota.', 'error'); return; }
+  let logError = null;
+  if (can(['admin'])) {
+    showLoading(true);
+    try { await loadLog(); } catch (err) { logError = err.message; }
+    showLoading(false);
+  }
+  renderCapturaCxp(c, provId, logError);
+}
+
+function renderCapturaCxp(c, provId, logError) {
+  const saldo = saldoCxp(c.id, c.monto);
+  const ip = c.instrucciones_pago || {};
+  const pagos = pagosDeCxp(c.id).sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
+
+  let captura = null, ediciones = [];
+  if (can(['admin']) && state.log) {
+    const logsCxp = (state.log || [])
+      .filter(l => l.entidad === 'cxp' && String(l.entidad_id) === String(c.id))
+      .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
+    captura = logsCxp.find(l => l.accion === 'crear') || null;
+    ediciones = logsCxp.filter(l => l !== captura);
+  }
+
+  openModal(`
+    <h2>Detalle de captura</h2>
+    <div class="captInfo">
+      <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}</span></div>
+      <div class="captRow"><span class="captLbl">Concepto</span><span class="captVal">${esc(c.concepto || '—')}</span></div>
+      <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
+      <div class="captRow"><span class="captLbl">Folio</span><span class="captVal">${esc(c.folio || '—')}</span></div>
+      <div class="captRow"><span class="captLbl">UUID CFDI</span><span class="captVal" style="font-size:11px">${esc(c.uuid_cfdi || '—')}</span></div>
+      <div class="captRow"><span class="captLbl">Fecha factura</span><span class="captVal">${fmtFecha(c.fecha_factura)}</span></div>
+      <div class="captRow"><span class="captLbl">Fecha vencimiento</span><span class="captVal">${fmtFecha(c.fecha_vencimiento)}</span></div>
+      <div class="captRow"><span class="captLbl">Monto original</span><span class="captVal">${money(c.monto)}</span></div>
+      <div class="captRow"><span class="captLbl">Saldo pendiente</span><span class="captVal">${money(saldo)}</span></div>
+      <div class="captRow"><span class="captLbl">Estado</span><span class="captVal">${badgeEstadoCxp(estadoCxp(c))}</span></div>
+      ${ip.pagar_desde ? `<div class="captRow"><span class="captLbl">Pagar desde</span><span class="captVal">${esc(ip.pagar_desde)}</span></div>` : ''}
+      ${c.notas ? `<div class="captRow"><span class="captLbl">Notas</span><span class="captVal">${esc(c.notas)}</span></div>` : ''}
+    </div>
+
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="cardTitle" style="margin-bottom:8px">Quién la capturó</div>
+      ${!can(['admin'])
+        ? `<p class="emptyState" style="padding:10px 0">Esta información solo está disponible para el rol Administrador.</p>`
+        : logError
+          ? `<p class="emptyState" style="padding:10px 0">No se pudo consultar el historial de auditoría: ${esc(logError)}</p>`
+          : captura
+            ? `<div class="captInfo">
+                <div class="captRow"><span class="captLbl">Capturó</span><span class="captVal">${esc(captura.usuario_nombre)} (${esc(ROLES_LABEL[captura.rol] || captura.rol)})</span></div>
+                <div class="captRow"><span class="captLbl">Fecha de captura</span><span class="captVal">${new Date(captura.fecha).toLocaleString('es-MX')}</span></div>
+              </div>`
+            : `<p class="emptyState" style="padding:10px 0">No hay registro de auditoría para la captura original de esta nota (puede ser anterior a que se activara el log, o el log conserva solo los últimos 500 movimientos).</p>`
+      }
+    </div>
+
+    ${ediciones.length ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="cardTitle" style="margin-bottom:8px">Historial de cambios</div>
+      <div class="captInfo">${ediciones.map(l => `<div class="captRow"><span class="captLbl">${new Date(l.fecha).toLocaleString('es-MX')}</span><span class="captVal">${esc(l.usuario_nombre)} — ${esc(l.detalle || l.accion)}</span></div>`).join('')}</div>
+    </div>` : ''}
+
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="cardTitle" style="margin-bottom:8px">Pagos aplicados ${pagos.length ? '(' + pagos.length + ')' : ''}</div>
+      ${!pagos.length ? `<p class="emptyState" style="padding:10px 0">Todavía no se ha registrado ningún pago para esta nota.</p>` : `
+        <div class="captInfo">${pagos.map(p => `<div class="captRow"><span class="captLbl">${fmtFecha(p.fecha)} · ${esc(p.capturado_por || '—')}</span><span class="captVal">${money(p.monto)} ${badgeEstadoPago(p)}</span></div>`).join('')}</div>
+      `}
+    </div>
+
+    <div class="modalActions">
+      ${provId ? `<button class="btn btn-ghost" onclick="verNotasProveedorDashboard('${provId}')">← Volver</button>` : ''}
+      ${can(['admin','capturista']) ? `<button class="btn btn-ghost" onclick="closeModal(); formCxp('${c.id}');">Editar esta nota</button>` : ''}
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>
+  `, { wide: true });
 }
 
 /* ---------------- Vista: Cuentas × Pagar ---------------- */
