@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.9 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.10 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -936,6 +936,7 @@ function renderCxpTable() {
 }
 
 function opcionesCuentasDestino(provId, selectedId) {
+  if (!provId) return `<option value="">(selecciona un proveedor primero)</option>`;
   const prov = state.proveedores.find(p => String(p.id) === String(provId));
   const cuentas = prov?.cuentas || [];
   if (!cuentas.length) return `<option value="">(el proveedor no tiene cuentas registradas)</option>`;
@@ -943,6 +944,20 @@ function opcionesCuentasDestino(provId, selectedId) {
     const label = (cu.alias || cu.banco || 'Cuenta') + (cu.banco && cu.alias ? ' — ' + cu.banco : '') + (cu.clabe ? ' (' + cu.clabe + ')' : '');
     return `<option value="${esc(cu.id)}" ${String(cu.id)===String(selectedId||'')?'selected':''}>${esc(label)}</option>`;
   }).join('');
+}
+
+// Opciones de "Pagar desde" tomadas de las cuentas ya registradas en "Mis Cuentas" (state.config.cuentas_origen),
+// incluyendo "EFECTIVO" si está dada de alta ahí. Si el valor ya guardado (texto libre capturado antes de
+// este cambio) no coincide con ninguna cuenta actual, se agrega como opción aparte para no perder el dato.
+function opcionesPagarDesde(selectedValue) {
+  const nombres = (state.config.cuentas_origen || []).map(cu => cu.nombre || cu.banco || cu.id).filter(Boolean);
+  let html = `<option value="">(sin especificar)</option>` + nombres.map(n =>
+    `<option value="${esc(n)}" ${String(n)===String(selectedValue||'')?'selected':''}>${esc(n)}</option>`
+  ).join('');
+  if (selectedValue && !nombres.includes(selectedValue)) {
+    html += `<option value="${esc(selectedValue)}" selected>${esc(selectedValue)}</option>`;
+  }
+  return html;
 }
 
 function actualizarCuentasDestinoCxp() {
@@ -954,13 +969,16 @@ function actualizarCuentasDestinoCxp() {
 function formCxp(id) {
   const c = id ? state.cxp.find(x => String(x.id) === String(id)) : null;
   const ip = c?.instrucciones_pago || {};
-  const provIdInicial = c?.proveedor_id || (state.proveedores[0] && state.proveedores[0].id) || '';
+  const provIdInicial = c?.proveedor_id || '';
   openModal(`
     <h2>${c ? 'Editar' : 'Nueva'} Cuenta por Pagar</h2>
     <form id="cxpForm" onsubmit="return guardarCxp(event, '${id || ''}')">
       <div class="formGrid">
         <div class="field full"><label>Proveedor</label>
-          <select id="cxp_proveedor_id" required onchange="actualizarCuentasDestinoCxp()">${state.proveedores.map(p => `<option value="${p.id}" ${c && String(c.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select>
+          <select id="cxp_proveedor_id" required onchange="actualizarCuentasDestinoCxp()">
+            ${!c ? `<option value="" selected disabled>Selecciona un proveedor…</option>` : ''}
+            ${state.proveedores.map(p => `<option value="${p.id}" ${c && String(c.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+          </select>
         </div>
         <div class="field full"><label>Concepto</label><input id="cxp_concepto" value="${esc(c?.concepto||'')}" required></div>
         <div class="field"><label>Monto</label><input type="number" step="0.01" id="cxp_monto" value="${c?.monto||''}" required></div>
@@ -978,7 +996,7 @@ function formCxp(id) {
             <select id="cxp_cuenta_destino_id">${opcionesCuentasDestino(provIdInicial, ip.cuenta_destino_id)}</select>
           </div>
           <div class="field full"><label>Referencia sugerida</label><input id="cxp_referencia_sugerida" value="${esc(ip.referencia_sugerida||'')}" placeholder="Ej. nombre/sucursal que factura"></div>
-          <div class="field full"><label>Pagar desde</label><input id="cxp_pagar_desde" value="${esc(ip.pagar_desde||'')}" placeholder="Ej. Cuenta BBVA de la empresa, Efectivo, caja sucursal…"></div>
+          <div class="field full"><label>Pagar desde</label><select id="cxp_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
         </div>
       </div>
       <div class="modalActions">
@@ -1041,7 +1059,7 @@ function formPago(cxpId) {
             ${cuentasOrigen.map(cu => `<option value="${esc(cu.id)}">${esc(cu.nombre || cu.banco || cu.id)}</option>`).join('')}
           </select>
         </div>
-        <div class="field full"><label>Pagar desde</label><input id="pg_pagar_desde" value="${esc(ip.pagar_desde||'')}" placeholder="Si no es ninguna de las cuentas de arriba: Efectivo, otra cuenta específica, etc."></div>
+        <div class="field full"><label>Pagar desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
         <div class="field full"><label>Cuenta destino (del proveedor)</label>
           <select id="pg_cuenta_destino_id">${opcionesCuentasDestino(c.proveedor_id, ip.cuenta_destino_id)}</select>
           ${cuentasDestino.length > 1 ? `<p style="font-size:11px;color:var(--muted);margin:4px 0 0">El proveedor tiene ${cuentasDestino.length} cuentas registradas — si la sugerida no sirve, elige otra aquí.</p>` : ''}
