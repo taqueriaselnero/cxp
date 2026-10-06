@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.10 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.11 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -780,7 +780,11 @@ function renderCapturaCxp(c, provId, logError) {
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
       <div class="cardTitle" style="margin-bottom:8px">Pagos aplicados ${pagos.length ? '(' + pagos.length + ')' : ''}</div>
       ${!pagos.length ? `<p class="emptyState" style="padding:10px 0">Todavía no se ha registrado ningún pago para esta nota.</p>` : `
-        <div class="captInfo">${pagos.map(p => `<div class="captRow"><span class="captLbl">${fmtFecha(p.fecha)} · ${esc(p.capturado_por || '—')}</span><span class="captVal">${money(p.monto)} ${badgeEstadoPago(p)}</span></div>`).join('')}</div>
+        <div class="captInfo">${pagos.map(p => `
+          <div class="captRow"><span class="captLbl">${fmtFecha(p.fecha)} · ${esc(p.capturado_por || '—')}</span><span class="captVal">${money(p.monto)} ${badgeEstadoPago(p)}</span></div>
+          ${p.referencia ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Referencia Pago</span><span class="captVal" style="font-size:11px">${esc(p.referencia)}</span></div>` : ''}
+          ${p.clave_rastreo ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Clave Rastreo Pago</span><span class="captVal" style="font-size:11px">${esc(p.clave_rastreo)}</span></div>` : ''}
+        `).join('')}</div>
       `}
     </div>
 
@@ -889,6 +893,7 @@ function renderCxpRow(c) {
         <td class="num">${money(c.saldo)}</td>
         <td>${badgeEstadoCxp(c.est)}</td>
         <td><div class="rowActions">
+          <button class="btn btn-ghost btn-sm" onclick="verCapturaCxp('${c.id}')">Ver gasto</button>
           ${can(['admin','capturista','tesorero']) && c.saldo > 0.01 ? `<button class="btn btn-ok btn-sm" onclick="formPago('${c.id}')">Registrar pago</button>` : ''}
           ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="formCxp('${c.id}')">Editar</button>` : ''}
           ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('cxp','${c.id}','esta CxP')">Eliminar</button>` : ''}
@@ -1064,7 +1069,8 @@ function formPago(cxpId) {
           <select id="pg_cuenta_destino_id">${opcionesCuentasDestino(c.proveedor_id, ip.cuenta_destino_id)}</select>
           ${cuentasDestino.length > 1 ? `<p style="font-size:11px;color:var(--muted);margin:4px 0 0">El proveedor tiene ${cuentasDestino.length} cuentas registradas — si la sugerida no sirve, elige otra aquí.</p>` : ''}
         </div>
-        <div class="field full"><label>Referencia</label><input id="pg_referencia" value="${esc(ip.referencia_sugerida||'')}"></div>
+        <div class="field full"><label>Referencia Pago</label><input id="pg_referencia" value="${esc(ip.referencia_sugerida||'')}"></div>
+        <div class="field full"><label>Clave Rastreo Pago</label><input id="pg_clave_rastreo" placeholder="Clave de rastreo SPEI (si aplica)"></div>
         <div class="field full"><label>Banco origen</label><input id="pg_banco_origen"></div>
         <div class="field full"><label>Notas</label><input id="pg_notas"></div>
       </div>
@@ -1088,6 +1094,7 @@ async function guardarPago(ev, cxpId) {
     monto: document.getElementById('pg_monto').value,
     fecha: document.getElementById('pg_fecha').value,
     referencia: document.getElementById('pg_referencia').value,
+    clave_rastreo: document.getElementById('pg_clave_rastreo').value,
     banco_origen: document.getElementById('pg_banco_origen').value,
     notas: document.getElementById('pg_notas').value
   };
@@ -1158,6 +1165,7 @@ function renderPagosTable() {
     monto: p => Number(p.monto) || 0,
     pagar_desde: p => p.pagar_desde || '',
     referencia: p => p.referencia || '',
+    clave_rastreo: p => p.clave_rastreo || '',
     capturado_por: p => p.capturado_por || ''
   };
   lista = state.sortPagos.col ? sortRows(lista, state.sortPagos, getters) : [...lista].sort((a,b) => cmpFecha(b.fecha, a.fecha));
@@ -1170,6 +1178,7 @@ function renderPagosTable() {
       ${sortTh('Monto','monto','sortPagos','renderPagosTable')}
       ${sortTh('Pagó desde','pagar_desde','sortPagos','renderPagosTable')}
       ${sortTh('Referencia','referencia','sortPagos','renderPagosTable')}
+      ${sortTh('Clave Rastreo','clave_rastreo','sortPagos','renderPagosTable')}
       ${sortTh('Capturó','capturado_por','sortPagos','renderPagosTable')}
       <th>Estado</th><th></th>
     </tr></thead>
@@ -1181,6 +1190,7 @@ function renderPagosTable() {
         <td class="num">${money(p.monto)}</td>
         <td>${esc(p.pagar_desde || '—')}</td>
         <td>${esc(p.referencia || '—')}</td>
+        <td style="font-size:11px">${esc(p.clave_rastreo || '—')}</td>
         <td>${esc(p.capturado_por || '—')}</td>
         <td>${badgeEstadoPago(p)}</td>
         <td><div class="rowActions">
@@ -1690,8 +1700,8 @@ function exportarCxpCsv() {
   descargarCsv('cxp_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','fecha_factura','fecha_vencimiento','monto','saldo','folio','uuid_cfdi'], rows);
 }
 function exportarPagosCsv() {
-  const rows = state.pagos.map(p => [p.id, p.cxp_id, p.monto, p.fecha, p.referencia, p.banco_origen, p.capturado_por, p.estado, p.validado_por, p.fecha_validacion]);
-  descargarCsv('pagos_' + new Date().toISOString().slice(0,10) + '.csv', ['id','cxp_id','monto','fecha','referencia','banco_origen','capturado_por','estado','validado_por','fecha_validacion'], rows);
+  const rows = state.pagos.map(p => [p.id, p.cxp_id, p.monto, p.fecha, p.referencia, p.clave_rastreo, p.banco_origen, p.capturado_por, p.estado, p.validado_por, p.fecha_validacion]);
+  descargarCsv('pagos_' + new Date().toISOString().slice(0,10) + '.csv', ['id','cxp_id','monto','fecha','referencia','clave_rastreo','banco_origen','capturado_por','estado','validado_por','fecha_validacion'], rows);
 }
 function exportarProveedoresCsv() {
   const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc, p.email, p.telefono, p.notas]);
