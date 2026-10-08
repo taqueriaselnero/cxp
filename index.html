@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.11 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v5.13 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -222,9 +222,12 @@
    ========================================================= */
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzN1-Q_0QbQGdxUFbj1p25bJuCMRH97A9kbumLb_QFRfqIXx-AY3TNsmc3O-dxHD200/exec';
-// Sin almacenamiento local: la sesión vive solo en memoria (variable JS) mientras la
-// pestaña está abierta. Google Sheets es la única base de datos; GitHub Pages solo
-// sirve este HTML estático. Al recargar la página siempre se vuelve a pedir login.
+// Google Sheets es la única base de datos; GitHub Pages solo sirve este HTML estático.
+// La sesión (token/nombre/rol) se guarda en sessionStorage (NO localStorage) únicamente
+// para que recargar la página (F5, deslizar en iPhone) no pida login de nuevo mientras
+// la pestaña/app siga abierta — en cuanto se cierra la pestaña o el navegador,
+// sessionStorage se borra solo y la próxima vez vuelve a pedir usuario/contraseña.
+// No persiste entre dispositivos ni sobrevive cerrar por completo el navegador.
 
 const ROLES_LABEL = { admin:'Administrador', capturista:'Capturista', tesorero:'Tesorero', viewer:'Solo lectura' };
 
@@ -266,16 +269,42 @@ async function api(action, payload) {
   return json;
 }
 
-/* ---------------- Sesión (solo en memoria, nada en disco/local) ---------------- */
+/* ---------------- Sesión (sessionStorage — se borra sola al cerrar la pestaña) ---------------- */
+
+const SESION_KEY  = 'cxp_sesion';
+const MOTIVO_KEY  = 'cxp_motivo_logout'; // mensaje a mostrar en el login tras un cierre automático
+
+// Cierre automático por inactividad: si no hay click/tecleo/touch/scroll durante este tiempo,
+// se cierra la sesión sola (aunque la pestaña siga abierta) — útil porque el dispositivo puede
+// quedar compartido entre roles. No afecta la expiración de 8h que ya controla el backend
+// (esa sigue siendo el tope absoluto; esta es por INACTIVIDAD, se reinicia con cualquier uso).
+const INACTIVIDAD_LIMITE_MS = 60 * 60 * 1000; // 60 minutos
+let ultimaActividad = Date.now();
+
+function guardarSesionLocal() {
+  try { sessionStorage.setItem(SESION_KEY, JSON.stringify({ token: state.token, nombre: state.nombre, rol: state.rol })); }
+  catch (e) { /* modo privado o storage bloqueado: simplemente no persiste, sin tronar la app */ }
+}
+function leerSesionLocal() {
+  try { const raw = sessionStorage.getItem(SESION_KEY); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+function borrarSesionLocal() {
+  try { sessionStorage.removeItem(SESION_KEY); } catch (e) {}
+}
 
 async function login(usuario, pin) {
   const r = await api('login', { usuario, pin });
   state.token = r.token; state.nombre = r.nombre; state.rol = r.rol;
+  guardarSesionLocal();
+  ultimaActividad = Date.now();
   await bootApp();
 }
 
-async function logout() {
+async function logout(motivo) {
   try { await api('logout', {}); } catch (e) {}
+  borrarSesionLocal();
+  if (motivo) { try { sessionStorage.setItem(MOTIVO_KEY, motivo); } catch (e) {} }
   location.reload();
 }
 
@@ -780,11 +809,17 @@ function renderCapturaCxp(c, provId, logError) {
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
       <div class="cardTitle" style="margin-bottom:8px">Pagos aplicados ${pagos.length ? '(' + pagos.length + ')' : ''}</div>
       ${!pagos.length ? `<p class="emptyState" style="padding:10px 0">Todavía no se ha registrado ningún pago para esta nota.</p>` : `
-        <div class="captInfo">${pagos.map(p => `
+        <div class="captInfo">${pagos.map(p => {
+          const cuentaDestinoLbl = labelCuentaDestino(c.proveedor_id, p.cuenta_destino_id);
+          return `
           <div class="captRow"><span class="captLbl">${fmtFecha(p.fecha)} · ${esc(p.capturado_por || '—')}</span><span class="captVal">${money(p.monto)} ${badgeEstadoPago(p)}</span></div>
           ${p.referencia ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Referencia Pago</span><span class="captVal" style="font-size:11px">${esc(p.referencia)}</span></div>` : ''}
           ${p.clave_rastreo ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Clave Rastreo Pago</span><span class="captVal" style="font-size:11px">${esc(p.clave_rastreo)}</span></div>` : ''}
-        `).join('')}</div>
+          ${cuentaDestinoLbl ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Cuenta destino</span><span class="captVal" style="font-size:11px">${esc(cuentaDestinoLbl)}</span></div>` : ''}
+          ${p.banco_origen ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Banco origen</span><span class="captVal" style="font-size:11px">${esc(p.banco_origen)}</span></div>` : ''}
+          ${p.notas ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Notas</span><span class="captVal" style="font-size:11px">${esc(p.notas)}</span></div>` : ''}
+        `;
+        }).join('')}</div>
       `}
     </div>
 
@@ -951,6 +986,16 @@ function opcionesCuentasDestino(provId, selectedId) {
   }).join('');
 }
 
+// Para mostrar en texto (no <select>) la cuenta destino de un pago ya guardado: busca la cuenta del
+// proveedor con ese id y arma la misma etiqueta legible que usa opcionesCuentasDestino.
+function labelCuentaDestino(provId, cuentaId) {
+  if (!cuentaId) return null;
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cu = (prov?.cuentas || []).find(x => String(x.id) === String(cuentaId));
+  if (!cu) return null;
+  return (cu.alias || cu.banco || 'Cuenta') + (cu.banco && cu.alias ? ' — ' + cu.banco : '') + (cu.clabe ? ' (' + cu.clabe + ')' : '');
+}
+
 // Opciones de "Pagar desde" tomadas de las cuentas ya registradas en "Mis Cuentas" (state.config.cuentas_origen),
 // incluyendo "EFECTIVO" si está dada de alta ahí. Si el valor ya guardado (texto libre capturado antes de
 // este cambio) no coincide con ninguna cuenta actual, se agrega como opción aparte para no perder el dato.
@@ -1047,7 +1092,6 @@ async function guardarCxp(ev, id) {
 function formPago(cxpId) {
   const c = state.cxp.find(x => String(x.id) === String(cxpId));
   const saldo = saldoCxp(cxpId, c.monto);
-  const cuentasOrigen = state.config.cuentas_origen || [];
   const prov = state.proveedores.find(p => String(p.id) === String(c.proveedor_id));
   const cuentasDestino = prov?.cuentas || [];
   const ip = c.instrucciones_pago || {};
@@ -1058,12 +1102,6 @@ function formPago(cxpId) {
       <div class="formGrid">
         <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${saldo}" required></div>
         <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${new Date().toISOString().slice(0,10)}" required></div>
-        <div class="field full"><label>Cuenta de origen (la nuestra)</label>
-          <select id="pg_cuenta_id">
-            <option value="">(no especificada)</option>
-            ${cuentasOrigen.map(cu => `<option value="${esc(cu.id)}">${esc(cu.nombre || cu.banco || cu.id)}</option>`).join('')}
-          </select>
-        </div>
         <div class="field full"><label>Pagar desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
         <div class="field full"><label>Cuenta destino (del proveedor)</label>
           <select id="pg_cuenta_destino_id">${opcionesCuentasDestino(c.proveedor_id, ip.cuenta_destino_id)}</select>
@@ -1088,7 +1126,6 @@ async function guardarPago(ev, cxpId) {
   const record = {
     id: 'pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     cxp_id: cxpId,
-    cuenta_id: document.getElementById('pg_cuenta_id').value,
     pagar_desde: document.getElementById('pg_pagar_desde').value,
     cuenta_destino_id: document.getElementById('pg_cuenta_destino_id').value,
     monto: document.getElementById('pg_monto').value,
@@ -1700,8 +1737,12 @@ function exportarCxpCsv() {
   descargarCsv('cxp_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','fecha_factura','fecha_vencimiento','monto','saldo','folio','uuid_cfdi'], rows);
 }
 function exportarPagosCsv() {
-  const rows = state.pagos.map(p => [p.id, p.cxp_id, p.monto, p.fecha, p.referencia, p.clave_rastreo, p.banco_origen, p.capturado_por, p.estado, p.validado_por, p.fecha_validacion]);
-  descargarCsv('pagos_' + new Date().toISOString().slice(0,10) + '.csv', ['id','cxp_id','monto','fecha','referencia','clave_rastreo','banco_origen','capturado_por','estado','validado_por','fecha_validacion'], rows);
+  const rows = state.pagos.map(p => {
+    const cxpDePago = state.cxp.find(x => String(x.id) === String(p.cxp_id));
+    const cuentaDestinoLbl = cxpDePago ? (labelCuentaDestino(cxpDePago.proveedor_id, p.cuenta_destino_id) || '') : '';
+    return [p.id, p.cxp_id, p.monto, p.fecha, p.referencia, p.clave_rastreo, p.banco_origen, cuentaDestinoLbl, p.notas, p.capturado_por, p.estado, p.validado_por, p.fecha_validacion];
+  });
+  descargarCsv('pagos_' + new Date().toISOString().slice(0,10) + '.csv', ['id','cxp_id','monto','fecha','referencia','clave_rastreo','banco_origen','cuenta_destino','notas','capturado_por','estado','validado_por','fecha_validacion'], rows);
 }
 function exportarProveedoresCsv() {
   const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc, p.email, p.telefono, p.notas]);
@@ -1748,8 +1789,15 @@ async function bootApp() {
     setView('dashboard');
   } catch (err) {
     showLoading(false);
-    toast(err.message, 'error');
-    if (/sesión inválida|sesión expirada/i.test(err.message)) { location.reload(); }
+    if (/sesión inválida|sesión expirada/i.test(err.message)) {
+      // Token guardado ya no sirve (expiró en el backend u otro dispositivo cerró la sesión) —
+      // hay que borrarlo antes de recargar, si no se queda en loop intentando restaurarlo.
+      borrarSesionLocal();
+      try { sessionStorage.setItem(MOTIVO_KEY, 'Tu sesión expiró. Vuelve a iniciar sesión.'); } catch (e) {}
+      location.reload();
+    } else {
+      toast(err.message, 'error');
+    }
   }
 }
 
@@ -1767,6 +1815,45 @@ document.getElementById('loginForm').addEventListener('submit', async (ev) => {
     btn.textContent = 'Iniciar sesión'; btn.disabled = false;
   }
 });
+
+// Si el último cierre de sesión fue automático (expiró o por inactividad), mostrar por qué antes
+// de que el usuario intente entrar de nuevo — si no, parece que la contraseña falló sin motivo.
+(function mostrarMotivoDeLogoutSiAplica() {
+  try {
+    const motivo = sessionStorage.getItem(MOTIVO_KEY);
+    if (motivo) {
+      sessionStorage.removeItem(MOTIVO_KEY);
+      const errBox = document.getElementById('loginError');
+      errBox.textContent = motivo;
+      errBox.classList.remove('hidden');
+    }
+  } catch (e) {}
+})();
+
+// Al cargar/recargar la página (F5, deslizar en iPhone), si ya había una sesión guardada en
+// sessionStorage de ESTA misma pestaña, se restaura directo sin pedir login de nuevo. Si el
+// token ya expiró, bootApp() lo detecta por su cuenta (ver el catch de arriba) y vuelve a
+// mostrar el login.
+(function restaurarSesionAlCargar() {
+  const s = leerSesionLocal();
+  if (s && s.token) {
+    state.token = s.token; state.nombre = s.nombre; state.rol = s.rol;
+    bootApp();
+  }
+})();
+
+// Cierre automático por inactividad (60 min sin click/tecleo/touch/scroll) — ver
+// INACTIVIDAD_LIMITE_MS arriba. Cualquier interacción reinicia el contador; el chequeo corre
+// cada 30s, que sobra de margen para una ventana de 60 minutos.
+['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(ev =>
+  document.addEventListener(ev, () => { ultimaActividad = Date.now(); }, { passive: true })
+);
+setInterval(() => {
+  if (!state.token) return; // no hay sesión activa, nada que cerrar
+  if (Date.now() - ultimaActividad >= INACTIVIDAD_LIMITE_MS) {
+    logout('Tu sesión se cerró por inactividad (60 min). Vuelve a iniciar sesión.');
+  }
+}, 30000);
 
 </script>
 </body>
