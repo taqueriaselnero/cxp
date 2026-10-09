@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v5.13 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.2 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -233,7 +233,7 @@ const ROLES_LABEL = { admin:'Administrador', capturista:'Capturista', tesorero:'
 
 const state = {
   token: null, nombre: null, rol: null,
-  proveedores: [], cxp: [], pagos: [], config: { cuentas_origen: [] },
+  proveedores: [], cxp: [], pagos: [], recurrentes: [], config: { cuentas_origen: [] },
   usuarios: [], log: [],
   view: 'dashboard',
   filtrosCxp: { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'todas', texto:'' },
@@ -245,7 +245,8 @@ const state = {
   sortAging:       { col: null, dir: 'asc' },
   sortCuentas:     { col: null, dir: 'asc' },
   sortUsuarios:    { col: null, dir: 'asc' },
-  sortAuditoria:   { col: null, dir: 'asc' }
+  sortAuditoria:   { col: null, dir: 'asc' },
+  sortRecurrentes: { col: null, dir: 'asc' }
 };
 
 /* ---------------- API ---------------- */
@@ -312,7 +313,8 @@ async function logout(motivo) {
 
 async function loadData() {
   const r = await api('getData', {});
-  state.proveedores = r.proveedores; state.cxp = r.cxp; state.pagos = r.pagos; state.config = r.config;
+  state.proveedores = r.proveedores; state.cxp = r.cxp; state.pagos = r.pagos;
+  state.recurrentes = r.recurrentes || []; state.config = r.config;
 }
 
 async function loadUsuarios() {
@@ -492,6 +494,7 @@ const TABS = [
   { id:'cxp',         label:'Cuentas × Pagar',  roles:['admin','capturista','tesorero','viewer'] },
   { id:'proveedores', label:'Proveedores',      roles:['admin','capturista','tesorero','viewer'] },
   { id:'pagos',       label:'Pagos Realizados', roles:['admin','capturista','tesorero','viewer'] },
+  { id:'recurrentes', label:'Gastos Recurrentes', roles:['admin','capturista','tesorero','viewer'] },
   { id:'aging',       label:'Antigüedad',       roles:['admin','capturista','tesorero','viewer'] },
   { id:'cuentas',     label:'Mis Cuentas',      roles:['admin'] },
   { id:'usuarios',    label:'Usuarios',         roles:['admin'] },
@@ -516,6 +519,7 @@ async function setView(view) {
     else if (view === 'cxp')    renderCxp();
     else if (view === 'proveedores') renderProveedores();
     else if (view === 'pagos')  renderPagos();
+    else if (view === 'recurrentes') renderRecurrentes();
     else if (view === 'aging')  renderAging();
     else if (view === 'cuentas') renderCuentas();
     else if (view === 'usuarios') { showLoading(true); await loadUsuarios(); showLoading(false); renderUsuarios(); }
@@ -726,7 +730,7 @@ function verNotasProveedorDashboard(provId) {
       <div class="notaRow" onclick="verCapturaCxp('${c.id}','${provId}')" title="Ver información de la captura">
         <div class="notaMain">
           <div class="notaConcepto">${esc(c.concepto || '(sin concepto)')}</div>
-          <div class="notaMeta">${esc(c.sucursal || '—')} · Vence ${fmtFecha(c.fecha_vencimiento)}${c.folio ? ' · Folio ' + esc(c.folio) : ''}</div>
+          <div class="notaMeta">${esc(c.sucursal || '—')}${c.fecha_factura ? ' · Surtido ' + fmtFecha(c.fecha_factura) : ''} · Vence ${fmtFecha(c.fecha_vencimiento)}${c.folio ? ' · Folio ' + esc(c.folio) : ''}</div>
         </div>
         <div class="notaMonto">
           <div class="saldo">${money(c.saldo)}</div>
@@ -774,6 +778,7 @@ function renderCapturaCxp(c, provId, logError) {
     <div class="captInfo">
       <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}</span></div>
       <div class="captRow"><span class="captLbl">Concepto</span><span class="captVal">${esc(c.concepto || '—')}</span></div>
+      ${c.recurrente_id ? `<div class="captRow"><span class="captLbl">Origen</span><span class="captVal">🔁 Generada automáticamente (Gastos Recurrentes)</span></div>` : ''}
       <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
       <div class="captRow"><span class="captLbl">Folio</span><span class="captVal">${esc(c.folio || '—')}</span></div>
       <div class="captRow"><span class="captLbl">UUID CFDI</span><span class="captVal" style="font-size:11px">${esc(c.uuid_cfdi || '—')}</span></div>
@@ -921,7 +926,7 @@ function renderCxpRow(c) {
   return `
       <tr>
         <td>${esc(c.provNombre)}</td>
-        <td>${esc(c.concepto || '')}</td>
+        <td>${esc(c.concepto || '')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</td>
         <td>${esc(c.sucursal || '')}</td>
         <td>${fmtFecha(c.fecha_vencimiento)}</td>
         <td class="num">${money(c.monto)}</td>
@@ -1102,7 +1107,7 @@ function formPago(cxpId) {
       <div class="formGrid">
         <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${saldo}" required></div>
         <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${new Date().toISOString().slice(0,10)}" required></div>
-        <div class="field full"><label>Pagar desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
+        <div class="field full"><label>Pagado desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
         <div class="field full"><label>Cuenta destino (del proveedor)</label>
           <select id="pg_cuenta_destino_id">${opcionesCuentasDestino(c.proveedor_id, ip.cuenta_destino_id)}</select>
           ${cuentasDestino.length > 1 ? `<p style="font-size:11px;color:var(--muted);margin:4px 0 0">El proveedor tiene ${cuentasDestino.length} cuentas registradas — si la sugerida no sirve, elige otra aquí.</p>` : ''}
@@ -1237,6 +1242,183 @@ function renderPagosTable() {
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
+}
+
+/* ---------------- Vista: Gastos Recurrentes ---------------- */
+// Catálogo de gastos que se repiten cada cierto número de meses con (normalmente) el mismo monto
+// (p.ej. la renta de un local). El backend (generarGastosRecurrentes, corre solo todos los días a
+// las 6am) genera automáticamente la CxP correspondiente unos días antes de que venza, y recorre
+// "Próxima fecha de vencimiento" hacia adelante según la frecuencia — aquí solo se da de alta y se
+// mantiene (p.ej. actualizar el monto una vez al año); el portal no genera nada por sí mismo, eso
+// lo hace el trigger del lado de Apps Script.
+
+function labelFrecuencia(n) {
+  const map = { 1: 'Mensual', 2: 'Bimestral', 3: 'Trimestral', 6: 'Semestral', 12: 'Anual' };
+  return map[n] || ('Cada ' + n + ' meses');
+}
+
+function opcionesFrecuencia(selected) {
+  const valores = [1, 2, 3, 6, 12];
+  return valores.map(v => `<option value="${v}" ${Number(selected||1)===v?'selected':''}>${labelFrecuencia(v)}</option>`).join('');
+}
+
+// Formatea un Date a "AAAA-MM-DD" usando sus componentes LOCALES (nunca toISOString, que convierte
+// a UTC y puede correr la fecha un día — mismo cuidado que ya se tiene en parseFechaLocal/Code.gs).
+function formatYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// Fecha estimada en que se generará la próxima CxP (próxima vencimiento menos días de anticipación) —
+// solo para mostrarla en la tabla; el cálculo real y autoritativo ocurre en el backend.
+function fechaEstimadaGeneracion(r) {
+  const fv = parseFechaLocal(r.proxima_fecha_vencimiento);
+  if (!fv) return null;
+  const d = new Date(fv);
+  d.setDate(d.getDate() - (Number(r.dias_anticipacion) || 0));
+  return d;
+}
+
+function renderRecurrentes() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle">
+      <span>Gastos Recurrentes</span>
+      <div class="actions">${can(['admin','capturista']) ? `<button class="btn btn-primary btn-sm" onclick="formRecurrente()">+ Nuevo gasto recurrente</button>` : ''}</div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:-6px">Para gastos que se repiten cada cierto número de meses con el mismo monto (renta, etc.) — el sistema genera la cuenta por pagar solo, unos días antes de que venza.</p>
+    <div id="recurrentesTableWrap"></div>
+  `;
+  renderRecurrentesTable();
+}
+
+function renderRecurrentesTable() {
+  let lista = state.recurrentes.map(r => ({ ...r, provNombre: proveedorNombre(r.proveedor_id) }));
+  const wrap = document.getElementById('recurrentesTableWrap');
+  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin gastos recurrentes configurados.</div></div>`; return; }
+
+  const getters = {
+    provNombre: r => r.provNombre,
+    concepto: r => r.concepto || '',
+    sucursal: r => r.sucursal || '',
+    monto: r => Number(r.monto) || 0,
+    frecuencia_meses: r => Number(r.frecuencia_meses) || 1,
+    proxima_fecha_vencimiento: r => { const d = parseFechaLocal(r.proxima_fecha_vencimiento); return d ? d.getTime() : 0; }
+  };
+  lista = state.sortRecurrentes.col ? sortRows(lista, state.sortRecurrentes, getters) : [...lista].sort((a,b) => cmpFecha(a.proxima_fecha_vencimiento, b.proxima_fecha_vencimiento));
+
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Proveedor','provNombre','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Concepto','concepto','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Sucursal','sucursal','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Monto','monto','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Frecuencia','frecuencia_meses','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Próx. vencimiento','proxima_fecha_vencimiento','sortRecurrentes','renderRecurrentesTable')}
+      <th>Se genera el</th><th>Estado</th><th></th>
+    </tr></thead>
+    <tbody>${lista.map(r => {
+      const estimada = fechaEstimadaGeneracion(r);
+      return `<tr>
+        <td>${esc(r.provNombre)}</td>
+        <td>${esc(r.concepto || '')}</td>
+        <td>${esc(r.sucursal || '')}</td>
+        <td class="num">${money(r.monto)}</td>
+        <td>${labelFrecuencia(Number(r.frecuencia_meses) || 1)}</td>
+        <td>${fmtFecha(r.proxima_fecha_vencimiento)}</td>
+        <td style="font-size:11px;color:var(--muted)">${estimada ? fmtFecha(formatYMD(estimada)) : '—'}</td>
+        <td>${r.activo ? '<span class="badge badge-good">Activo</span>' : '<span class="badge badge-muted">Pausado</span>'}</td>
+        <td><div class="rowActions">
+          ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="toggleActivoRecurrente('${r.id}', ${!r.activo})">${r.activo ? 'Pausar' : 'Reactivar'}</button>` : ''}
+          ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="formRecurrente('${r.id}')">Editar</button>` : ''}
+          ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('recurrentes','${r.id}','este gasto recurrente')">Eliminar</button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+function formRecurrente(id) {
+  const r = id ? state.recurrentes.find(x => String(x.id) === String(id)) : null;
+  const provIdInicial = r?.proveedor_id || '';
+  openModal(`
+    <h2>${r ? 'Editar' : 'Nuevo'} gasto recurrente</h2>
+    <form onsubmit="return guardarRecurrente(event, '${id || ''}')">
+      <div class="formGrid">
+        <div class="field full"><label>Proveedor</label>
+          <select id="rec_proveedor_id" required onchange="actualizarCuentasDestinoRecurrente()">
+            ${!r ? `<option value="" selected disabled>Selecciona un proveedor…</option>` : ''}
+            ${state.proveedores.map(p => `<option value="${p.id}" ${r && String(r.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field full"><label>Concepto</label><input id="rec_concepto" value="${esc(r?.concepto||'')}" placeholder="Ej. Renta local Chemuyil" required></div>
+        <div class="field"><label>Monto</label><input type="number" step="0.01" id="rec_monto" value="${r?.monto||''}" required></div>
+        <div class="field"><label>Sucursal</label><input id="rec_sucursal" value="${esc(r?.sucursal||'')}"></div>
+        <div class="field"><label>Frecuencia</label><select id="rec_frecuencia_meses">${opcionesFrecuencia(r?.frecuencia_meses)}</select></div>
+        <div class="field"><label>Próxima fecha de vencimiento</label><input type="date" id="rec_proxima_fecha_vencimiento" value="${esc(r?.proxima_fecha_vencimiento||'')}" required></div>
+        <div class="field full"><label>Días de anticipación para generar la CxP</label><input type="number" id="rec_dias_anticipacion" value="${r?.dias_anticipacion ?? 5}" min="0">
+          <p style="font-size:11px;color:var(--muted);margin:4px 0 0">Con cuántos días de anticipación a la fecha de vencimiento se crea automáticamente la cuenta por pagar.</p>
+        </div>
+        <div class="field full"><label>Cuenta del proveedor a pagar</label>
+          <select id="rec_cuenta_destino_id">${opcionesCuentasDestino(provIdInicial, r?.cuenta_destino_id)}</select>
+        </div>
+        <div class="field full"><label>Pagar desde</label><select id="rec_pagar_desde">${opcionesPagarDesde(r?.pagar_desde)}</select></div>
+        <div class="field full"><label>Notas</label><input id="rec_notas" value="${esc(r?.notas||'')}"></div>
+        <div class="field full"><label style="display:flex;align-items:center;gap:8px;font-weight:400">
+          <input type="checkbox" id="rec_activo" ${(!r || r.activo) ? 'checked' : ''} style="width:auto"> Activo (genera CxP automáticamente)
+        </label></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+function actualizarCuentasDestinoRecurrente() {
+  const provId = document.getElementById('rec_proveedor_id').value;
+  const sel = document.getElementById('rec_cuenta_destino_id');
+  if (sel) sel.innerHTML = opcionesCuentasDestino(provId, '');
+}
+
+async function guardarRecurrente(ev, id) {
+  ev.preventDefault();
+  const record = {
+    id: id || ('rec_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
+    proveedor_id: document.getElementById('rec_proveedor_id').value,
+    concepto: document.getElementById('rec_concepto').value,
+    monto: document.getElementById('rec_monto').value,
+    sucursal: document.getElementById('rec_sucursal').value,
+    frecuencia_meses: document.getElementById('rec_frecuencia_meses').value,
+    proxima_fecha_vencimiento: document.getElementById('rec_proxima_fecha_vencimiento').value,
+    dias_anticipacion: document.getElementById('rec_dias_anticipacion').value,
+    cuenta_destino_id: document.getElementById('rec_cuenta_destino_id').value,
+    pagar_desde: document.getElementById('rec_pagar_desde').value,
+    notas: document.getElementById('rec_notas').value,
+    activo: document.getElementById('rec_activo').checked
+  };
+  try {
+    showLoading(true);
+    await api('save', { entity: 'recurrentes', record });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Gasto recurrente guardado.', 'ok');
+    renderRecurrentes();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  return false;
+}
+
+async function toggleActivoRecurrente(id, nuevoActivo) {
+  const r = state.recurrentes.find(x => String(x.id) === String(id));
+  if (!r) return;
+  try {
+    showLoading(true);
+    await api('save', { entity: 'recurrentes', record: { id, activo: nuevoActivo } });
+    await loadData();
+    showLoading(false);
+    toast(nuevoActivo ? 'Gasto recurrente reactivado.' : 'Gasto recurrente pausado.', 'ok');
+    renderRecurrentesTable();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
 }
 
 /* ---------------- Vista: Antigüedad de saldos (Aging) ---------------- */
@@ -1717,6 +1899,7 @@ function renderExportar() {
         <button class="btn btn-ghost" onclick="exportarCxpCsv()">Cuentas × Pagar</button>
         <button class="btn btn-ghost" onclick="exportarPagosCsv()">Pagos Realizados</button>
         <button class="btn btn-ghost" onclick="exportarProveedoresCsv()">Proveedores</button>
+        <button class="btn btn-ghost" onclick="exportarRecurrentesCsv()">Gastos Recurrentes</button>
       </div>
     </div>
   `;
@@ -1747,6 +1930,10 @@ function exportarPagosCsv() {
 function exportarProveedoresCsv() {
   const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc, p.email, p.telefono, p.notas]);
   descargarCsv('proveedores_' + new Date().toISOString().slice(0,10) + '.csv', ['id','nombre','rfc','email','telefono','notas'], rows);
+}
+function exportarRecurrentesCsv() {
+  const rows = state.recurrentes.map(r => [r.id, proveedorNombre(r.proveedor_id), r.concepto, r.sucursal, r.monto, labelFrecuencia(Number(r.frecuencia_meses)||1), r.proxima_fecha_vencimiento, r.dias_anticipacion, r.activo ? 'Activo' : 'Pausado', r.notas]);
+  descargarCsv('gastos_recurrentes_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','monto','frecuencia','proxima_fecha_vencimiento','dias_anticipacion','estado','notas'], rows);
 }
 
 /* ---------------- Eliminar genérico ---------------- */
