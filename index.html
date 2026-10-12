@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.2 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.3 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -927,7 +927,7 @@ function renderCxpRow(c) {
       <tr>
         <td>${esc(c.provNombre)}</td>
         <td>${esc(c.concepto || '')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</td>
-        <td>${esc(c.sucursal || '')}</td>
+        <td>${esc(c.folio || '')}</td>
         <td>${fmtFecha(c.fecha_vencimiento)}</td>
         <td class="num">${money(c.monto)}</td>
         <td class="num">${money(c.saldo)}</td>
@@ -949,7 +949,7 @@ function renderCxpTable() {
   const getters = {
     provNombre: c => c.provNombre,
     concepto: c => c.concepto || '',
-    sucursal: c => c.sucursal || '',
+    folio: c => c.folio || '',
     fecha_vencimiento: c => { const d = parseFechaLocal(c.fecha_vencimiento); return d ? d.getTime() : 0; },
     monto: c => Number(c.monto) || 0,
     saldo: c => Number(c.saldo) || 0
@@ -970,7 +970,7 @@ function renderCxpTable() {
     <thead><tr>
       ${sortTh('Proveedor','provNombre','sortCxp','renderCxpTable')}
       ${sortTh('Concepto','concepto','sortCxp','renderCxpTable')}
-      ${sortTh('Sucursal','sucursal','sortCxp','renderCxpTable')}
+      ${sortTh('Folio','folio','sortCxp','renderCxpTable')}
       ${sortTh('Vence','fecha_vencimiento','sortCxp','renderCxpTable')}
       ${sortTh('Monto','monto','sortCxp','renderCxpTable')}
       ${sortTh('Saldo','saldo','sortCxp','renderCxpTable')}
