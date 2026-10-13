@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.3 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.4 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -929,7 +929,6 @@ function renderCxpRow(c) {
         <td>${esc(c.concepto || '')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</td>
         <td>${esc(c.folio || '')}</td>
         <td>${fmtFecha(c.fecha_vencimiento)}</td>
-        <td class="num">${money(c.monto)}</td>
         <td class="num">${money(c.saldo)}</td>
         <td>${badgeEstadoCxp(c.est)}</td>
         <td><div class="rowActions">
@@ -951,7 +950,6 @@ function renderCxpTable() {
     concepto: c => c.concepto || '',
     folio: c => c.folio || '',
     fecha_vencimiento: c => { const d = parseFechaLocal(c.fecha_vencimiento); return d ? d.getTime() : 0; },
-    monto: c => Number(c.monto) || 0,
     saldo: c => Number(c.saldo) || 0
   };
 
@@ -962,7 +960,7 @@ function renderCxpTable() {
     items = state.sortCxp.col
       ? sortRows(items, state.sortCxp, getters)
       : [...items].sort((a, b2) => cmpFecha(a.fecha_vencimiento, b2.fecha_vencimiento)); // por defecto: la que vence más pronto primero
-    filasHtml += `<tr class="blockHeader"><td colspan="8" style="background:${b.bg};color:${b.color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">${b.emoji} ${b.titulo} (${items.length})</td></tr>`;
+    filasHtml += `<tr class="blockHeader"><td colspan="7" style="background:${b.bg};color:${b.color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">${b.emoji} ${b.titulo} (${items.length})</td></tr>`;
     filasHtml += items.map(renderCxpRow).join('');
   });
 
@@ -972,7 +970,6 @@ function renderCxpTable() {
       ${sortTh('Concepto','concepto','sortCxp','renderCxpTable')}
       ${sortTh('Folio','folio','sortCxp','renderCxpTable')}
       ${sortTh('Vence','fecha_vencimiento','sortCxp','renderCxpTable')}
-      ${sortTh('Monto','monto','sortCxp','renderCxpTable')}
       ${sortTh('Saldo','saldo','sortCxp','renderCxpTable')}
       <th>Estado</th><th></th>
     </tr></thead>
