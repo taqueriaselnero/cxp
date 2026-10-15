@@ -180,7 +180,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.4 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.5 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -343,6 +343,37 @@ function saldoCxp(cxpId, monto) {
   return (Number(monto) || 0) - pagado;
 }
 
+// --- Índices para recorrer listas grandes sin O(n×m) ---
+// pagosDeCxp()/proveedorNombre() recorren TODO el arreglo correspondiente cada vez que se llaman
+// (un .filter()/.find() completo). Eso es correcto para una sola nota o un solo proveedor, pero
+// si se usa dentro de un .map() sobre TODAS las cuentas por pagar (p.ej. al escribir en "Buscar",
+// que re-renderiza la tabla en cada tecla), el costo se multiplica: N cuentas × M pagos × cada
+// tecla. Con pocas filas no se nota, pero según crece el historial del negocio sí se siente como
+// que la página se queda pensando/congelada al teclear. Estos índices se arman UNA vez por
+// render (no por fila) y después cada búsqueda es O(1) en vez de recorrer el arreglo completo.
+function indexarPagosPorCxp(pagos) {
+  const idx = new Map();
+  pagos.forEach(p => {
+    const key = String(p.cxp_id);
+    if (!idx.has(key)) idx.set(key, []);
+    idx.get(key).push(p);
+  });
+  return idx;
+}
+
+function indexarProveedoresPorId(proveedores) {
+  const idx = new Map();
+  proveedores.forEach(p => idx.set(String(p.id), p));
+  return idx;
+}
+
+// Igual que saldoCxp(), pero usando un índice ya armado (ver indexarPagosPorCxp) en vez de
+// filtrar todo state.pagos otra vez por cada cuenta.
+function saldoDesdeIndice(cxpId, monto, pagosPorCxp) {
+  const pagado = (pagosPorCxp.get(String(cxpId)) || []).reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  return (Number(monto) || 0) - pagado;
+}
+
 function diasEntre(a, b) { return Math.round((a - b) / 86400000); }
 
 // Convierte una fecha "AAAA-MM-DD" (como las que guarda el Sheet, vía <input type="date">) en un Date
@@ -375,8 +406,12 @@ function cmpFecha(a, b) {
   return da - db;
 }
 
-function estadoCxp(c) {
-  const saldo = saldoCxp(c.id, c.monto);
+// El segundo parámetro (saldoYaCalculado) es opcional: si quien llama ya calculó el saldo (p.ej.
+// al recorrer toda la tabla con un índice, ver indexarPagosPorCxp), se lo pasa aquí para no
+// recalcularlo otra vez adentro — antes esta función volvía a filtrar todos los pagos de la nota
+// aunque el llamador ya tuviera el saldo a la mano, duplicando el trabajo en cada fila.
+function estadoCxp(c, saldoYaCalculado) {
+  const saldo = saldoYaCalculado !== undefined ? saldoYaCalculado : saldoCxp(c.id, c.monto);
   if (saldo <= 0.01) return 'liquidada';
   if (!c.fecha_vencimiento) return 'vigente';
   const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -550,7 +585,11 @@ function svgBarChart(data, opts) {
 /* ---------------- Vista: Dashboard ---------------- */
 
 function renderDashboard() {
-  const pendientes = state.cxp.map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c) }))
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const pendientes = state.cxp.map(c => {
+      const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+      return { ...c, saldo, est: estadoCxp(c, saldo) };
+    })
     .filter(c => c.saldo > 0.01);
 
   const totalPendiente = pendientes.reduce((s, c) => s + c.saldo, 0);
@@ -718,9 +757,11 @@ function dashProveedoresListHtml(data) {
 // Clic en una nota -> detalle de captura (quién la registró, cuándo, y los pagos aplicados).
 function verNotasProveedorDashboard(provId) {
   const nombre = proveedorNombre(provId);
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
   const notas = state.cxp
-    .map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c) }))
-    .filter(c => String(c.proveedor_id) === String(provId) && c.saldo > 0.01)
+    .filter(c => String(c.proveedor_id) === String(provId)) // primero filtra por proveedor — así no calculamos el saldo de TODAS las cuentas para quedarnos solo con las de este
+    .map(c => { const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp); return { ...c, saldo, est: estadoCxp(c, saldo) }; })
+    .filter(c => c.saldo > 0.01)
     .sort((a,b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento));
   const total = notas.reduce((s,c) => s + c.saldo, 0);
 
@@ -849,7 +890,13 @@ function cxpFiltradas() {
   // incluso para la cuenta que vence justo ese día) — por eso "Hoy" mostraba "Sin resultados".
   const fDesde = f.desde ? parseFechaLocal(f.desde) : null;
   const fHasta = f.hasta ? parseFechaLocal(f.hasta) : null;
-  return state.cxp.map(c => ({ ...c, saldo: saldoCxp(c.id, c.monto), est: estadoCxp(c), provNombre: proveedorNombre(c.proveedor_id) }))
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const provPorId = indexarProveedoresPorId(state.proveedores);
+  return state.cxp.map(c => {
+      const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+      const prov = provPorId.get(String(c.proveedor_id));
+      return { ...c, saldo, est: estadoCxp(c, saldo), provNombre: prov ? prov.nombre : '(sin proveedor)' };
+    })
     .filter(c => {
       if (f.sucursal && c.sucursal !== f.sucursal) return false;
       if (f.proveedor && String(c.proveedor_id) !== String(f.proveedor)) return false;
@@ -883,7 +930,7 @@ function renderCxp() {
       <div class="actions">${can(['admin','capturista']) ? `<button class="btn btn-primary btn-sm" onclick="formCxp()">+ Nueva CxP</button>` : ''}</div>
     </div>
     <div class="filters">
-      <div class="f fGrow"><label>Buscar</label><input id="fTexto" placeholder="Proveedor, concepto, folio…" value="${esc(state.filtrosCxp.texto)}" oninput="state.filtrosCxp.texto=this.value; renderCxpTable();"></div>
+      <div class="f fGrow"><label>Buscar</label><input id="fTexto" placeholder="Proveedor, concepto, folio…" value="${esc(state.filtrosCxp.texto)}" oninput="state.filtrosCxp.texto=this.value; renderCxpTableDebounced();"></div>
       <div class="f"><label>Sucursal</label><select id="fSucursal" onchange="state.filtrosCxp.sucursal=this.value; renderCxpTable();">
         <option value="">Todas</option>${sucursales.map(s => `<option value="${esc(s)}" ${state.filtrosCxp.sucursal===s?'selected':''}>${esc(s)}</option>`).join('')}
       </select></div>
@@ -938,6 +985,18 @@ function renderCxpRow(c) {
           ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('cxp','${c.id}','esta CxP')">Eliminar</button>` : ''}
         </div></td>
       </tr>`;
+}
+
+// El campo "Buscar" dispara un re-render completo de la tabla en cada tecla (renderCxpTable()
+// reconstruye todo el <tbody>). Con pocas cuentas no se nota, pero si el historial ya creció,
+// escribir rápido podía sentirse "trabado" porque cada tecla disparaba un recálculo completo
+// antes de que terminara el anterior. Este debounce espera a que la persona deje de teclear
+// 180ms antes de volver a pintar la tabla — el campo de texto no se re-renderiza (vive fuera de
+// #cxpTableWrap, ver renderCxp), así que no se pierde el cursor ni el foco mientras se escribe.
+let _debounceCxpTabla = null;
+function renderCxpTableDebounced() {
+  clearTimeout(_debounceCxpTabla);
+  _debounceCxpTabla = setTimeout(renderCxpTable, 180);
 }
 
 function renderCxpTable() {
@@ -1424,11 +1483,13 @@ function renderAging() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const buckets = { vigente:{}, b30:{}, b60:{}, b90:{}, b90p:{} };
   const totales = { vigente:0, b30:0, b60:0, b90:0, b90p:0 };
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const provPorId = indexarProveedoresPorId(state.proveedores);
 
   state.cxp.forEach(c => {
-    const saldo = saldoCxp(c.id, c.monto);
+    const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
     if (saldo <= 0.01) return;
-    const prov = proveedorNombre(c.proveedor_id);
+    const prov = (provPorId.get(String(c.proveedor_id)) || {}).nombre || '(sin proveedor)';
     let bucket = 'vigente';
     if (c.fecha_vencimiento) {
       const fv = parseFechaLocal(c.fecha_vencimiento);
