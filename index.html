@@ -125,6 +125,30 @@
   .rowActions{display:flex;gap:6px;justify-content:flex-end;}
   .emptyState{padding:30px;text-align:center;color:var(--muted);}
 
+  /* Cuentas × Pagar: columna Días, Concepto clicable, menú "Opciones" y bloques colapsables
+     (Vigentes/Liquidadas) — ver renderCxpRow/renderCxpTable/toggleBloqueCxp */
+  .diasTxt{font-size:12px;font-weight:700;white-space:nowrap;}
+  .diasTxt.d-vencida{color:var(--critical);}
+  .diasTxt.d-hoy{color:var(--warning);}
+  .diasTxt.d-porvencer{color:var(--ink-2);font-weight:600;}
+  .diasTxt.d-liquidada{color:var(--muted);font-weight:400;}
+  .conceptoLink{cursor:pointer;color:var(--ink);text-decoration:underline;text-decoration-color:var(--border);text-decoration-thickness:1px;}
+  .conceptoLink:hover{color:var(--brand);text-decoration-color:var(--brand);}
+  .optMenuWrap{position:relative;display:inline-block;}
+  .optMenuBtn{background:transparent;border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:15px;line-height:1;cursor:pointer;color:var(--ink-2);}
+  .optMenuBtn:hover{background:#f2f2f0;}
+  .optMenu{display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:0 10px 24px rgba(0,0,0,.14);min-width:160px;z-index:30;overflow:hidden;}
+  .optMenu.open{display:block;}
+  .optMenu button{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 12px;font-size:13px;cursor:pointer;color:var(--ink);font-family:inherit;}
+  .optMenu button:hover{background:#f5f4f1;}
+  .optMenu button.danger{color:var(--critical);}
+  .optMenu hr{border:none;border-top:1px solid var(--border);margin:0;}
+  .bloqueToggle{cursor:pointer;user-select:none;}
+  .bloqueToggle .chev{display:inline-block;transition:transform .15s;font-size:10px;margin-right:4px;}
+  .bloqueToggle.open .chev{transform:rotate(90deg);}
+  tr.bloqueColapsable{display:none;}
+  tr.bloqueColapsable.open{display:table-row;}
+
   .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;}
   .badge-good{background:var(--good-bg);color:var(--good);}
   .badge-warning{background:var(--warning-bg);color:var(--warning);}
@@ -180,7 +204,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.5 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.6 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -246,7 +270,11 @@ const state = {
   sortCuentas:     { col: null, dir: 'asc' },
   sortUsuarios:    { col: null, dir: 'asc' },
   sortAuditoria:   { col: null, dir: 'asc' },
-  sortRecurrentes: { col: null, dir: 'asc' }
+  sortRecurrentes: { col: null, dir: 'asc' },
+  // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
+  // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
+  // demás filtros de esta vista).
+  cxpBloquesAbiertos: { vigentes: false, liquidadas: false }
 };
 
 /* ---------------- API ---------------- */
@@ -410,13 +438,22 @@ function cmpFecha(a, b) {
 // al recorrer toda la tabla con un índice, ver indexarPagosPorCxp), se lo pasa aquí para no
 // recalcularlo otra vez adentro — antes esta función volvía a filtrar todos los pagos de la nota
 // aunque el llamador ya tuviera el saldo a la mano, duplicando el trabajo en cada fila.
+// Días entre hoy y el vencimiento de una CxP: positivo = vencida hace N días, 0 = vence hoy,
+// negativo = faltan |N| días para vencer. null si la nota no tiene fecha de vencimiento
+// capturada. Se separó de estadoCxp() para que la tabla de Cuentas × Pagar pueda mostrar el
+// número exacto (columna "Días") sin tener que volver a calcularlo con su propia lógica de fechas.
+function diasVencimiento(c) {
+  if (!c.fecha_vencimiento) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fv = parseFechaLocal(c.fecha_vencimiento);
+  return diasEntre(hoy, fv);
+}
+
 function estadoCxp(c, saldoYaCalculado) {
   const saldo = saldoYaCalculado !== undefined ? saldoYaCalculado : saldoCxp(c.id, c.monto);
   if (saldo <= 0.01) return 'liquidada';
-  if (!c.fecha_vencimiento) return 'vigente';
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const fv = parseFechaLocal(c.fecha_vencimiento);
-  const dias = diasEntre(hoy, fv); // positivo = vencida hace N días
+  const dias = diasVencimiento(c);
+  if (dias === null) return 'vigente';
   if (dias > 0) return 'vencida';
   if (dias >= -7) return 'proxima';
   return 'vigente';
@@ -431,6 +468,24 @@ function badgeEstadoCxp(estado) {
   };
   const [cls, label] = map[estado] || map.vigente;
   return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// Variante del badge de estado SOLO para la tabla de Cuentas × Pagar: distingue visualmente
+// "vence hoy" de "por vencer" (el resto de la app — modal de detalle, notas por proveedor —
+// sigue usando badgeEstadoCxp/estadoCxp tal cual, sin el caso especial de "hoy").
+function badgeEstadoCxpTabla(c, dias) {
+  if (c.est === 'proxima' && dias === 0) return `<span class="badge badge-warning">Vence hoy</span>`;
+  return badgeEstadoCxp(c.est);
+}
+
+// Texto de la columna "Días" de Cuentas × Pagar, coherente con el badge de arriba.
+function textoDiasCxp(c, dias) {
+  if (c.saldo <= 0.01) return `<span class="diasTxt d-liquidada">Pagada</span>`;
+  if (dias === null) return `<span class="diasTxt d-porvencer">—</span>`;
+  if (dias > 0) return `<span class="diasTxt d-vencida">${dias} día${dias === 1 ? '' : 's'}</span>`;
+  if (dias === 0) return `<span class="diasTxt d-hoy">Hoy</span>`;
+  const faltan = Math.abs(dias);
+  return `<span class="diasTxt d-porvencer">en ${faltan} día${faltan === 1 ? '' : 's'}</span>`;
 }
 
 function badgeEstadoPago(p) {
@@ -959,31 +1014,42 @@ function limpiarFiltrosCxp() {
   renderCxp();
 }
 
-// Orden de los bloques automáticos en Cuentas × Pagar: las vencidas siempre arriba (urgente),
-// luego las por vencer, luego las vigentes (vencen en más de 7 días), y al final las liquidadas
-// — en cuanto una cuenta queda pagada, "baja" sola a este último bloque la próxima vez que se pinta la tabla.
-const BLOQUES_CXP = [
-  { est:'vencida',   titulo:'Vencidas',   emoji:'🔴', color:'var(--critical)', bg:'var(--critical-bg)' },
-  { est:'proxima',   titulo:'Por vencer', emoji:'🟡', color:'var(--warning)',  bg:'var(--warning-bg)'  },
-  { est:'vigente',   titulo:'Vigentes',   emoji:'⚪', color:'var(--ink-2)',    bg:'#f0efec'             },
-  { est:'liquidada', titulo:'Liquidadas', emoji:'🟢', color:'var(--good)',     bg:'var(--good-bg)'     }
-];
+// Menú "Opciones" (⋮) de cada fila de Cuentas × Pagar — agrupa Registrar pago / Editar / Eliminar
+// (antes botones sueltos) respetando los mismos permisos por rol de siempre. Un solo listener
+// global (ver el final del script) cierra cualquier menú abierto al hacer clic fuera.
+function opcionesCxpMenu(c) {
+  const items = [];
+  if (can(['admin','capturista','tesorero']) && c.saldo > 0.01) items.push(`<button onclick="cerrarMenusCxp(); formPago('${c.id}')">💰 Registrar pago</button>`);
+  if (can(['admin','capturista'])) items.push(`<button onclick="cerrarMenusCxp(); formCxp('${c.id}')">✏️ Editar</button>`);
+  if (can(['admin'])) items.push(`<button class="danger" onclick="cerrarMenusCxp(); confirmarEliminar('cxp','${c.id}','esta CxP')">🗑️ Eliminar</button>`);
+  if (!items.length) return '';
+  return `<div class="optMenuWrap">
+      <button class="optMenuBtn" onclick="toggleMenuCxp(event,'${c.id}')" title="Opciones">⋮</button>
+      <div class="optMenu" id="menuCxp-${c.id}">${items.join('')}</div>
+    </div>`;
+}
 
-function renderCxpRow(c) {
+function toggleMenuCxp(ev, id) {
+  ev.stopPropagation();
+  const el = document.getElementById('menuCxp-' + id);
+  const yaAbierto = el.classList.contains('open');
+  cerrarMenusCxp();
+  if (!yaAbierto) el.classList.add('open');
+}
+function cerrarMenusCxp() { document.querySelectorAll('.optMenu.open').forEach(el => el.classList.remove('open')); }
+
+function renderCxpRow(c, extraClass) {
+  const dias = c.dias !== undefined ? c.dias : diasVencimiento(c);
   return `
-      <tr>
+      <tr${extraClass ? ` class="${extraClass}"` : ''}>
         <td>${esc(c.provNombre)}</td>
-        <td>${esc(c.concepto || '')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</td>
+        <td><span class="conceptoLink" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto">${esc(c.concepto || '(sin concepto)')}</span>${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</td>
         <td>${esc(c.folio || '')}</td>
-        <td>${fmtFecha(c.fecha_vencimiento)}</td>
         <td class="num">${money(c.saldo)}</td>
-        <td>${badgeEstadoCxp(c.est)}</td>
-        <td><div class="rowActions">
-          <button class="btn btn-ghost btn-sm" onclick="verCapturaCxp('${c.id}')">Ver gasto</button>
-          ${can(['admin','capturista','tesorero']) && c.saldo > 0.01 ? `<button class="btn btn-ok btn-sm" onclick="formPago('${c.id}')">Registrar pago</button>` : ''}
-          ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="formCxp('${c.id}')">Editar</button>` : ''}
-          ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('cxp','${c.id}','esta CxP')">Eliminar</button>` : ''}
-        </div></td>
+        <td>${fmtFecha(c.fecha_vencimiento)}</td>
+        <td>${badgeEstadoCxpTabla(c, dias)}</td>
+        <td>${textoDiasCxp(c, dias)}</td>
+        <td>${opcionesCxpMenu(c)}</td>
       </tr>`;
 }
 
@@ -999,8 +1065,16 @@ function renderCxpTableDebounced() {
   _debounceCxpTabla = setTimeout(renderCxpTable, 180);
 }
 
+// Abre/cierra un bloque colapsable (Vigentes o Liquidadas) y vuelve a pintar la tabla para que
+// las filas y la flechita queden en el estado correcto. El abierto/cerrado se recuerda en
+// state.cxpBloquesAbiertos mientras la pestaña siga abierta (igual que los demás filtros de esta vista).
+function toggleBloqueCxp(clave) {
+  state.cxpBloquesAbiertos[clave] = !state.cxpBloquesAbiertos[clave];
+  renderCxpTable();
+}
+
 function renderCxpTable() {
-  const lista = cxpFiltradas();
+  const lista = cxpFiltradas().map(c => ({ ...c, dias: diasVencimiento(c) }));
   const wrap = document.getElementById('cxpTableWrap');
   if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin resultados con los filtros actuales.</div></div>`; return; }
 
@@ -1008,29 +1082,62 @@ function renderCxpTable() {
     provNombre: c => c.provNombre,
     concepto: c => c.concepto || '',
     folio: c => c.folio || '',
+    saldo: c => Number(c.saldo) || 0,
     fecha_vencimiento: c => { const d = parseFechaLocal(c.fecha_vencimiento); return d ? d.getTime() : 0; },
-    saldo: c => Number(c.saldo) || 0
+    dias: c => c.dias === null ? Infinity : c.dias
   };
 
-  let filasHtml = '';
-  BLOQUES_CXP.forEach(b => {
-    let items = lista.filter(c => c.est === b.est);
-    if (!items.length) return;
-    items = state.sortCxp.col
+  function ordenar(items) {
+    return state.sortCxp.col
       ? sortRows(items, state.sortCxp, getters)
-      : [...items].sort((a, b2) => cmpFecha(a.fecha_vencimiento, b2.fecha_vencimiento)); // por defecto: la que vence más pronto primero
-    filasHtml += `<tr class="blockHeader"><td colspan="7" style="background:${b.bg};color:${b.color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">${b.emoji} ${b.titulo} (${items.length})</td></tr>`;
-    filasHtml += items.map(renderCxpRow).join('');
-  });
+      : [...items].sort((a, b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento)); // por defecto: la que vence más pronto primero
+  }
+
+  // Bloque siempre visible (Vencidas / Vencen hoy / Por vencer)
+  function bloqueFijo(titulo, emoji, color, bg, items) {
+    if (!items.length) return '';
+    return `<tr class="blockHeader"><td colspan="8" style="background:${bg};color:${color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">${emoji} ${esc(titulo)} (${items.length})</td></tr>`
+      + ordenar(items).map(c => renderCxpRow(c)).join('');
+  }
+
+  // Bloque plegado por default (Vigentes / Liquidadas) — clic en el encabezado lo despliega;
+  // las filas quedan en el DOM siempre (con display:none vía CSS) para que abrir/cerrar sea
+  // instantáneo y no dependa de volver a pintar nada.
+  function bloqueColapsable(clave, titulo, emoji, color, bg, items) {
+    if (!items.length) return '';
+    const abierto = !!state.cxpBloquesAbiertos[clave];
+    const claseFilas = `bloqueColapsable bloqueCxp-${clave}${abierto ? ' open' : ''}`;
+    return `<tr class="blockHeader" style="cursor:pointer" onclick="toggleBloqueCxp('${clave}')">
+        <td colspan="8" style="background:${bg};color:${color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">
+          <span class="bloqueToggle${abierto ? ' open' : ''}"><span class="chev">▶</span>${emoji} ${esc(titulo)} (${items.length}) — clic para mostrar/ocultar</span>
+        </td>
+      </tr>`
+      + ordenar(items).map(c => renderCxpRow(c, claseFilas)).join('');
+  }
+
+  const vencidas  = lista.filter(c => c.est === 'vencida');
+  const vencenHoy = lista.filter(c => c.est === 'proxima' && c.dias === 0);
+  const porVencer = lista.filter(c => c.est === 'proxima' && c.dias !== 0);
+  const vigentes   = lista.filter(c => c.est === 'vigente');
+  const liquidadas = lista.filter(c => c.est === 'liquidada');
+
+  let filasHtml = '';
+  filasHtml += bloqueFijo('Vencidas', '🔴', 'var(--critical)', 'var(--critical-bg)', vencidas);
+  filasHtml += bloqueFijo('Vencen hoy', '🟠', 'var(--warning)', 'var(--warning-bg)', vencenHoy);
+  filasHtml += bloqueFijo('Por vencer — próximos 7 días', '⚪', 'var(--ink-2)', '#f0efec', porVencer);
+  filasHtml += bloqueColapsable('vigentes', 'Vigentes — vencen en más de 7 días', '⚪', 'var(--ink-2)', '#f0efec', vigentes);
+  filasHtml += bloqueColapsable('liquidadas', 'Liquidadas', '🟢', 'var(--good)', 'var(--good-bg)', liquidadas);
 
   wrap.innerHTML = `<div class="tableWrap"><table>
     <thead><tr>
       ${sortTh('Proveedor','provNombre','sortCxp','renderCxpTable')}
       ${sortTh('Concepto','concepto','sortCxp','renderCxpTable')}
       ${sortTh('Folio','folio','sortCxp','renderCxpTable')}
-      ${sortTh('Vence','fecha_vencimiento','sortCxp','renderCxpTable')}
       ${sortTh('Saldo','saldo','sortCxp','renderCxpTable')}
-      <th>Estado</th><th></th>
+      ${sortTh('Vence','fecha_vencimiento','sortCxp','renderCxpTable')}
+      <th>Estado</th>
+      ${sortTh('Días','dias','sortCxp','renderCxpTable')}
+      <th>Opciones</th>
     </tr></thead>
     <tbody>${filasHtml}</tbody>
   </table></div>`;
@@ -2099,6 +2206,10 @@ setInterval(() => {
     logout('Tu sesión se cerró por inactividad (60 min). Vuelve a iniciar sesión.');
   }
 }, 30000);
+
+// Cierra cualquier menú "Opciones" abierto de Cuentas × Pagar al hacer clic en cualquier otra
+// parte de la página (el propio botón ⋮ detiene la propagación, ver toggleMenuCxp).
+document.addEventListener('click', cerrarMenusCxp);
 
 </script>
 </body>
