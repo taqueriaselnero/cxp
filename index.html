@@ -132,8 +132,10 @@
   .diasTxt.d-hoy{color:var(--warning);}
   .diasTxt.d-porvencer{color:var(--ink-2);font-weight:600;}
   .diasTxt.d-liquidada{color:var(--muted);font-weight:400;}
-  .conceptoLink{cursor:pointer;color:var(--ink);text-decoration:underline;text-decoration-color:var(--border);text-decoration-thickness:1px;}
-  .conceptoLink:hover{color:var(--brand);text-decoration-color:var(--brand);}
+  .conceptoCelda{display:flex;align-items:center;gap:10px;}
+  .verGastoBtn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--ink-2);font-size:11px;font-weight:700;cursor:pointer;flex:0 0 auto;transition:background .12s,border-color .12s,color .12s;}
+  .verGastoBtn:hover{background:var(--brand-light);border-color:var(--brand);color:var(--brand);}
+  .verGastoBtn svg{width:12px;height:12px;}
   .optMenuWrap{position:relative;display:inline-block;}
   .optMenuBtn{background:transparent;border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:15px;line-height:1;cursor:pointer;color:var(--ink-2);}
   .optMenuBtn:hover{background:#f2f2f0;}
@@ -204,7 +206,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.6 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.7 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -1043,7 +1045,7 @@ function renderCxpRow(c, extraClass) {
   return `
       <tr${extraClass ? ` class="${extraClass}"` : ''}>
         <td>${esc(c.provNombre)}</td>
-        <td><span class="conceptoLink" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto">${esc(c.concepto || '(sin concepto)')}</span>${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</td>
+        <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span></div></td>
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
         <td>${fmtFecha(c.fecha_vencimiento)}</td>
