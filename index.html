@@ -158,6 +158,68 @@
   .badge-critical{background:var(--critical-bg);color:var(--critical);}
   .badge-muted{background:#f0efec;color:var(--ink-2);}
 
+  /* ---- Adjuntos (v6.8): evidencia del gasto en CxP, comprobante de pago opcional en Pagos ----
+     Campo de subir (pegar/arrastrar/elegir archivo) + miniatura en tabla + detalle en dos columnas
+     + lightbox de la imagen con tamaño acotado. Ver htmlCampoAdjunto/comprimirImagen/abrirLightbox. */
+  .tagAdjunto{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;}
+  .tag-brand{background:var(--brand-light);color:var(--brand);}
+  .tag-muted-adj{background:#f0efec;color:var(--ink-2);}
+  .subidaBox{border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;outline:none;transition:border-color .12s,background .12s;}
+  .subidaBox.principal{border:1.5px solid var(--brand);background:var(--brand-light);}
+  .subidaBox.principal:hover,.subidaBox.principal:focus{background:#e3e6fb;}
+  .subidaBox.secundario{border:1.5px dashed var(--border);background:var(--surface);}
+  .subidaBox.secundario:hover,.subidaBox.secundario:focus{border-color:var(--muted);background:#faf9f7;}
+  .subidaBox.dragover{border-color:var(--brand) !important;background:var(--brand-light) !important;}
+  .subidaBox.conArchivo{cursor:pointer;border-style:solid !important;align-items:flex-start;}
+  .subidaBox .icono{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;flex:0 0 auto;}
+  .subidaBox.principal .icono{background:var(--brand);color:#fff;}
+  .subidaBox.secundario .icono{background:#f0efec;color:var(--ink-2);}
+  .subidaBox .icono svg{width:17px;height:17px;}
+  .subidaTxt{flex:1;min-width:0;}
+  .subidaTxt .t1{font-weight:700;font-size:12.5px;color:var(--ink);margin-bottom:2px;}
+  .subidaTxt .t2{font-size:11.5px;color:var(--muted);}
+  .subidaBox kbd{background:#f0efec;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;font-family:inherit;color:var(--ink-2);}
+  .thumbChico{width:58px;height:58px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex:0 0 auto;background:#fff;}
+  .infoArchivo{flex:1;min-width:0;}
+  .infoArchivo .nombre{font-weight:700;font-size:12px;color:var(--ink);margin-bottom:3px;word-break:break-all;}
+  .infoArchivo .meta{font-size:11px;color:var(--muted);}
+  .quitarBtn{background:none;border:none;color:var(--critical);font-size:11.5px;font-weight:700;cursor:pointer;padding:4px;flex:0 0 auto;}
+  .clipIcon{display:inline-flex;color:var(--brand);flex:0 0 auto;}
+  .clipIcon svg{width:14px;height:14px;}
+  .avisoMovil{display:none;border:1px solid var(--warning);background:var(--warning-bg);border-radius:10px;padding:12px;gap:9px;align-items:flex-start;}
+  .avisoMovil svg{width:17px;height:17px;color:var(--warning);flex:0 0 auto;margin-top:1px;}
+  .avisoMovil .t1{font-weight:700;font-size:12.5px;color:var(--ink);margin-bottom:2px;}
+  .avisoMovil .t2{font-size:11.5px;color:var(--ink-2);line-height:1.4;}
+  .verAdjuntoMovilBtn{display:inline-block;margin-top:7px;background:none;border:none;padding:0;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline;}
+
+  /* Detalle de captura (modal): resumen condensado + imagen en dos columnas */
+  .dosColDetalle{display:grid;grid-template-columns:1fr 220px;gap:20px;align-items:start;}
+  .detalleResumen .item{margin-bottom:10px;}
+  .detalleResumen .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;margin-bottom:2px;}
+  .detalleResumen .val{font-size:14px;color:var(--ink);}
+  .detalleResumen .val.concepto{font-size:15.5px;font-weight:700;line-height:1.3;}
+  .detalleResumen .val.saldo{font-weight:700;font-size:14px;}
+  .estadoVenceTxt{font-size:11.5px;color:var(--ink-2);font-weight:600;margin-left:4px;}
+  .masDetalleToggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-2);background:none;border:none;cursor:pointer;padding:8px 0 0;font-weight:600;}
+  .masDetalleToggle .chev{display:inline-block;font-size:10px;}
+  .masDetalleBody{margin-top:8px;}
+  .imgColDetalle{position:sticky;top:0;}
+  .thumbWrap{position:relative;cursor:pointer;}
+  .thumbGrande{width:100%;height:170px;border-radius:8px;object-fit:cover;border:1px solid var(--border);display:block;background:#f0efec;}
+  .thumbWrap .lupa{position:absolute;bottom:6px;right:6px;width:22px;height:22px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;}
+  .thumbWrap .lupa svg{width:12px;height:12px;}
+  .sinEvidencia{border:1.5px dashed var(--border);border-radius:8px;padding:16px 10px;text-align:center;color:var(--muted);font-size:12px;}
+  .verComprobanteBtn{background:none;border:1px solid var(--border);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:var(--brand);cursor:pointer;}
+
+  /* lightbox: imagen agrandada con tope de tamaño fijo y botón de cerrar DENTRO de la caja (nunca
+     se sale de la pantalla, ni en celular) */
+  #lightboxOverlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;}
+  #lightboxOverlay.hidden{display:none;}
+  .lightboxBox{position:relative;display:inline-block;max-width:calc(100vw - 48px);max-height:70vh;}
+  .lightboxImg{display:block;width:auto;height:auto;max-width:420px;max-height:70vh;object-fit:contain;border-radius:10px;background:#111;}
+  .lightboxClose{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .lightboxClose svg{width:16px;height:16px;}
+
   /* modal */
   #modalOverlay{position:fixed;inset:0;background:rgba(11,11,11,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
   #modalBox{background:var(--surface);border-radius:14px;padding:20px;width:440px;max-width:100%;max-height:88vh;overflow-y:auto;}
@@ -178,6 +240,7 @@
   .toast{background:var(--ink);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;box-shadow:0 6px 16px rgba(0,0,0,.2);max-width:320px;}
   .toast.error{background:var(--critical);}
   .toast.ok{background:var(--good);}
+  .toast.warning{background:var(--warning);}
 
   .loadingOverlay{position:fixed;inset:0;background-color:var(--bg);background-image:var(--wood-bg);background-size:cover;background-position:center;color:var(--bg-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:40;}
   .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;}
@@ -186,6 +249,11 @@
   @media (max-width:640px){
     .formGrid{grid-template-columns:1fr;}
     .who .name{display:none;}
+    .dosColDetalle{grid-template-columns:1fr;}
+    /* Adjuntar una imagen nueva no es cómodo en pantalla chica (ni pegar ni recortar) — se bloquea
+       con un aviso; VER un adjunto ya subido sigue funcionando igual (botón dentro del aviso). */
+    .subidaBox{display:none;}
+    .avisoMovil{display:flex;}
   }
 </style>
 </head>
@@ -206,7 +274,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.7 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.8 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -230,6 +298,14 @@
   <!-- MODAL -->
   <div id="modalOverlay" class="hidden">
     <div id="modalBox"></div>
+  </div>
+
+  <!-- LIGHTBOX: imagen de un adjunto (evidencia/comprobante) agrandada, tamaño acotado -->
+  <div id="lightboxOverlay" class="hidden" onclick="if(event.target.id==='lightboxOverlay') cerrarLightbox()">
+    <div class="lightboxBox">
+      <button class="lightboxClose" onclick="cerrarLightbox()" title="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <img class="lightboxImg" id="lightboxImg" src="">
+    </div>
   </div>
 
   <!-- TOASTS -->
@@ -276,7 +352,10 @@ const state = {
   // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
   // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
   // demás filtros de esta vista).
-  cxpBloquesAbiertos: { vigentes: false, liquidadas: false }
+  cxpBloquesAbiertos: { vigentes: false, liquidadas: false },
+  // v6.8: adjuntos (evidencia/comprobante) del formulario CxP/Pago actualmente abierto — ver
+  // htmlCampoAdjunto() más abajo. Se reinicia cada vez que se abre un formulario.
+  adjuntos: {}
 };
 
 /* ---------------- API ---------------- */
@@ -490,6 +569,18 @@ function textoDiasCxp(c, dias) {
   return `<span class="diasTxt d-porvencer">en ${faltan} día${faltan === 1 ? '' : 's'}</span>`;
 }
 
+// v6.8: frase corta de vencimiento para el resumen condensado del modal de detalle — misma lógica
+// de diasVencimiento() que ya usa la tabla, nomás en prosa ("venció hace N días" / "vence en N días").
+function textoEstadoConVencimiento(c, saldo) {
+  if (saldo <= 0.01) return '';
+  const dias = diasVencimiento(c);
+  if (dias === null) return '';
+  if (dias > 0) return `venció hace ${dias} día${dias === 1 ? '' : 's'}`;
+  if (dias === 0) return 'vence hoy';
+  const faltan = Math.abs(dias);
+  return `vence en ${faltan} día${faltan === 1 ? '' : 's'}`;
+}
+
 function badgeEstadoPago(p) {
   if (p.estado === 'pendiente_validacion') return `<span class="badge badge-warning">Pendiente de validar</span>`;
   return `<span class="badge badge-good">Validado</span>`;
@@ -580,6 +671,183 @@ function openModal(html, opts) {
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
+
+function abrirLightbox(url) {
+  if (!url) return;
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightboxOverlay').classList.remove('hidden');
+}
+function cerrarLightbox() {
+  document.getElementById('lightboxOverlay').classList.add('hidden');
+  document.getElementById('lightboxImg').src = '';
+}
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && !document.getElementById('lightboxOverlay').classList.contains('hidden')) cerrarLightbox();
+});
+
+/* ---------------- Adjuntos (v6.8): evidencia del gasto (CxP) / comprobante de pago (Pagos) ----
+   Campo que acepta pegar (Ctrl+V), arrastrar o elegir archivo; la imagen se comprime en el propio
+   navegador (canvas, nunca sube el original) antes de mandarla al guardar. Un mismo juego de
+   funciones sirve para ambos campos — se distinguen por "fieldKey" ('cxpEvidencia' | 'pagoComprobante'),
+   con su estado en state.adjuntos[fieldKey]. ---------------- */
+
+const ICONO_SUBIR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+const SVG_ALERTA  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86l-8.48 14.14A2 2 0 0 0 3.52 21h16.96a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>`;
+const SVG_LUPA    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+const SVG_CLIP    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
+
+const ADJUNTO_MAX_DIM = 1600;       // lado más largo, en px, después de redimensionar
+const ADJUNTO_CALIDAD_INICIAL = 0.75;
+const ADJUNTO_PESO_OBJETIVO = 350 * 1024; // ~350KB — si no se logra, se manda el mejor intento igual
+
+function formatoKB(bytes) { return (Math.max(bytes, 0) / 1024).toFixed(0) + ' KB'; }
+
+// Redimensiona + comprime una imagen en el navegador (canvas) y regresa { b64, mime, pesoFinal }.
+// Siempre produce JPEG (incluso si el original es PNG — se pinta fondo blanco por si tenía
+// transparencia) para que la compresión sea consistente y predecible.
+function comprimirImagen(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || file.type.indexOf('image') !== 0) { reject(new Error('El archivo no es una imagen.')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('No se pudo leer la imagen (¿archivo dañado?).'));
+      img.onload = () => {
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) { reject(new Error('La imagen llegó vacía.')); return; }
+        const escala = Math.min(1, ADJUNTO_MAX_DIM / Math.max(w, h));
+        w = Math.round(w * escala); h = Math.round(h * escala);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        let calidad = ADJUNTO_CALIDAD_INICIAL;
+        let dataUrl = canvas.toDataURL('image/jpeg', calidad);
+        let intentos = 0;
+        while (dataUrl.length * 0.75 > ADJUNTO_PESO_OBJETIVO && calidad > 0.35 && intentos < 5) {
+          calidad -= 0.12;
+          dataUrl = canvas.toDataURL('image/jpeg', calidad);
+          intentos++;
+        }
+        resolve({ b64: dataUrl.split(',').pop(), mime: 'image/jpeg', pesoFinal: Math.round(dataUrl.length * 0.75) });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Arma el campo de "Adjuntar" para insertar en un formGrid — reinicia state.adjuntos[fieldKey].
+// opts: { titulo, esPrincipal, placeholder, urlExistente }
+function htmlCampoAdjunto(fieldKey, opts) {
+  const { titulo, esPrincipal, placeholder, urlExistente } = opts;
+  state.adjuntos[fieldKey] = { b64: null, mime: null, clear: false, existente: !!urlExistente };
+  const claseBox = esPrincipal ? 'principal' : 'secundario';
+  const tag = esPrincipal ? `<span class="tagAdjunto tag-brand">Principal</span>` : `<span class="tagAdjunto tag-muted-adj">Opcional</span>`;
+  const contenidoInicial = urlExistente
+    ? `<img class="thumbChico" src="${esc(urlExistente)}">
+       <div class="infoArchivo"><div class="nombre">Ya hay uno adjunto</div><div class="meta">Clic para reemplazar</div></div>
+       <button type="button" class="quitarBtn" onclick="quitarAdjunto(event,'${fieldKey}')">Quitar</button>`
+    : `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Clic y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
+  const avisoVerBtn = urlExistente ? `<button type="button" class="verAdjuntoMovilBtn" onclick="abrirLightbox('${esc(urlExistente)}')">Ver lo ya adjuntado</button>` : '';
+  return `
+    <div class="field full">
+      <label>${esc(titulo)} ${tag}</label>
+      <div class="subidaBox ${claseBox}${urlExistente ? ' conArchivo' : ''}" id="dz_${fieldKey}" tabindex="0"
+           data-placeholder="${esc(placeholder)}"
+           onclick="clicAdjunto(event,'${fieldKey}')"
+           onpaste="pegarAdjunto(event,'${fieldKey}')"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="soltarAdjunto(event,'${fieldKey}')">${contenidoInicial}</div>
+      <input type="file" id="fi_${fieldKey}" accept="image/png,image/jpeg" style="display:none" onchange="archivoElegidoAdjunto('${fieldKey}')">
+      <div class="avisoMovil">${SVG_ALERTA}<div><div class="t1">Adjuntar aquí no está disponible en celular</div><div class="t2">Usa una computadora o tablet para subir la imagen.${avisoVerBtn}</div></div></div>
+    </div>
+  `;
+}
+
+function clicAdjunto(ev, fieldKey) {
+  if (ev.target.closest('.quitarBtn')) return; // el botón "Quitar" maneja su propio click
+  document.getElementById('fi_' + fieldKey).click();
+}
+
+async function archivoElegidoAdjunto(fieldKey) {
+  const fi = document.getElementById('fi_' + fieldKey);
+  const file = fi.files[0];
+  if (file) await procesarArchivoAdjunto(fieldKey, file, 'Elegida con el explorador');
+  fi.value = '';
+}
+
+async function pegarAdjunto(ev, fieldKey) {
+  const items = (ev.clipboardData || window.clipboardData)?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.indexOf('image') === 0) {
+      ev.preventDefault();
+      await procesarArchivoAdjunto(fieldKey, item.getAsFile(), 'Pegada del portapapeles');
+      return;
+    }
+  }
+}
+
+async function soltarAdjunto(ev, fieldKey) {
+  ev.preventDefault();
+  const dz = document.getElementById('dz_' + fieldKey);
+  dz.classList.remove('dragover');
+  const file = ev.dataTransfer.files[0];
+  if (file) await procesarArchivoAdjunto(fieldKey, file, 'Arrastrada');
+}
+
+async function procesarArchivoAdjunto(fieldKey, file, origen) {
+  const dz = document.getElementById('dz_' + fieldKey);
+  if (!dz) return;
+  if (!/^image\/(png|jpe?g)$/.test(file.type)) { toast('Solo se aceptan imágenes JPG o PNG.', 'error'); return; }
+  const placeholder = dz.dataset.placeholder || '';
+  try {
+    dz.innerHTML = `<div class="subidaTxt"><div class="t1">Comprimiendo…</div></div>`;
+    const comp = await comprimirImagen(file);
+    const existente = state.adjuntos[fieldKey]?.existente;
+    state.adjuntos[fieldKey] = { b64: comp.b64, mime: comp.mime, clear: false, existente };
+    const url = 'data:' + comp.mime + ';base64,' + comp.b64;
+    dz.classList.add('conArchivo');
+    dz.innerHTML = `
+      <img class="thumbChico" src="${url}">
+      <div class="infoArchivo"><div class="nombre">${esc(file.name)}</div><div class="meta">${formatoKB(file.size)} → ${formatoKB(comp.pesoFinal)} · ${esc(origen)}</div></div>
+      <button type="button" class="quitarBtn" onclick="quitarAdjunto(event,'${fieldKey}')">Quitar</button>
+    `;
+  } catch (err) {
+    toast('No se pudo procesar la imagen: ' + err.message, 'error');
+    renderVacioAdjunto(fieldKey, placeholder);
+  }
+}
+
+function quitarAdjunto(ev, fieldKey) {
+  ev.stopPropagation();
+  const eraExistente = !!state.adjuntos[fieldKey]?.existente;
+  state.adjuntos[fieldKey] = { b64: null, mime: null, clear: eraExistente, existente: eraExistente };
+  const dz = document.getElementById('dz_' + fieldKey);
+  renderVacioAdjunto(fieldKey, dz?.dataset.placeholder || '');
+}
+
+function renderVacioAdjunto(fieldKey, placeholder) {
+  const dz = document.getElementById('dz_' + fieldKey);
+  if (!dz) return;
+  dz.classList.remove('conArchivo');
+  dz.innerHTML = `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Clic y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
+}
+
+// Arma los campos *_b64/*_mime/*_clear a agregar al record antes de api('save', ...) — si no hay
+// nada nuevo ni se pidió quitar, no agrega nada (el backend conserva lo que ya hubiera).
+function datosAdjuntoParaGuardar(fieldKey, campoB64, campoMime, campoClear) {
+  const a = state.adjuntos[fieldKey];
+  const extra = {};
+  if (!a) return extra;
+  if (a.b64) { extra[campoB64] = a.b64; extra[campoMime] = a.mime; }
+  else if (a.clear) { extra[campoClear] = true; }
+  return extra;
+}
 
 const TABS = [
   { id:'dashboard',   label:'Dashboard',        roles:['admin','capturista','tesorero','viewer'] },
@@ -857,6 +1125,15 @@ async function verCapturaCxp(cxpId, provId) {
   renderCapturaCxp(c, provId, logError);
 }
 
+// v6.8: abre/cierra el bloque de "más detalles" (proveedor, fechas, UUID CFDI, notas) del resumen
+// condensado del modal de detalle.
+function toggleMasDetalleCxp(btn) {
+  const body = btn.nextElementSibling;
+  const abierto = !body.classList.contains('hidden');
+  body.classList.toggle('hidden');
+  btn.querySelector('.chev').textContent = abierto ? '▸' : '▾';
+}
+
 function renderCapturaCxp(c, provId, logError) {
   const saldo = saldoCxp(c.id, c.monto);
   const ip = c.instrucciones_pago || {};
@@ -871,22 +1148,37 @@ function renderCapturaCxp(c, provId, logError) {
     ediciones = logsCxp.filter(l => l !== captura);
   }
 
+  const estadoTxt = textoEstadoConVencimiento(c, saldo);
+  const tieneEvidencia = !!c.adjunto_evidencia_url;
+
   openModal(`
     <h2>Detalle de captura</h2>
-    <div class="captInfo">
-      <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}</span></div>
-      <div class="captRow"><span class="captLbl">Concepto</span><span class="captVal">${esc(c.concepto || '—')}</span></div>
-      ${c.recurrente_id ? `<div class="captRow"><span class="captLbl">Origen</span><span class="captVal">🔁 Generada automáticamente (Gastos Recurrentes)</span></div>` : ''}
-      <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
-      <div class="captRow"><span class="captLbl">Folio</span><span class="captVal">${esc(c.folio || '—')}</span></div>
-      <div class="captRow"><span class="captLbl">UUID CFDI</span><span class="captVal" style="font-size:11px">${esc(c.uuid_cfdi || '—')}</span></div>
-      <div class="captRow"><span class="captLbl">Fecha factura</span><span class="captVal">${fmtFecha(c.fecha_factura)}</span></div>
-      <div class="captRow"><span class="captLbl">Fecha vencimiento</span><span class="captVal">${fmtFecha(c.fecha_vencimiento)}</span></div>
-      <div class="captRow"><span class="captLbl">Monto original</span><span class="captVal">${money(c.monto)}</span></div>
-      <div class="captRow"><span class="captLbl">Saldo pendiente</span><span class="captVal">${money(saldo)}</span></div>
-      <div class="captRow"><span class="captLbl">Estado</span><span class="captVal">${badgeEstadoCxp(estadoCxp(c))}</span></div>
-      ${ip.pagar_desde ? `<div class="captRow"><span class="captLbl">Pagar desde</span><span class="captVal">${esc(ip.pagar_desde)}</span></div>` : ''}
-      ${c.notas ? `<div class="captRow"><span class="captLbl">Notas</span><span class="captVal">${esc(c.notas)}</span></div>` : ''}
+    <div class="dosColDetalle">
+      <div class="detalleResumen">
+        <div class="item"><div class="lbl">Concepto</div><div class="val concepto">${esc(c.concepto || '—')}</div></div>
+        ${c.folio ? `<div class="item"><div class="lbl">Folio</div><div class="val">${esc(c.folio)}</div></div>` : ''}
+        <div class="item"><div class="lbl">Saldo pendiente</div><div class="val saldo">${money(saldo)}</div></div>
+        <div class="item"><div class="lbl">Estado</div><div class="val">${badgeEstadoCxp(estadoCxp(c, saldo))}${estadoTxt ? `<span class="estadoVenceTxt">${esc(estadoTxt)}</span>` : ''}</div></div>
+        <button type="button" class="masDetalleToggle" onclick="toggleMasDetalleCxp(this)"><span class="chev">▸</span> Ver proveedor, fechas, UUID CFDI y notas</button>
+        <div class="masDetalleBody hidden">
+          <div class="captInfo">
+            <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}</span></div>
+            ${c.recurrente_id ? `<div class="captRow"><span class="captLbl">Origen</span><span class="captVal">🔁 Generada automáticamente (Gastos Recurrentes)</span></div>` : ''}
+            <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
+            <div class="captRow"><span class="captLbl">UUID CFDI</span><span class="captVal" style="font-size:11px">${esc(c.uuid_cfdi || '—')}</span></div>
+            <div class="captRow"><span class="captLbl">Fecha factura</span><span class="captVal">${fmtFecha(c.fecha_factura)}</span></div>
+            <div class="captRow"><span class="captLbl">Fecha vencimiento</span><span class="captVal">${fmtFecha(c.fecha_vencimiento)}</span></div>
+            <div class="captRow"><span class="captLbl">Monto original</span><span class="captVal">${money(c.monto)}</span></div>
+            ${ip.pagar_desde ? `<div class="captRow"><span class="captLbl">Pagar desde</span><span class="captVal">${esc(ip.pagar_desde)}</span></div>` : ''}
+            ${c.notas ? `<div class="captRow"><span class="captLbl">Notas</span><span class="captVal">${esc(c.notas)}</span></div>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="imgColDetalle">
+        ${tieneEvidencia
+          ? `<div class="thumbWrap" onclick="abrirLightbox('${esc(c.adjunto_evidencia_url)}')"><img class="thumbGrande" src="${esc(c.adjunto_evidencia_url)}" loading="lazy" alt="Evidencia del gasto"><span class="lupa">${SVG_LUPA}</span></div>`
+          : `<div class="sinEvidencia">Sin evidencia adjunta</div>`}
+      </div>
     </div>
 
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
@@ -921,6 +1213,7 @@ function renderCapturaCxp(c, provId, logError) {
           ${cuentaDestinoLbl ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Cuenta destino</span><span class="captVal" style="font-size:11px">${esc(cuentaDestinoLbl)}</span></div>` : ''}
           ${p.banco_origen ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Banco origen</span><span class="captVal" style="font-size:11px">${esc(p.banco_origen)}</span></div>` : ''}
           ${p.notas ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Notas</span><span class="captVal" style="font-size:11px">${esc(p.notas)}</span></div>` : ''}
+          ${p.adjunto_comprobante_url ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Comprobante</span><span class="captVal"><button type="button" class="verComprobanteBtn" onclick="abrirLightbox('${esc(p.adjunto_comprobante_url)}')">Ver</button></span></div>` : ''}
         `;
         }).join('')}</div>
       `}
@@ -1045,7 +1338,7 @@ function renderCxpRow(c, extraClass) {
   return `
       <tr${extraClass ? ` class="${extraClass}"` : ''}>
         <td>${esc(c.provNombre)}</td>
-        <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span></div></td>
+        <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<span class="clipIcon" title="Tiene evidencia adjunta">${SVG_CLIP}</span>` : ''}</div></td>
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
         <td>${fmtFecha(c.fecha_vencimiento)}</td>
@@ -1208,6 +1501,7 @@ function formCxp(id) {
         <div class="field"><label>Folio</label><input id="cxp_folio" value="${esc(c?.folio||'')}"></div>
         <div class="field"><label>UUID CFDI</label><input id="cxp_uuid_cfdi" value="${esc(c?.uuid_cfdi||'')}"></div>
         <div class="field full"><label>Notas</label><input id="cxp_notas" value="${esc(c?.notas||'')}"></div>
+        ${htmlCampoAdjunto('cxpEvidencia', { titulo:'Evidencia del gasto', esPrincipal:true, placeholder:'foto o captura de la factura/ticket (JPG, PNG)', urlExistente: c?.adjunto_evidencia_url })}
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
         <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Datos sugeridos para cuando se registre el pago de esta factura — la referencia puede variar según la sucursal o razón social a la que viene facturado; se puede ajustar también al momento de pagar.</p>
@@ -1244,14 +1538,16 @@ async function guardarCxp(ev, id) {
       cuenta_destino_id: document.getElementById('cxp_cuenta_destino_id').value,
       referencia_sugerida: document.getElementById('cxp_referencia_sugerida').value,
       pagar_desde: document.getElementById('cxp_pagar_desde').value
-    }
+    },
+    ...datosAdjuntoParaGuardar('cxpEvidencia', 'evidencia_b64', 'evidencia_mime', 'evidencia_clear')
   };
   try {
     showLoading(true);
-    await api('save', { entity: 'cxp', record });
+    const res = await api('save', { entity: 'cxp', record });
     await loadData();
     closeModal(); showLoading(false);
     toast('CxP guardada correctamente.', 'ok');
+    if (res.warning) toast(res.warning, 'warning');
     renderCxp();
   } catch (err) { showLoading(false); toast(err.message, 'error'); }
   return false;
@@ -1281,6 +1577,7 @@ function formPago(cxpId) {
         <div class="field full"><label>Clave Rastreo Pago</label><input id="pg_clave_rastreo" placeholder="Clave de rastreo SPEI (si aplica)"></div>
         <div class="field full"><label>Banco origen</label><input id="pg_banco_origen"></div>
         <div class="field full"><label>Notas</label><input id="pg_notas"></div>
+        ${htmlCampoAdjunto('pagoComprobante', { titulo:'Comprobante de pago', esPrincipal:false, placeholder:'captura de la transferencia, si quieres respaldarlo' })}
       </div>
       <p style="font-size:12px;color:var(--muted)">${state.rol === 'admin' ? 'Como administrador, este pago quedará validado automáticamente.' : 'Este pago quedará pendiente de validación por el administrador.'}</p>
       <div class="modalActions">
@@ -1303,14 +1600,16 @@ async function guardarPago(ev, cxpId) {
     referencia: document.getElementById('pg_referencia').value,
     clave_rastreo: document.getElementById('pg_clave_rastreo').value,
     banco_origen: document.getElementById('pg_banco_origen').value,
-    notas: document.getElementById('pg_notas').value
+    notas: document.getElementById('pg_notas').value,
+    ...datosAdjuntoParaGuardar('pagoComprobante', 'comprobante_b64', 'comprobante_mime', 'comprobante_clear')
   };
   try {
     showLoading(true);
-    await api('save', { entity: 'pagos', record });
+    const res = await api('save', { entity: 'pagos', record });
     await loadData();
     closeModal(); showLoading(false);
     toast('Pago registrado.', 'ok');
+    if (res.warning) toast(res.warning, 'warning');
     setView(state.view);
   } catch (err) { showLoading(false); toast(err.message, 'error'); }
   return false;
