@@ -33,6 +33,14 @@
   .field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px;font-weight:600;}
   .field input, .field select{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
   .field input:focus, .field select:focus{outline:2px solid var(--brand-light);border-color:var(--brand);}
+  /* v6.9: combobox de proveedor (buscar-y-elegir), usado en Nueva CxP y Nuevo gasto recurrente */
+  .comboProveedor{position:relative;}
+  .comboList{position:absolute;z-index:30;top:calc(100% + 4px);left:0;right:0;max-height:220px;overflow-y:auto;
+    background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);}
+  .comboList.hidden{display:none;}
+  .comboOption{padding:8px 10px;font-size:14px;cursor:pointer;}
+  .comboOption:hover, .comboOption.activa{background:var(--brand-light);}
+  .comboEmpty{padding:8px 10px;font-size:13px;color:var(--muted);font-style:italic;}
   .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:1px solid transparent;font-weight:600;font-size:13px;}
   .btn-primary{background:var(--brand);color:#fff;width:100%;justify-content:center;}
   .btn-primary:hover{background:var(--brand-dark);}
@@ -192,8 +200,11 @@
   .avisoMovil .t2{font-size:11.5px;color:var(--ink-2);line-height:1.4;}
   .verAdjuntoMovilBtn{display:inline-block;margin-top:7px;background:none;border:none;padding:0;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline;}
 
-  /* Detalle de captura (modal): resumen condensado + imagen en dos columnas */
-  .dosColDetalle{display:grid;grid-template-columns:1fr 220px;gap:20px;align-items:start;}
+  /* Detalle de captura (modal): resumen condensado + imagen en dos columnas.
+     v6.9: la miniatura crece (220x170 -> 300x230) y pasa de object-fit:cover a contain, para que
+     un documento horizontal (cotización, factura apaisada) se vea completo y más grande en vez de
+     recortado por los lados — los verticales (tickets) ya se veían bien y casi no cambian. */
+  .dosColDetalle{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
   .detalleResumen .item{margin-bottom:10px;}
   .detalleResumen .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;margin-bottom:2px;}
   .detalleResumen .val{font-size:14px;color:var(--ink);}
@@ -205,10 +216,10 @@
   .masDetalleBody{margin-top:8px;}
   .imgColDetalle{position:sticky;top:0;}
   .thumbWrap{position:relative;cursor:pointer;}
-  .thumbGrande{width:100%;height:170px;border-radius:8px;object-fit:cover;border:1px solid var(--border);display:block;background:#f0efec;}
+  .thumbGrande{width:100%;height:230px;border-radius:8px;object-fit:contain;border:1px solid var(--border);display:block;background:#f0efec;}
   .thumbWrap .lupa{position:absolute;bottom:6px;right:6px;width:22px;height:22px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;}
   .thumbWrap .lupa svg{width:12px;height:12px;}
-  .sinEvidencia{border:1.5px dashed var(--border);border-radius:8px;padding:16px 10px;text-align:center;color:var(--muted);font-size:12px;}
+  .sinEvidencia{border:1.5px dashed var(--border);border-radius:8px;padding:16px 10px;text-align:center;color:var(--muted);font-size:12px;min-height:170px;display:flex;align-items:center;justify-content:center;}
   .verComprobanteBtn{background:none;border:1px solid var(--border);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:var(--brand);cursor:pointer;}
 
   /* lightbox: imagen agrandada con tope de tamaño fijo y botón de cerrar DENTRO de la caja (nunca
@@ -603,6 +614,15 @@ function fmtFecha(d) {
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// v6.9: en la lista de Proveedores se muestra la CLABE/cuenta enmascarada (solo los últimos 4
+// dígitos) porque esa tabla la puede ver cualquier rol, incluido "Solo lectura" — la cuenta
+// completa se sigue viendo igual que antes en "Ver cuentas" / al editar el proveedor.
+function maskClabe(clabe) {
+  const limpio = String(clabe || '').trim();
+  if (!limpio) return '—';
+  return limpio.length <= 4 ? limpio : '···· ' + limpio.slice(-4);
 }
 
 function can(roles) { return roles.includes(state.rol); }
@@ -1285,7 +1305,7 @@ function renderCxp() {
         <option value="">Todas</option>${sucursales.map(s => `<option value="${esc(s)}" ${state.filtrosCxp.sucursal===s?'selected':''}>${esc(s)}</option>`).join('')}
       </select></div>
       <div class="f"><label>Proveedor</label><select id="fProveedor" onchange="state.filtrosCxp.proveedor=this.value; renderCxpTable();">
-        <option value="">Todos</option>${state.proveedores.map(p => `<option value="${p.id}" ${String(state.filtrosCxp.proveedor)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+        <option value="">Todos</option>${proveedoresOrdenados().map(p => `<option value="${p.id}" ${String(state.filtrosCxp.proveedor)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
       </select></div>
       <div class="f"><label>Vence desde</label><input type="date" value="${esc(state.filtrosCxp.desde)}" onchange="state.filtrosCxp.desde=fechaInputValida(this.value); renderCxpTable();"></div>
       <div class="f"><label>Vence hasta</label><input type="date" value="${esc(state.filtrosCxp.hasta)}" onchange="state.filtrosCxp.hasta=fechaInputValida(this.value); renderCxpTable();"></div>
@@ -1382,10 +1402,12 @@ function renderCxpTable() {
     dias: c => c.dias === null ? Infinity : c.dias
   };
 
-  function ordenar(items) {
-    return state.sortCxp.col
-      ? sortRows(items, state.sortCxp, getters)
-      : [...items].sort((a, b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento)); // por defecto: la que vence más pronto primero
+  // invertir=true voltea el orden por default (más reciente primero) cuando no hay una columna
+  // de orden elegida a mano por el usuario — se usa solo para "Liquidadas" (ver bloqueColapsable).
+  function ordenar(items, invertir) {
+    if (state.sortCxp.col) return sortRows(items, state.sortCxp, getters);
+    const base = [...items].sort((a, b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento)); // por defecto: la que vence más pronto primero
+    return invertir ? base.reverse() : base;
   }
 
   // Bloque siempre visible (Vencidas / Vencen hoy / Por vencer)
@@ -1398,7 +1420,10 @@ function renderCxpTable() {
   // Bloque plegado por default (Vigentes / Liquidadas) — clic en el encabezado lo despliega;
   // las filas quedan en el DOM siempre (con display:none vía CSS) para que abrir/cerrar sea
   // instantáneo y no dependa de volver a pintar nada.
-  function bloqueColapsable(clave, titulo, emoji, color, bg, items) {
+  // invertirDefault: solo "Liquidadas" lo manda en true, para que de entrada se vea la más
+  // reciente primero (antes se ordenaba igual que los demás bloques: la más antigua primero,
+  // que para cuentas ya pagadas no tenía mucho sentido).
+  function bloqueColapsable(clave, titulo, emoji, color, bg, items, invertirDefault) {
     if (!items.length) return '';
     const abierto = !!state.cxpBloquesAbiertos[clave];
     const claseFilas = `bloqueColapsable bloqueCxp-${clave}${abierto ? ' open' : ''}`;
@@ -1407,7 +1432,7 @@ function renderCxpTable() {
           <span class="bloqueToggle${abierto ? ' open' : ''}"><span class="chev">▶</span>${emoji} ${esc(titulo)} (${items.length}) — clic para mostrar/ocultar</span>
         </td>
       </tr>`
-      + ordenar(items).map(c => renderCxpRow(c, claseFilas)).join('');
+      + ordenar(items, invertirDefault).map(c => renderCxpRow(c, claseFilas)).join('');
   }
 
   const vencidas  = lista.filter(c => c.est === 'vencida');
@@ -1421,7 +1446,7 @@ function renderCxpTable() {
   filasHtml += bloqueFijo('Vencen hoy', '🟠', 'var(--warning)', 'var(--warning-bg)', vencenHoy);
   filasHtml += bloqueFijo('Por vencer — próximos 7 días', '⚪', 'var(--ink-2)', '#f0efec', porVencer);
   filasHtml += bloqueColapsable('vigentes', 'Vigentes — vencen en más de 7 días', '⚪', 'var(--ink-2)', '#f0efec', vigentes);
-  filasHtml += bloqueColapsable('liquidadas', 'Liquidadas', '🟢', 'var(--good)', 'var(--good-bg)', liquidadas);
+  filasHtml += bloqueColapsable('liquidadas', 'Liquidadas', '🟢', 'var(--good)', 'var(--good-bg)', liquidadas, true);
 
   wrap.innerHTML = `<div class="tableWrap"><table>
     <thead><tr>
@@ -1473,6 +1498,118 @@ function opcionesPagarDesde(selectedValue) {
   return html;
 }
 
+// v6.9: combobox de proveedor con búsqueda — lista alfabética que se filtra conforme se escribe
+// (antes era un <select> en el orden crudo de la hoja). El input oculto con id=fieldId conserva el
+// id del proveedor elegido: el resto del código sigue leyendo document.getElementById(fieldId).value
+// exactamente igual que con el <select> anterior, así que no hay que tocar guardarCxp/guardarRecurrente
+// más que mover la validación de "requerido" aquí (un input oculto no puede mostrar la validación
+// nativa del navegador).
+const COMBO_PROVEEDOR_ONCHANGE = {
+  cxp_proveedor_id: 'actualizarCuentasDestinoCxp',
+  rec_proveedor_id: 'actualizarCuentasDestinoRecurrente'
+};
+
+function proveedoresOrdenados() {
+  return [...state.proveedores].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
+}
+
+// Quita acentos y pasa a minúsculas para que buscar "coca" encuentre "COCA COLA ROO" sin importar
+// mayúsculas/acentos.
+function normalizarBusqueda(s) {
+  return (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+function htmlComboProveedor(fieldId, valorInicial) {
+  const sel = valorInicial ? state.proveedores.find(p => String(p.id) === String(valorInicial)) : null;
+  return `<div class="comboProveedor">
+    <input type="hidden" id="${fieldId}" value="${esc(valorInicial || '')}">
+    <input type="text" id="${fieldId}_q" class="comboInput" autocomplete="off" role="combobox" aria-expanded="false"
+      placeholder="Escribe para buscar un proveedor…" value="${esc(sel ? sel.nombre : '')}"
+      oninput="comboProveedorFiltrar('${fieldId}')" onfocus="comboProveedorAbrir('${fieldId}')"
+      onkeydown="comboProveedorTeclado(event, '${fieldId}')" onblur="comboProveedorCerrar('${fieldId}')">
+    <div class="comboList hidden" id="${fieldId}_list" role="listbox"></div>
+  </div>`;
+}
+
+function comboProveedorListaFiltrada(fieldId) {
+  const q = normalizarBusqueda(document.getElementById(fieldId + '_q').value);
+  const todos = proveedoresOrdenados();
+  return q ? todos.filter(p => normalizarBusqueda(p.nombre).includes(q)) : todos;
+}
+
+function comboProveedorRenderLista(fieldId) {
+  const cont = document.getElementById(fieldId + '_list');
+  if (!cont) return;
+  const lista = comboProveedorListaFiltrada(fieldId);
+  cont.innerHTML = lista.length
+    ? lista.map(p => `<div class="comboOption" role="option" data-id="${esc(p.id)}" onmousedown="event.preventDefault()" onclick="comboProveedorSeleccionar('${fieldId}','${esc(p.id)}')">${esc(p.nombre)}</div>`).join('')
+    : `<div class="comboEmpty">Sin resultados</div>`;
+}
+
+function comboProveedorAbrir(fieldId) {
+  comboProveedorRenderLista(fieldId);
+  document.getElementById(fieldId + '_list')?.classList.remove('hidden');
+  document.getElementById(fieldId + '_q')?.setAttribute('aria-expanded', 'true');
+}
+
+function comboProveedorFiltrar(fieldId) {
+  // en cuanto se vuelve a escribir, la selección previa deja de ser válida hasta que se elija
+  // de nuevo de la lista (evita guardar un id que ya no corresponde al texto visible)
+  document.getElementById(fieldId).value = '';
+  comboProveedorAbrir(fieldId);
+}
+
+function comboProveedorSeleccionar(fieldId, provId) {
+  const p = state.proveedores.find(x => String(x.id) === String(provId));
+  document.getElementById(fieldId).value = provId;
+  document.getElementById(fieldId + '_q').value = p ? p.nombre : '';
+  comboProveedorCerrar(fieldId, true);
+  const fn = COMBO_PROVEEDOR_ONCHANGE[fieldId];
+  if (fn && typeof window[fn] === 'function') window[fn]();
+}
+
+function comboProveedorCerrar(fieldId, inmediato) {
+  setTimeout(() => {
+    document.getElementById(fieldId + '_list')?.classList.add('hidden');
+    document.getElementById(fieldId + '_q')?.setAttribute('aria-expanded', 'false');
+    // si lo que quedó escrito no corresponde a un proveedor seleccionado (lo borró, escribió
+    // basura, o se salió del campo sin elegir), se revierte al último válido o se limpia
+    const idActual = document.getElementById(fieldId)?.value;
+    const p = idActual ? state.proveedores.find(x => String(x.id) === String(idActual)) : null;
+    const q = document.getElementById(fieldId + '_q');
+    if (q) q.value = p ? p.nombre : '';
+  }, inmediato ? 0 : 120);
+}
+
+function comboProveedorTeclado(event, fieldId) {
+  const cont = document.getElementById(fieldId + '_list');
+  if (!cont) return;
+  if (event.key === 'Escape') { comboProveedorCerrar(fieldId); event.target.blur(); return; }
+  if (cont.classList.contains('hidden') && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+    comboProveedorAbrir(fieldId);
+  }
+  const opciones = Array.from(cont.querySelectorAll('.comboOption'));
+  if (!opciones.length) return;
+  let idx = opciones.findIndex(o => o.classList.contains('activa'));
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    idx = (idx + 1) % opciones.length;
+    opciones.forEach(o => o.classList.remove('activa'));
+    opciones[idx].classList.add('activa');
+    opciones[idx].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    idx = idx <= 0 ? opciones.length - 1 : idx - 1;
+    opciones.forEach(o => o.classList.remove('activa'));
+    opciones[idx].classList.add('activa');
+    opciones[idx].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    const activa = opciones.find(o => o.classList.contains('activa')) || (opciones.length === 1 ? opciones[0] : null);
+    if (activa) comboProveedorSeleccionar(fieldId, activa.getAttribute('data-id'));
+  }
+}
+
 function actualizarCuentasDestinoCxp() {
   const provId = document.getElementById('cxp_proveedor_id').value;
   const sel = document.getElementById('cxp_cuenta_destino_id');
@@ -1488,10 +1625,7 @@ function formCxp(id) {
     <form id="cxpForm" onsubmit="return guardarCxp(event, '${id || ''}')">
       <div class="formGrid">
         <div class="field full"><label>Proveedor</label>
-          <select id="cxp_proveedor_id" required onchange="actualizarCuentasDestinoCxp()">
-            ${!c ? `<option value="" selected disabled>Selecciona un proveedor…</option>` : ''}
-            ${state.proveedores.map(p => `<option value="${p.id}" ${c && String(c.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
-          </select>
+          ${htmlComboProveedor('cxp_proveedor_id', provIdInicial)}
         </div>
         <div class="field full"><label>Concepto</label><input id="cxp_concepto" value="${esc(c?.concepto||'')}" required></div>
         <div class="field"><label>Monto</label><input type="number" step="0.01" id="cxp_monto" value="${c?.monto||''}" required></div>
@@ -1523,9 +1657,13 @@ function formCxp(id) {
 
 async function guardarCxp(ev, id) {
   ev.preventDefault();
+  // el <select> nativo validaba "requerido" solo; el combobox de búsqueda usa un input oculto,
+  // que el navegador no puede marcar como inválido de forma visible — se valida aquí a mano.
+  const proveedorIdCxp = document.getElementById('cxp_proveedor_id').value;
+  if (!proveedorIdCxp) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
   const record = {
     id: id || ('cxp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
-    proveedor_id: document.getElementById('cxp_proveedor_id').value,
+    proveedor_id: proveedorIdCxp,
     concepto: document.getElementById('cxp_concepto').value,
     monto: document.getElementById('cxp_monto').value,
     sucursal: document.getElementById('cxp_sucursal').value,
@@ -1809,10 +1947,7 @@ function formRecurrente(id) {
     <form onsubmit="return guardarRecurrente(event, '${id || ''}')">
       <div class="formGrid">
         <div class="field full"><label>Proveedor</label>
-          <select id="rec_proveedor_id" required onchange="actualizarCuentasDestinoRecurrente()">
-            ${!r ? `<option value="" selected disabled>Selecciona un proveedor…</option>` : ''}
-            ${state.proveedores.map(p => `<option value="${p.id}" ${r && String(r.proveedor_id)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
-          </select>
+          ${htmlComboProveedor('rec_proveedor_id', provIdInicial)}
         </div>
         <div class="field full"><label>Concepto</label><input id="rec_concepto" value="${esc(r?.concepto||'')}" placeholder="Ej. Renta local Chemuyil" required></div>
         <div class="field"><label>Monto</label><input type="number" step="0.01" id="rec_monto" value="${r?.monto||''}" required></div>
@@ -1847,9 +1982,12 @@ function actualizarCuentasDestinoRecurrente() {
 
 async function guardarRecurrente(ev, id) {
   ev.preventDefault();
+  // ver nota equivalente en guardarCxp: el combobox de búsqueda ya no valida "requerido" solo
+  const proveedorIdRec = document.getElementById('rec_proveedor_id').value;
+  if (!proveedorIdRec) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
   const record = {
     id: id || ('rec_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
-    proveedor_id: document.getElementById('rec_proveedor_id').value,
+    proveedor_id: proveedorIdRec,
     concepto: document.getElementById('rec_concepto').value,
     monto: document.getElementById('rec_monto').value,
     sucursal: document.getElementById('rec_sucursal').value,
@@ -1979,33 +2117,40 @@ function renderProveedores() {
 
 function renderProveedoresTable() {
   const wrap = document.getElementById('proveedoresTableWrap');
+  // v6.9: la lista ya no muestra Email/Teléfono (casi siempre vacíos) — en su lugar, Banco y
+  // Cuenta (enmascarada) de la PRIMERA cuenta registrada, con un "+N más" si hay otras. Email y
+  // Teléfono se siguen pudiendo capturar/editar igual, solo que ya no ocupan columna en la lista.
   const getters = {
     nombre: p => p.nombre || '',
     rfc: p => p.rfc || '',
-    email: p => p.email || '',
-    telefono: p => p.telefono || '',
-    cuentas: p => (p.cuentas||[]).length
+    banco: p => (p.cuentas||[])[0]?.banco || '',
+    cuenta: p => (p.cuentas||[])[0]?.clabe || ''
   };
   const lista = sortRows(state.proveedores, state.sortProveedores, getters);
   wrap.innerHTML = `<div class="tableWrap"><table>
       <thead><tr>
         ${sortTh('Nombre','nombre','sortProveedores','renderProveedoresTable')}
         ${sortTh('RFC','rfc','sortProveedores','renderProveedoresTable')}
-        ${sortTh('Email','email','sortProveedores','renderProveedoresTable')}
-        ${sortTh('Teléfono','telefono','sortProveedores','renderProveedoresTable')}
-        ${sortTh('Cuentas','cuentas','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Banco','banco','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Cuenta','cuenta','sortProveedores','renderProveedoresTable')}
         <th></th>
       </tr></thead>
-      <tbody>${lista.map(p => `
+      <tbody>${lista.map(p => {
+        const cuentas = p.cuentas || [];
+        const principal = cuentas[0];
+        const extra = cuentas.length > 1 ? ` <span class="badge badge-muted" title="Tiene ${cuentas.length} cuentas registradas">+${cuentas.length - 1} más</span>` : '';
+        return `
         <tr>
-          <td>${esc(p.nombre)}</td><td>${esc(p.rfc||'—')}</td><td>${esc(p.email||'—')}</td><td>${esc(p.telefono||'—')}</td>
-          <td>${(p.cuentas||[]).length}</td>
+          <td>${esc(p.nombre)}</td><td>${esc(p.rfc||'—')}</td>
+          <td>${esc(principal?.banco || '—')}</td>
+          <td style="font-variant-numeric:tabular-nums">${esc(maskClabe(principal?.clabe))}${extra}</td>
           <td><div class="rowActions">
             <button class="btn btn-ghost btn-sm" onclick="verCuentasProveedor('${p.id}')">Ver cuentas</button>
             ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
             ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor (y sus CxP/pagos)')">Eliminar</button>` : ''}
           </div></td>
-        </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin proveedores.</td></tr>`}
+        </tr>`;
+      }).join('') || `<tr><td colspan="5" class="emptyState">Sin proveedores.</td></tr>`}
       </tbody>
     </table></div>`;
 }
