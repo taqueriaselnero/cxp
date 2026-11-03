@@ -101,8 +101,9 @@
   .notaRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:#fafaf9;transition:background .12s,border-color .12s;}
   .notaRow:hover{background:#f1f0ed;border-color:var(--brand);}
   .notaRow .notaMain{min-width:0;}
-  .notaRow .notaConcepto{font-weight:600;font-size:13px;}
-  .notaRow .notaMeta{font-size:11px;color:var(--muted);margin-top:2px;}
+  .notaRow .notaConcepto{font-weight:400;font-size:13px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .notaRow .notaMeta{font-size:11px;color:var(--muted);margin-top:4px;}
+  .folioChip{display:inline-block;background:var(--brand-light);color:var(--brand);font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:6px;}
   .notaRow .notaMonto{text-align:right;flex:0 0 auto;}
   .notaRow .notaMonto .saldo{font-weight:700;font-size:14px;margin-bottom:3px;}
   .dashTotalRow{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;margin-top:4px;border-top:2px solid var(--ink);font-weight:700;font-size:14px;}
@@ -1133,8 +1134,8 @@ function verNotasProveedorDashboard(provId) {
     ${!notas.length ? `<p class="emptyState">Este proveedor no tiene notas pendientes.</p>` : notas.map(c => `
       <div class="notaRow" onclick="verCapturaCxp('${c.id}','${provId}')" title="Ver información de la captura">
         <div class="notaMain">
-          <div class="notaConcepto">${esc(c.concepto || '(sin concepto)')}</div>
-          <div class="notaMeta">${esc(c.sucursal || '—')}${c.fecha_factura ? ' · Surtido ' + fmtFecha(c.fecha_factura) : ''} · Vence ${fmtFecha(c.fecha_vencimiento)}${c.folio ? ' · Folio ' + esc(c.folio) : ''}</div>
+          <div class="notaConcepto">${esc(c.concepto || '(sin concepto)')}${c.folio ? ` <span class="folioChip">${esc(c.folio)}</span>` : ''}</div>
+          <div class="notaMeta">${esc(c.sucursal || '—')}${c.fecha_factura ? ' · Surtido ' + fmtFecha(c.fecha_factura) : ''} · Vence ${fmtFecha(c.fecha_vencimiento)}</div>
         </div>
         <div class="notaMonto">
           <div class="saldo">${money(c.saldo)}</div>
