@@ -42,6 +42,7 @@
   .comboOption:hover, .comboOption.activa{background:var(--brand-light);}
   .comboEmpty{padding:8px 10px;font-size:13px;color:var(--muted);font-style:italic;}
   .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:1px solid transparent;font-weight:600;font-size:13px;}
+  .btn:disabled{opacity:.55;cursor:not-allowed;}
   .btn-primary{background:var(--brand);color:#fff;width:100%;justify-content:center;}
   .btn-primary:hover{background:var(--brand-dark);}
   .btn-ghost{background:transparent;color:var(--ink-2);border-color:var(--border);}
@@ -256,6 +257,9 @@
   .loadingOverlay{position:fixed;inset:0;background-color:var(--bg);background-image:var(--wood-bg);background-size:cover;background-position:center;color:var(--bg-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:40;}
   .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  /* Spinner chico para dentro de un botón mientras guarda (ver bloquearFormulario) — mismo giro que
+     .spinner de arriba, pero en blanco y del tamaño del texto para que se note sobre el morado del botón. */
+  .spinnerBtn{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex:0 0 auto;}
 
   @media (max-width:640px){
     .formGrid{grid-template-columns:1fr;}
@@ -616,14 +620,6 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// v6.9: en la lista de Proveedores se muestra la CLABE/cuenta enmascarada (solo los últimos 4
-// dígitos) porque esa tabla la puede ver cualquier rol, incluido "Solo lectura" — la cuenta
-// completa se sigue viendo igual que antes en "Ver cuentas" / al editar el proveedor.
-function maskClabe(clabe) {
-  const limpio = String(clabe || '').trim();
-  if (!limpio) return '—';
-  return limpio.length <= 4 ? limpio : '···· ' + limpio.slice(-4);
-}
 
 function can(roles) { return roles.includes(state.rol); }
 
@@ -674,6 +670,28 @@ function sortRows(rows, sortState, getters) {
 /* ---------------- UI: shell, nav, toasts, modal, loading ---------------- */
 
 function showLoading(v) { document.getElementById('loadingOverlay').classList.toggle('hidden', !v); }
+
+// Evita doble registro por doble clic/doble submit: mientras el formulario de un modal está
+// guardando, el #modalOverlay (z-index 50) sigue por encima del #loadingOverlay (z-index 40) —
+// o sea que la pantalla de "Cargando…" queda tapada por el propio modal y no se ve ni bloquea
+// el clic, así que un segundo clic en "Guardar"/"Registrar" antes de que vuelva la respuesta
+// vuelve a disparar la función y crea un registro duplicado (cada guardarX genera un id nuevo
+// para los registros nuevos). Esta función deshabilita los botones del formulario y cambia el
+// texto del botón de enviar en cuanto se da clic, antes de llamar a la API. Si la llamada falla
+// se vuelve a habilitar con el des-bloqueo que regresa; si tiene éxito no hace falta, porque el
+// modal se cierra.
+function bloquearFormulario(form, textoProcesando) {
+  if (!form) return function desbloquear() {}; // defensivo: si no hay form (p.ej. llamada directa sin evento real), no hace nada
+  const botones = form.querySelectorAll('button');
+  botones.forEach(b => b.disabled = true);
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const htmlOriginal = submitBtn ? submitBtn.innerHTML : null;
+  if (submitBtn) submitBtn.innerHTML = '<span class="spinnerBtn"></span><span>' + esc(textoProcesando || 'Procesando…') + '</span>';
+  return function desbloquear() {
+    botones.forEach(b => b.disabled = false);
+    if (submitBtn && htmlOriginal !== null) submitBtn.innerHTML = htmlOriginal;
+  };
+}
 
 function toast(msg, type) {
   const el = document.createElement('div');
@@ -1469,9 +1487,21 @@ function opcionesCuentasDestino(provId, selectedId) {
   const cuentas = prov?.cuentas || [];
   if (!cuentas.length) return `<option value="">(el proveedor no tiene cuentas registradas)</option>`;
   return `<option value="">(sin especificar)</option>` + cuentas.map(cu => {
-    const label = (cu.alias || cu.banco || 'Cuenta') + (cu.banco && cu.alias ? ' — ' + cu.banco : '') + (cu.clabe ? ' (' + cu.clabe + ')' : '');
+    const label = labelCuenta(cu);
     return `<option value="${esc(cu.id)}" ${String(cu.id)===String(selectedId||'')?'selected':''}>${esc(label)}</option>`;
   }).join('');
+}
+
+// Etiqueta legible de una cuenta bancaria para mostrar en los <select>/textos de "cuenta destino":
+// Banco — Cliente (últimos 4 dígitos de la cuenta), omitiendo cada parte que no esté capturada.
+// Antes se armaba con "alias"; como ese campo ya no se usa, Banco + Cliente son los datos que
+// realmente distinguen una cuenta de otra cuando el proveedor tiene varias.
+function labelCuenta(cu) {
+  const partes = [cu.banco || 'Cuenta'];
+  if (cu.cliente) partes.push(cu.cliente);
+  let label = partes.join(' — ');
+  if (cu.clabe && cu.clabe.length >= 4) label += ' (···' + cu.clabe.slice(-4) + ')';
+  return label;
 }
 
 // Para mostrar en texto (no <select>) la cuenta destino de un pago ya guardado: busca la cuenta del
@@ -1481,7 +1511,30 @@ function labelCuentaDestino(provId, cuentaId) {
   const prov = state.proveedores.find(p => String(p.id) === String(provId));
   const cu = (prov?.cuentas || []).find(x => String(x.id) === String(cuentaId));
   if (!cu) return null;
-  return (cu.alias || cu.banco || 'Cuenta') + (cu.banco && cu.alias ? ' — ' + cu.banco : '') + (cu.clabe ? ' (' + cu.clabe + ')' : '');
+  return labelCuenta(cu);
+}
+
+// v6.10: cada cuenta bancaria del proveedor ya trae su propia "referencia" (lo que hay que anotar
+// al pagar — depende de con cuál de tus sucursales/razones sociales te facturó ese proveedor, no
+// de la cuenta en sí, pero vive junto con la cuenta para no duplicar catálogos). Al elegir la
+// cuenta destino en una CxP/pago, se sugiere automáticamente esa referencia (ver
+// sugerirReferenciaCxp/sugerirReferenciaPago) — el campo se queda editable por si hace falta un
+// ajuste puntual.
+function referenciaDeCuenta(provId, cuentaId) {
+  if (!cuentaId) return '';
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cu = (prov?.cuentas || []).find(x => String(x.id) === String(cuentaId));
+  return cu?.referencia || '';
+}
+
+// Mismo mecanismo que referenciaDeCuenta pero para el campo "Cliente" de la cuenta — se muestra como
+// aviso (no editable) junto al selector de cuenta destino, para recordar con qué cliente/razón social
+// se facturó esa cuenta en particular.
+function clienteDeCuenta(provId, cuentaId) {
+  if (!cuentaId) return '';
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cu = (prov?.cuentas || []).find(x => String(x.id) === String(cuentaId));
+  return cu?.cliente || '';
 }
 
 // Opciones de "Pagar desde" tomadas de las cuentas ya registradas en "Mis Cuentas" (state.config.cuentas_origen),
@@ -1616,6 +1669,25 @@ function actualizarCuentasDestinoCxp() {
   if (sel) sel.innerHTML = opcionesCuentasDestino(provId, '');
 }
 
+// v6.10: al elegir una cuenta destino, sugiere la referencia guardada en esa cuenta (si tiene) —
+// no borra lo que ya esté escrito si la cuenta elegida no trae referencia guardada.
+function sugerirReferenciaCxp() {
+  const provId = document.getElementById('cxp_proveedor_id').value;
+  const cuentaId = document.getElementById('cxp_cuenta_destino_id').value;
+  const ref = referenciaDeCuenta(provId, cuentaId);
+  if (ref) document.getElementById('cxp_referencia_sugerida').value = ref;
+  actualizarClienteHint('cxp_cliente_hint', clienteDeCuenta(provId, cuentaId));
+}
+
+// Muestra/oculta el aviso "Cliente: X" junto al selector de cuenta destino — se queda vacío/oculto
+// si la cuenta elegida no tiene cliente capturado, en vez de mostrar un hint vacío.
+function actualizarClienteHint(elId, cliente) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = cliente ? ('Cliente: ' + cliente) : '';
+  el.classList.toggle('hidden', !cliente);
+}
+
 function formCxp(id) {
   const c = id ? state.cxp.find(x => String(x.id) === String(id)) : null;
   const ip = c?.instrucciones_pago || {};
@@ -1641,7 +1713,8 @@ function formCxp(id) {
         <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Datos sugeridos para cuando se registre el pago de esta factura — la referencia puede variar según la sucursal o razón social a la que viene facturado; se puede ajustar también al momento de pagar.</p>
         <div class="formGrid">
           <div class="field full"><label>Cuenta del proveedor a pagar</label>
-            <select id="cxp_cuenta_destino_id">${opcionesCuentasDestino(provIdInicial, ip.cuenta_destino_id)}</select>
+            <select id="cxp_cuenta_destino_id" onchange="sugerirReferenciaCxp()">${opcionesCuentasDestino(provIdInicial, ip.cuenta_destino_id)}</select>
+            <p id="cxp_cliente_hint" class="${clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) ? '' : 'hidden'}" style="font-size:11px;color:var(--muted);margin:4px 0 0">${esc(clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) ? 'Cliente: ' + clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) : '')}</p>
           </div>
           <div class="field full"><label>Referencia sugerida</label><input id="cxp_referencia_sugerida" value="${esc(ip.referencia_sugerida||'')}" placeholder="Ej. nombre/sucursal que factura"></div>
           <div class="field full"><label>Pagar desde</label><select id="cxp_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
@@ -1661,6 +1734,7 @@ async function guardarCxp(ev, id) {
   // que el navegador no puede marcar como inválido de forma visible — se valida aquí a mano.
   const proveedorIdCxp = document.getElementById('cxp_proveedor_id').value;
   if (!proveedorIdCxp) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id: id || ('cxp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
     proveedor_id: proveedorIdCxp,
@@ -1687,54 +1761,81 @@ async function guardarCxp(ev, id) {
     toast('CxP guardada correctamente.', 'ok');
     if (res.warning) toast(res.warning, 'warning');
     renderCxp();
-  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
   return false;
 }
 
 /* ---------------- Registrar / validar pagos ---------------- */
 
-function formPago(cxpId) {
+// v6.10: mismo mecanismo que sugerirReferenciaCxp pero para el formulario de pago — recibe el
+// proveedor_id directo porque aquí ya es fijo (viene de la CxP que se está pagando).
+function sugerirReferenciaPago(provId) {
+  const cuentaId = document.getElementById('pg_cuenta_destino_id').value;
+  const ref = referenciaDeCuenta(provId, cuentaId);
+  if (ref) document.getElementById('pg_referencia').value = ref;
+  actualizarClienteHint('pg_cliente_hint', clienteDeCuenta(provId, cuentaId));
+}
+
+function formPago(cxpId, pagoId) {
   const c = state.cxp.find(x => String(x.id) === String(cxpId));
-  const saldo = saldoCxp(cxpId, c.monto);
+  const pago = pagoId ? state.pagos.find(x => String(x.id) === String(pagoId)) : null;
+  // Al editar, el monto del propio pago ya está descontado del saldo (sigue en state.pagos) —
+  // se vuelve a sumar aquí para no mostrar/limitar el saldo como si ese pago no existiera.
+  const saldo = saldoCxp(cxpId, c.monto) + (pago ? (Number(pago.monto) || 0) : 0);
   const prov = state.proveedores.find(p => String(p.id) === String(c.proveedor_id));
   const cuentasDestino = prov?.cuentas || [];
   const ip = c.instrucciones_pago || {};
+  let avisoEstado;
+  if (!pago) {
+    avisoEstado = state.rol === 'admin' ? 'Como administrador, este pago quedará validado automáticamente.' : 'Este pago quedará pendiente de validación por el administrador.';
+  } else if (state.rol !== 'admin' && pago.estado === 'validado') {
+    avisoEstado = 'Este pago ya estaba validado — al guardar los cambios regresará a "pendiente de validar" para que el administrador lo revise de nuevo.';
+  } else {
+    avisoEstado = 'Se conserva el estado de validación actual de este pago.';
+  }
   openModal(`
-    <h2>Registrar pago — ${esc(proveedorNombre(c.proveedor_id))}</h2>
+    <h2>${pago ? 'Editar pago' : 'Registrar pago'} — ${esc(proveedorNombre(c.proveedor_id))}</h2>
     <p style="color:var(--muted);font-size:12px;margin-top:-8px">Saldo pendiente: <b>${money(saldo)}</b></p>
-    <form onsubmit="return guardarPago(event, '${cxpId}')">
+    <form onsubmit="return guardarPago(event, '${cxpId}', '${pagoId || ''}')">
       <div class="formGrid">
-        <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${saldo}" required></div>
-        <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${new Date().toISOString().slice(0,10)}" required></div>
-        <div class="field full"><label>Pagado desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
+        <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${pago ? pago.monto : saldo}" required></div>
+        <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${pago ? esc(pago.fecha) : formatYMD(new Date())}" max="${formatYMD(new Date())}" required></div>
+        <div class="field full"><label>Pagado desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(pago ? pago.pagar_desde : ip.pagar_desde)}</select></div>
         <div class="field full"><label>Cuenta destino (del proveedor)</label>
-          <select id="pg_cuenta_destino_id">${opcionesCuentasDestino(c.proveedor_id, ip.cuenta_destino_id)}</select>
+          <select id="pg_cuenta_destino_id" onchange="sugerirReferenciaPago('${c.proveedor_id}')">${opcionesCuentasDestino(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id)}</select>
+          <p id="pg_cliente_hint" class="${clienteDeCuenta(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id) ? '' : 'hidden'}" style="font-size:11px;color:var(--muted);margin:4px 0 0">${esc(clienteDeCuenta(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id) ? 'Cliente: ' + clienteDeCuenta(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id) : '')}</p>
           ${cuentasDestino.length > 1 ? `<p style="font-size:11px;color:var(--muted);margin:4px 0 0">El proveedor tiene ${cuentasDestino.length} cuentas registradas — si la sugerida no sirve, elige otra aquí.</p>` : ''}
         </div>
-        <div class="field full"><label>Referencia Pago</label><input id="pg_referencia" value="${esc(ip.referencia_sugerida||'')}"></div>
-        <div class="field full"><label>Clave Rastreo Pago</label><input id="pg_clave_rastreo" placeholder="Clave de rastreo SPEI (si aplica)"></div>
-        <div class="field full"><label>Banco origen</label><input id="pg_banco_origen"></div>
-        <div class="field full"><label>Notas</label><input id="pg_notas"></div>
-        ${htmlCampoAdjunto('pagoComprobante', { titulo:'Comprobante de pago', esPrincipal:false, placeholder:'captura de la transferencia, si quieres respaldarlo' })}
+        <div class="field full"><label>Referencia Pago</label><input id="pg_referencia" value="${esc(pago ? (pago.referencia||'') : (ip.referencia_sugerida||''))}"></div>
+        <div class="field full"><label>Clave Rastreo Pago</label><input id="pg_clave_rastreo" value="${esc(pago?.clave_rastreo||'')}" placeholder="Clave de rastreo SPEI (si aplica)"></div>
+        <div class="field full"><label>Banco origen</label><input id="pg_banco_origen" value="${esc(pago?.banco_origen||'')}"></div>
+        <div class="field full"><label>Notas</label><input id="pg_notas" value="${esc(pago?.notas||'')}"></div>
+        ${htmlCampoAdjunto('pagoComprobante', { titulo:'Comprobante de pago', esPrincipal:false, placeholder:'captura de la transferencia, si quieres respaldarlo', urlExistente: pago?.adjunto_comprobante_url })}
       </div>
-      <p style="font-size:12px;color:var(--muted)">${state.rol === 'admin' ? 'Como administrador, este pago quedará validado automáticamente.' : 'Este pago quedará pendiente de validación por el administrador.'}</p>
+      <p style="font-size:12px;color:var(--muted)">${avisoEstado}</p>
       <div class="modalActions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Registrar pago</button>
+        <button type="submit" class="btn btn-primary">${pago ? 'Guardar cambios' : 'Registrar pago'}</button>
       </div>
     </form>
   `);
 }
 
-async function guardarPago(ev, cxpId) {
+async function guardarPago(ev, cxpId, pagoId) {
   ev.preventDefault();
+  const fechaPago = document.getElementById('pg_fecha').value;
+  if (fechaPago > formatYMD(new Date())) {
+    toast('La fecha de pago no puede ser posterior a hoy.', 'error');
+    return false;
+  }
+  const desbloquear = bloquearFormulario(ev.target, pagoId ? 'Guardando…' : 'Registrando…');
   const record = {
-    id: 'pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    id: pagoId || ('pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
     cxp_id: cxpId,
     pagar_desde: document.getElementById('pg_pagar_desde').value,
     cuenta_destino_id: document.getElementById('pg_cuenta_destino_id').value,
     monto: document.getElementById('pg_monto').value,
-    fecha: document.getElementById('pg_fecha').value,
+    fecha: fechaPago,
     referencia: document.getElementById('pg_referencia').value,
     clave_rastreo: document.getElementById('pg_clave_rastreo').value,
     banco_origen: document.getElementById('pg_banco_origen').value,
@@ -1746,10 +1847,10 @@ async function guardarPago(ev, cxpId) {
     const res = await api('save', { entity: 'pagos', record });
     await loadData();
     closeModal(); showLoading(false);
-    toast('Pago registrado.', 'ok');
+    toast(pagoId ? 'Pago actualizado.' : 'Pago registrado.', 'ok');
     if (res.warning) toast(res.warning, 'warning');
     setView(state.view);
-  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
   return false;
 }
 
@@ -1838,6 +1939,7 @@ function renderPagosTable() {
         <td>${esc(p.capturado_por || '—')}</td>
         <td>${badgeEstadoPago(p)}</td>
         <td><div class="rowActions">
+          ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formPago('${p.cxp_id}','${p.id}')">Editar</button>` : ''}
           ${can(['admin']) && p.estado === 'pendiente_validacion' ? `<button class="btn btn-ok btn-sm" onclick="confirmarValidarPago('${p.id}')">✓ Validar</button>` : ''}
           ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('pagos','${p.id}','este pago')">Eliminar</button>` : ''}
         </div></td>
@@ -1985,6 +2087,7 @@ async function guardarRecurrente(ev, id) {
   // ver nota equivalente en guardarCxp: el combobox de búsqueda ya no valida "requerido" solo
   const proveedorIdRec = document.getElementById('rec_proveedor_id').value;
   if (!proveedorIdRec) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id: id || ('rec_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
     proveedor_id: proveedorIdRec,
@@ -2006,7 +2109,7 @@ async function guardarRecurrente(ev, id) {
     closeModal(); showLoading(false);
     toast('Gasto recurrente guardado.', 'ok');
     renderRecurrentes();
-  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
   return false;
 }
 
@@ -2117,12 +2220,14 @@ function renderProveedores() {
 
 function renderProveedoresTable() {
   const wrap = document.getElementById('proveedoresTableWrap');
-  // v6.9: la lista ya no muestra Email/Teléfono (casi siempre vacíos) — en su lugar, Banco y
-  // Cuenta (enmascarada) de la PRIMERA cuenta registrada, con un "+N más" si hay otras. Email y
-  // Teléfono se siguen pudiendo capturar/editar igual, solo que ya no ocupan columna en la lista.
+  // v6.9: la lista ya no muestra Email/Teléfono/RFC (RFC se sigue viendo/editando en el proveedor) —
+  // en su lugar Referencia, Banco y Cuenta (CLABE completa) de la PRIMERA cuenta registrada, con un
+  // "+N más" si hay otras. La referencia ahora vive dentro de cada cuenta bancaria (ver
+  // renderCuentasProveedorRows), no es un dato aparte.
   const getters = {
     nombre: p => p.nombre || '',
-    rfc: p => p.rfc || '',
+    cliente: p => (p.cuentas||[])[0]?.cliente || '',
+    referencia: p => (p.cuentas||[])[0]?.referencia || '',
     banco: p => (p.cuentas||[])[0]?.banco || '',
     cuenta: p => (p.cuentas||[])[0]?.clabe || ''
   };
@@ -2130,7 +2235,8 @@ function renderProveedoresTable() {
   wrap.innerHTML = `<div class="tableWrap"><table>
       <thead><tr>
         ${sortTh('Nombre','nombre','sortProveedores','renderProveedoresTable')}
-        ${sortTh('RFC','rfc','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Cliente','cliente','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Referencia','referencia','sortProveedores','renderProveedoresTable')}
         ${sortTh('Banco','banco','sortProveedores','renderProveedoresTable')}
         ${sortTh('Cuenta','cuenta','sortProveedores','renderProveedoresTable')}
         <th></th>
@@ -2141,16 +2247,18 @@ function renderProveedoresTable() {
         const extra = cuentas.length > 1 ? ` <span class="badge badge-muted" title="Tiene ${cuentas.length} cuentas registradas">+${cuentas.length - 1} más</span>` : '';
         return `
         <tr>
-          <td>${esc(p.nombre)}</td><td>${esc(p.rfc||'—')}</td>
+          <td>${esc(p.nombre)}</td>
+          <td>${esc(principal?.cliente || '—')}</td>
+          <td>${esc(principal?.referencia || '—')}</td>
           <td>${esc(principal?.banco || '—')}</td>
-          <td style="font-variant-numeric:tabular-nums">${esc(maskClabe(principal?.clabe))}${extra}</td>
+          <td style="font-variant-numeric:tabular-nums">${esc(principal?.clabe || '—')}${extra}</td>
           <td><div class="rowActions">
             <button class="btn btn-ghost btn-sm" onclick="verCuentasProveedor('${p.id}')">Ver cuentas</button>
             ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
             ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor (y sus CxP/pagos)')">Eliminar</button>` : ''}
           </div></td>
         </tr>`;
-      }).join('') || `<tr><td colspan="5" class="emptyState">Sin proveedores.</td></tr>`}
+      }).join('') || `<tr><td colspan="6" class="emptyState">Sin proveedores.</td></tr>`}
       </tbody>
     </table></div>`;
 }
@@ -2162,13 +2270,14 @@ function verCuentasProveedor(id) {
     <h2>Cuentas de ${esc(p ? p.nombre : '')}</h2>
     ${!cuentas.length ? `<p class="emptyState">Este proveedor no tiene cuentas bancarias registradas todavía.</p>` : `
     <div class="tableWrap" style="border:1px solid var(--border)"><table>
-      <thead><tr><th>Alias</th><th>Banco</th><th>CLABE / Cuenta</th><th>Titular</th></tr></thead>
+      <thead><tr><th>Banco</th><th>Cuenta (interbancaria)</th><th>Titular</th><th>Cliente</th><th>Referencia de pago</th></tr></thead>
       <tbody>${cuentas.map(c => `
         <tr>
-          <td>${esc(c.alias || '—')}</td>
           <td>${esc(c.banco || '—')}</td>
           <td style="font-variant-numeric:tabular-nums">${esc(c.clabe || '—')}</td>
           <td>${esc(c.titular || '—')}</td>
+          <td>${esc(c.cliente || '—')}</td>
+          <td>${esc(c.referencia || '—')}</td>
         </tr>`).join('')}</tbody>
     </table></div>`}
     <div class="modalActions">
@@ -2217,10 +2326,11 @@ function renderCuentasProveedorRows() {
         <button type="button" class="btn btn-danger btn-sm" onclick="eliminarCuentaProveedorTmp(this)">Eliminar</button>
       </div>
       <div class="formGrid">
-        <div class="field"><label>Alias</label><input class="cta_alias" value="${esc(c.alias||'')}" placeholder="Ej. Principal"></div>
         <div class="field"><label>Banco</label><input class="cta_banco" value="${esc(c.banco||'')}" placeholder="Ej. SANTANDER"></div>
-        <div class="field full"><label>CLABE / Número de cuenta</label><input class="cta_clabe" value="${esc(c.clabe||'')}" placeholder="18 dígitos"></div>
+        <div class="field"><label>Cuenta (interbancaria)</label><input class="cta_clabe" value="${esc(c.clabe||'')}" placeholder="18 dígitos"></div>
         <div class="field full"><label>Titular</label><input class="cta_titular" value="${esc(c.titular||'')}"></div>
+        <div class="field"><label>Cliente</label><input class="cta_cliente" value="${esc(c.cliente||'')}" placeholder="Ej. código o razón social con la que te facturan"></div>
+        <div class="field"><label>Referencia de pago</label><input class="cta_referencia" value="${esc(c.referencia||'')}" placeholder="Ej. REF-TORRES-7"></div>
       </div>
     </div>`).join('');
 }
@@ -2231,10 +2341,11 @@ function leerCuentasProveedorDesdeDOM() {
   rows.forEach(row => {
     out.push({
       id: row.dataset.id || ('cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6)),
-      alias: row.querySelector('.cta_alias').value.trim(),
+      referencia: row.querySelector('.cta_referencia').value.trim(),
       banco: row.querySelector('.cta_banco').value.trim(),
       clabe: row.querySelector('.cta_clabe').value.trim(),
-      titular: row.querySelector('.cta_titular').value.trim()
+      titular: row.querySelector('.cta_titular').value.trim(),
+      cliente: row.querySelector('.cta_cliente').value.trim()
     });
   });
   __pvCuentasTmp = out;
@@ -2242,7 +2353,7 @@ function leerCuentasProveedorDesdeDOM() {
 
 function agregarCuentaProveedorTmp() {
   leerCuentasProveedorDesdeDOM();
-  __pvCuentasTmp.push({ id: 'cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), alias:'', banco:'', clabe:'', titular:'' });
+  __pvCuentasTmp.push({ id: 'cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), referencia:'', banco:'', clabe:'', titular:'', cliente:'' });
   document.getElementById('pvCuentasList').innerHTML = renderCuentasProveedorRows();
 }
 
@@ -2256,7 +2367,8 @@ function eliminarCuentaProveedorTmp(btn) {
 async function guardarProveedor(ev, id) {
   ev.preventDefault();
   leerCuentasProveedorDesdeDOM();
-  const cuentas = __pvCuentasTmp.filter(c => c.alias || c.banco || c.clabe || c.titular);
+  const cuentas = __pvCuentasTmp.filter(c => c.cliente || c.referencia || c.banco || c.clabe || c.titular);
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id: id || ('prov_' + Date.now()),
     nombre: document.getElementById('pv_nombre').value,
@@ -2273,7 +2385,7 @@ async function guardarProveedor(ev, id) {
     closeModal(); showLoading(false);
     toast('Proveedor guardado.', 'ok');
     renderProveedores();
-  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
   return false;
 }
 
@@ -2332,6 +2444,7 @@ function formCuenta(id) {
 
 async function guardarCuenta(ev, id) {
   ev.preventDefault();
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const cuentas = [...(state.config.cuentas_origen || [])];
   const nueva = { id: id || ('cta_' + Date.now()), nombre: document.getElementById('ct_nombre').value, banco: document.getElementById('ct_banco').value, numero: document.getElementById('ct_numero').value };
   const idx = cuentas.findIndex(c => String(c.id) === String(id));
@@ -2343,7 +2456,7 @@ async function guardarCuenta(ev, id) {
     closeModal(); showLoading(false);
     toast('Cuenta guardada.', 'ok');
     renderCuentas();
-  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
   return false;
 }
 
@@ -2414,6 +2527,7 @@ function formUsuario(id) {
 
 async function guardarUsuario(ev, id) {
   ev.preventDefault();
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id: id || undefined,
     nombre: document.getElementById('us_nombre').value,
@@ -2428,7 +2542,7 @@ async function guardarUsuario(ev, id) {
     closeModal(); showLoading(false);
     toast('Usuario guardado.', 'ok');
     renderUsuarios();
-  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
   return false;
 }
 
