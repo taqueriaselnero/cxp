@@ -291,7 +291,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v7.0 · Datos seguros en Supabase</p>
+      <p class="footNote">v7.1 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -607,6 +607,7 @@ function badgeEstadoCxp(estado) {
 // sigue usando badgeEstadoCxp/estadoCxp tal cual, sin el caso especial de "hoy").
 function badgeEstadoCxpTabla(c, dias) {
   if (c.est === 'proxima' && dias === 0) return `<span class="badge badge-warning">Vence hoy</span>`;
+  if (c.est === 'proxima' && dias === -1) return `<span class="badge badge-warning">Vence mañana</span>`;
   return badgeEstadoCxp(c.est);
 }
 
@@ -1497,13 +1498,15 @@ function renderCxpTable() {
 
   const vencidas  = lista.filter(c => c.est === 'vencida');
   const vencenHoy = lista.filter(c => c.est === 'proxima' && c.dias === 0);
-  const porVencer = lista.filter(c => c.est === 'proxima' && c.dias !== 0);
+  const vencenManana = lista.filter(c => c.est === 'proxima' && c.dias === -1);
+  const porVencer = lista.filter(c => c.est === 'proxima' && c.dias !== 0 && c.dias !== -1);
   const vigentes   = lista.filter(c => c.est === 'vigente');
   const liquidadas = lista.filter(c => c.est === 'liquidada');
 
   let filasHtml = '';
   filasHtml += bloqueFijo('Vencidas', '🔴', 'var(--critical)', 'var(--critical-bg)', vencidas);
   filasHtml += bloqueFijo('Vencen hoy', '🟠', 'var(--warning)', 'var(--warning-bg)', vencenHoy);
+  filasHtml += bloqueFijo('Vencen mañana', '🟡', 'var(--warning)', 'var(--warning-bg)', vencenManana);
   filasHtml += bloqueFijo('Por vencer — próximos 7 días', '⚪', 'var(--ink-2)', '#f0efec', porVencer);
   filasHtml += bloqueColapsable('vigentes', 'Vigentes — vencen en más de 7 días', '⚪', 'var(--ink-2)', '#f0efec', vigentes);
   filasHtml += bloqueColapsable('liquidadas', 'Liquidadas', '🟢', 'var(--good)', 'var(--good-bg)', liquidadas, true);
