@@ -291,7 +291,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.8 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v6.10 · Datos seguros en Google Sheets</p>
     </form>
   </div>
 
@@ -381,13 +381,23 @@ const state = {
 // 20s da margen de sobra para una respuesta lenta legítima sin dejar la pantalla
 // congelada para siempre si Google "pierde" la respuesta en el camino (ver nota abajo).
 const API_TIMEOUT_MS = 20000;
+// v6.10: cuando el guardado incluye una foto nueva (evidencia de CxP o comprobante de pago),
+// Code.gs sube esa imagen a Drive ANTES de escribir la fila — y Drive es notoriamente más lento
+// e impredecible que Sheets dentro de Apps Script. Con el timeout normal de 20s, un guardado con
+// foto podía disparar el error de "tardó demasiado" aunque Google estuviera funcionando normal,
+// nomás porque Drive se tardó. Estos guardados usan este timeout más largo (ver guardarCxp/
+// guardarPago, que lo pasan solo cuando sí hay una imagen nueva por subir — editar sin tocar la
+// foto sigue usando el timeout normal porque ese guardado no toca Drive).
+const API_TIMEOUT_MS_ADJUNTO = 45000;
 
-async function api(action, payload, _intento) {
+async function api(action, payload, opts) {
+  opts = opts || {};
+  const timeoutMs = opts.timeoutMs || API_TIMEOUT_MS;
+  const intento = opts._intento || 1;
   const body = { action, token: state.token, payload: payload || {} };
-  const intento = _intento || 1;
   let res;
   const ctrl = new AbortController();
-  const timeoutId = setTimeout(() => ctrl.abort(), API_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     try {
       res = await fetch(API_URL, {
@@ -406,7 +416,7 @@ async function api(action, payload, _intento) {
     // siempre. Ahora, si se agotó el tiempo de espera, reintentamos una vez automáticamente
     // antes de avisarle al usuario.
     if (err.name === 'AbortError' && intento < 2) {
-      return api(action, payload, intento + 1);
+      return api(action, payload, { timeoutMs, _intento: intento + 1 });
     }
     if (err.name === 'AbortError') {
       throw new Error('El servidor tardó demasiado en responder (puede ser una falla temporal de Google). Intenta de nuevo en unos segundos.');
@@ -700,12 +710,15 @@ function showLoading(v) { document.getElementById('loadingOverlay').classList.to
 // Evita doble registro por doble clic/doble submit: mientras el formulario de un modal está
 // guardando, el #modalOverlay (z-index 50) sigue por encima del #loadingOverlay (z-index 40) —
 // o sea que la pantalla de "Cargando…" queda tapada por el propio modal y no se ve ni bloquea
-// el clic, así que un segundo clic en "Guardar"/"Registrar" antes de que vuelva la respuesta
-// vuelve a disparar la función y crea un registro duplicado (cada guardarX genera un id nuevo
-// para los registros nuevos). Esta función deshabilita los botones del formulario y cambia el
-// texto del botón de enviar en cuanto se da clic, antes de llamar a la API. Si la llamada falla
-// se vuelve a habilitar con el des-bloqueo que regresa; si tiene éxito no hace falta, porque el
-// modal se cierra.
+// el clic, así que sin esto un segundo clic en "Guardar"/"Registrar" antes de que vuelva la
+// respuesta volvería a disparar la función. Esta función deshabilita los botones del formulario
+// y cambia el texto del botón de enviar en cuanto se da clic, antes de llamar a la API. Si la
+// llamada falla se vuelve a habilitar con el des-bloqueo que regresa; si tiene éxito no hace
+// falta, porque el modal se cierra. Como segunda capa de protección, el id de los registros
+// nuevos (CxP, proveedor, pago, recurrente) ya se fija al ABRIR el formulario, no al guardar —
+// así que aunque el usuario reabra/reintente el mismo guardado tras una falla, el backend
+// actualiza el mismo registro por id en vez de crear uno duplicado (ver formCxp/formPago/
+// formRecurrente/formProveedor).
 function bloquearFormulario(form, textoProcesando) {
   if (!form) return function desbloquear() {}; // defensivo: si no hay form (p.ej. llamada directa sin evento real), no hace nada
   const botones = form.querySelectorAll('button');
@@ -933,8 +946,11 @@ function renderTabs() {
   ).join('');
 }
 
+const ULTIMA_VISTA_KEY = 'cxp_ultima_vista'; // para volver a la misma pestaña tras un F5/recarga
+
 async function setView(view) {
   state.view = view;
+  try { sessionStorage.setItem(ULTIMA_VISTA_KEY, view); } catch (e) {}
   renderTabs();
   const main = document.getElementById('main');
   main.innerHTML = '';
@@ -946,8 +962,8 @@ async function setView(view) {
     else if (view === 'recurrentes') renderRecurrentes();
     else if (view === 'aging')  renderAging();
     else if (view === 'cuentas') renderCuentas();
-    else if (view === 'usuarios') { showLoading(true); await loadUsuarios(); showLoading(false); renderUsuarios(); }
-    else if (view === 'auditoria') { showLoading(true); await loadLog(); showLoading(false); renderAuditoria(); }
+    else if (view === 'usuarios') { showLoading(true); try { await loadUsuarios(); } finally { showLoading(false); } renderUsuarios(); }
+    else if (view === 'auditoria') { showLoading(true); try { await loadLog(); } finally { showLoading(false); } renderAuditoria(); }
     else if (view === 'exportar') renderExportar();
   } catch (err) {
     toast(err.message, 'error');
@@ -1718,9 +1734,15 @@ function formCxp(id) {
   const c = id ? state.cxp.find(x => String(x.id) === String(id)) : null;
   const ip = c?.instrucciones_pago || {};
   const provIdInicial = c?.proveedor_id || '';
+  // El id se genera aquí, al ABRIR el formulario, y no al guardar — así, si el guardado tarda o
+  // la respuesta se pierde (falla de Google) y el usuario le da clic a "Guardar" otra vez sin
+  // cerrar el modal, se reintenta con el MISMO id en vez de crear una CxP duplicada: el backend
+  // ya hace upsert por id, así que un reintento con el mismo id simplemente sobreescribe el
+  // mismo registro en vez de crear uno nuevo.
+  const idEstable = id || ('cxp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
   openModal(`
     <h2>${c ? 'Editar' : 'Nueva'} Cuenta por Pagar</h2>
-    <form id="cxpForm" onsubmit="return guardarCxp(event, '${id || ''}')">
+    <form id="cxpForm" onsubmit="return guardarCxp(event, '${idEstable}')">
       <div class="formGrid">
         <div class="field full"><label>Proveedor</label>
           ${htmlComboProveedor('cxp_proveedor_id', provIdInicial)}
@@ -1762,7 +1784,7 @@ async function guardarCxp(ev, id) {
   if (!proveedorIdCxp) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
-    id: id || ('cxp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
+    id, // ya viene fijo desde formCxp (ver nota ahí) — seguro reintentar con el mismo id.
     proveedor_id: proveedorIdCxp,
     concepto: document.getElementById('cxp_concepto').value,
     monto: document.getElementById('cxp_monto').value,
@@ -1781,7 +1803,9 @@ async function guardarCxp(ev, id) {
   };
   try {
     showLoading(true);
-    const res = await api('save', { entity: 'cxp', record });
+    // v6.10: si este guardado trae una foto nueva, Code.gs la sube a Drive antes de escribir la
+    // fila — dale más margen de timeout que a un guardado normal (ver API_TIMEOUT_MS_ADJUNTO).
+    const res = await api('save', { entity: 'cxp', record }, record.evidencia_b64 ? { timeoutMs: API_TIMEOUT_MS_ADJUNTO } : undefined);
     await loadData();
     closeModal(); showLoading(false);
     toast('CxP guardada correctamente.', 'ok');
@@ -1819,10 +1843,15 @@ function formPago(cxpId, pagoId) {
   } else {
     avisoEstado = 'Se conserva el estado de validación actual de este pago.';
   }
+  // Mismo criterio que en formCxp: el id del pago se fija aquí, al abrir el formulario — así un
+  // reintento tras un timeout/falla de Google sobreescribe el mismo pago en vez de registrarlo
+  // dos veces. "esEdicion" viaja aparte para no perder el mensaje correcto ("registrado" vs
+  // "actualizado") ahora que pagoId ya siempre viene con un valor.
+  const pagoIdEstable = pagoId || ('pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
   openModal(`
     <h2>${pago ? 'Editar pago' : 'Registrar pago'} — ${esc(proveedorNombre(c.proveedor_id))}</h2>
     <p style="color:var(--muted);font-size:12px;margin-top:-8px">Saldo pendiente: <b>${money(saldo)}</b></p>
-    <form onsubmit="return guardarPago(event, '${cxpId}', '${pagoId || ''}')">
+    <form onsubmit="return guardarPago(event, '${cxpId}', '${pagoIdEstable}', ${pago ? 'true' : 'false'})">
       <div class="formGrid">
         <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${pago ? pago.monto : saldo}" required></div>
         <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${pago ? esc(pago.fecha) : formatYMD(new Date())}" max="${formatYMD(new Date())}" required></div>
@@ -1847,16 +1876,16 @@ function formPago(cxpId, pagoId) {
   `);
 }
 
-async function guardarPago(ev, cxpId, pagoId) {
+async function guardarPago(ev, cxpId, pagoId, esEdicion) {
   ev.preventDefault();
   const fechaPago = document.getElementById('pg_fecha').value;
   if (fechaPago > formatYMD(new Date())) {
     toast('La fecha de pago no puede ser posterior a hoy.', 'error');
     return false;
   }
-  const desbloquear = bloquearFormulario(ev.target, pagoId ? 'Guardando…' : 'Registrando…');
+  const desbloquear = bloquearFormulario(ev.target, esEdicion ? 'Guardando…' : 'Registrando…');
   const record = {
-    id: pagoId || ('pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
+    id: pagoId, // ya viene fijo desde formPago — seguro reintentar con el mismo id.
     cxp_id: cxpId,
     pagar_desde: document.getElementById('pg_pagar_desde').value,
     cuenta_destino_id: document.getElementById('pg_cuenta_destino_id').value,
@@ -1870,10 +1899,12 @@ async function guardarPago(ev, cxpId, pagoId) {
   };
   try {
     showLoading(true);
-    const res = await api('save', { entity: 'pagos', record });
+    // v6.10: mismo criterio que en guardarCxp — más margen de timeout si este pago trae un
+    // comprobante nuevo (sube a Drive antes de escribir la fila).
+    const res = await api('save', { entity: 'pagos', record }, record.comprobante_b64 ? { timeoutMs: API_TIMEOUT_MS_ADJUNTO } : undefined);
     await loadData();
     closeModal(); showLoading(false);
-    toast(pagoId ? 'Pago actualizado.' : 'Pago registrado.', 'ok');
+    toast(esEdicion ? 'Pago actualizado.' : 'Pago registrado.', 'ok');
     if (res.warning) toast(res.warning, 'warning');
     setView(state.view);
   } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
@@ -2070,9 +2101,11 @@ function renderRecurrentesTable() {
 function formRecurrente(id) {
   const r = id ? state.recurrentes.find(x => String(x.id) === String(id)) : null;
   const provIdInicial = r?.proveedor_id || '';
+  // Mismo criterio que en formCxp: id fijo al abrir, para que un reintento no duplique el gasto recurrente.
+  const idEstable = id || ('rec_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
   openModal(`
     <h2>${r ? 'Editar' : 'Nuevo'} gasto recurrente</h2>
-    <form onsubmit="return guardarRecurrente(event, '${id || ''}')">
+    <form onsubmit="return guardarRecurrente(event, '${idEstable}')">
       <div class="formGrid">
         <div class="field full"><label>Proveedor</label>
           ${htmlComboProveedor('rec_proveedor_id', provIdInicial)}
@@ -2115,7 +2148,7 @@ async function guardarRecurrente(ev, id) {
   if (!proveedorIdRec) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
-    id: id || ('rec_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)),
+    id, // ya viene fijo desde formRecurrente — seguro reintentar con el mismo id.
     proveedor_id: proveedorIdRec,
     concepto: document.getElementById('rec_concepto').value,
     monto: document.getElementById('rec_monto').value,
@@ -2318,9 +2351,13 @@ let __pvCuentasTmp = [];
 function formProveedor(id) {
   const p = id ? state.proveedores.find(x => String(x.id) === String(id)) : null;
   __pvCuentasTmp = (p?.cuentas || []).map(c => ({ ...c }));
+  // Mismo criterio que en formCxp: el id se fija al abrir el formulario, no al guardar, para que
+  // un reintento (tras un timeout o falla de Google) sobreescriba el mismo registro en vez de
+  // crear un proveedor duplicado.
+  const idEstable = id || ('prov_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
   openModal(`
     <h2>${p ? 'Editar' : 'Nuevo'} proveedor</h2>
-    <form onsubmit="return guardarProveedor(event, '${id||''}')">
+    <form onsubmit="return guardarProveedor(event, '${idEstable}')">
       <div class="formGrid">
         <div class="field full"><label>Nombre</label><input id="pv_nombre" value="${esc(p?.nombre||'')}" required></div>
         <div class="field"><label>RFC</label><input id="pv_rfc" value="${esc(p?.rfc||'')}"></div>
@@ -2396,7 +2433,7 @@ async function guardarProveedor(ev, id) {
   const cuentas = __pvCuentasTmp.filter(c => c.cliente || c.referencia || c.banco || c.clabe || c.titular);
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
-    id: id || ('prov_' + Date.now()),
+    id, // ya viene fijo desde formProveedor — seguro reintentar con el mismo id.
     nombre: document.getElementById('pv_nombre').value,
     rfc: document.getElementById('pv_rfc').value,
     email: document.getElementById('pv_email').value,
@@ -2452,9 +2489,13 @@ function renderCuentasTable() {
 function formCuenta(id) {
   const cuentas = state.config.cuentas_origen || [];
   const c = id ? cuentas.find(x => String(x.id) === String(id)) : null;
+  // Mismo criterio que en formCxp/formProveedor/formPago/formRecurrente: el id se fija al abrir
+  // el formulario, no al guardar, para que un reintento (tras un timeout o falla de Google)
+  // sobreescriba la misma cuenta en vez de crear una duplicada.
+  const idEstable = id || ('cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
   openModal(`
     <h2>${c ? 'Editar' : 'Nueva'} cuenta</h2>
-    <form onsubmit="return guardarCuenta(event, '${id||''}')">
+    <form onsubmit="return guardarCuenta(event, '${idEstable}')">
       <div class="formGrid">
         <div class="field full"><label>Nombre / alias</label><input id="ct_nombre" value="${esc(c?.nombre||'')}" required></div>
         <div class="field"><label>Banco</label><input id="ct_banco" value="${esc(c?.banco||'')}"></div>
@@ -2472,7 +2513,7 @@ async function guardarCuenta(ev, id) {
   ev.preventDefault();
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const cuentas = [...(state.config.cuentas_origen || [])];
-  const nueva = { id: id || ('cta_' + Date.now()), nombre: document.getElementById('ct_nombre').value, banco: document.getElementById('ct_banco').value, numero: document.getElementById('ct_numero').value };
+  const nueva = { id, nombre: document.getElementById('ct_nombre').value, banco: document.getElementById('ct_banco').value, numero: document.getElementById('ct_numero').value }; // id ya viene fijo desde formCuenta — seguro reintentar con el mismo id.
   const idx = cuentas.findIndex(c => String(c.id) === String(id));
   if (idx >= 0) cuentas[idx] = nueva; else cuentas.push(nueva);
   try {
@@ -2534,9 +2575,15 @@ function renderUsuariosTable() {
 
 function formUsuario(id) {
   const u = id ? state.usuarios.find(x => String(x.id) === String(id)) : null;
+  // Mismo criterio que en formCxp/formProveedor/formPago/formRecurrente/formCuenta: el id se fija
+  // al abrir el formulario, no al guardar. Confirmado contra Code.gs: handleSaveUsuario solo genera
+  // un id en el servidor cuando record.id llega vacío ("if (!record.id) record.id = ...") — si el
+  // navegador ya manda un id fijo, el backend lo respeta y hace upsert normal, así que un reintento
+  // (tras un timeout o falla de Google) actualiza el mismo usuario en vez de crear uno duplicado.
+  const idEstable = id || ('user_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
   openModal(`
     <h2>${u ? 'Editar' : 'Nuevo'} usuario</h2>
-    <form onsubmit="return guardarUsuario(event, '${id||''}')">
+    <form onsubmit="return guardarUsuario(event, '${idEstable}')">
       <div class="formGrid">
         <div class="field full"><label>Nombre</label><input id="us_nombre" value="${esc(u?.nombre||'')}" required></div>
         <div class="field"><label>Usuario (login)</label><input id="us_usuario" value="${esc(u?.usuario||'')}" required></div>
@@ -2555,7 +2602,7 @@ async function guardarUsuario(ev, id) {
   ev.preventDefault();
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
-    id: id || undefined,
+    id, // ya viene fijo desde formUsuario — seguro reintentar con el mismo id.
     nombre: document.getElementById('us_nombre').value,
     usuario: document.getElementById('us_usuario').value,
     rol: document.getElementById('us_rol').value,
@@ -2724,7 +2771,14 @@ async function bootApp() {
     await loadData();
     showLoading(false);
     renderTabs();
-    setView('dashboard');
+    // Vuelve a la pestaña donde estaba antes de recargar (F5) en vez de siempre al Dashboard —
+    // solo si esa pestaña sigue siendo válida para su rol (por si cambió de rol mientras tanto).
+    let ultimaVista = 'dashboard';
+    try {
+      const guardada = sessionStorage.getItem(ULTIMA_VISTA_KEY);
+      if (guardada && TABS.some(t => t.id === guardada && can(t.roles))) ultimaVista = guardada;
+    } catch (e) {}
+    setView(ultimaVista);
   } catch (err) {
     showLoading(false);
     if (/sesión inválida|sesión expirada/i.test(err.message)) {
