@@ -291,7 +291,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v6.10 · Datos seguros en Google Sheets</p>
+      <p class="footNote">v7.0 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -337,11 +337,11 @@
 <script>
 /* =========================================================
    CxP Portal — Grupo Nero — Frontend v5.0
-   Backend: Google Apps Script Web App (ver Code.gs)
+   Backend: Supabase Edge Function 'api' (reemplaza al Apps Script anterior)
    ========================================================= */
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbzN1-Q_0QbQGdxUFbj1p25bJuCMRH97A9kbumLb_QFRfqIXx-AY3TNsmc3O-dxHD200/exec';
-// Google Sheets es la única base de datos; GitHub Pages solo sirve este HTML estático.
+const API_URL = 'https://mijsirkwfpqwnmdscash.supabase.co/functions/v1/api';
+// Supabase (Postgres) es la única base de datos; GitHub Pages solo sirve este HTML estático.
 // La sesión (token/nombre/rol) se guarda en sessionStorage (NO localStorage) únicamente
 // para que recargar la página (F5, deslizar en iPhone) no pida login de nuevo mientras
 // la pestaña/app siga abierta — en cuanto se cierra la pestaña o el navegador,
