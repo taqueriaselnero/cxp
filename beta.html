@@ -1,0 +1,2927 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control CxP — Grupo Nero</title>
+<style>
+  :root{
+    --brand:#4f46e5; --brand-dark:#4338ca; --brand-light:#eef0fd;
+    --bg:#180D04; --bg-ink:#F2E8D2; --border-gold:rgba(200,140,24,.32);
+    --surface:#ffffff; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+    --border:#e1e0d9; --good:#0ca30c; --warning:#b8860b; --serious:#c2531f; --critical:#d03b3b;
+    --good-bg:#e9f8e9; --warning-bg:#fef6e4; --serious-bg:#fdece3; --critical-bg:#fbe7e7;
+    /* Fondo color madera oscuro — degradado sólido (antes era una foto de madera
+       codificada en base64 dentro de este mismo CSS: esa sola línea medía más de
+       43,000 caracteres y hacía que editores basados en navegador, como el de
+       GitHub, se congelaran al abrir/pegar el archivo. Se reemplazó por este
+       degradado de color — visualmente muy similar, sin ese problema. */
+    --wood-bg: linear-gradient(180deg, #5c2a1a 0%, #2e1310 100%); /* tono caoba — elegido por Jesús */
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background-color:var(--bg);background-image:var(--wood-bg);background-size:cover;background-position:center;background-attachment:fixed;color:var(--ink);font-size:14px;}
+  .hidden{display:none !important;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;font-size:14px;}
+
+  /* ---- Login ---- */
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background-color:var(--bg);background-image:var(--wood-bg);background-size:cover;background-position:center;background-attachment:fixed;}
+  .loginCard{background:var(--surface);border:1px solid var(--border-gold);border-radius:14px;padding:36px 32px;width:340px;box-shadow:0 20px 50px rgba(0,0,0,.35);}
+  .loginCard h1{font-size:20px;margin:0 0 2px;color:var(--brand);}
+  .loginCard .sub{color:var(--muted);font-size:13px;margin:0 0 20px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px;font-weight:600;}
+  .field input, .field select{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+  .field input:focus, .field select:focus{outline:2px solid var(--brand-light);border-color:var(--brand);}
+  /* v6.9: combobox de proveedor (buscar-y-elegir), usado en Nueva CxP y Nuevo gasto recurrente */
+  .comboProveedor{position:relative;}
+  .comboList{position:absolute;z-index:30;top:calc(100% + 4px);left:0;right:0;max-height:220px;overflow-y:auto;
+    background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);}
+  .comboList.hidden{display:none;}
+  .comboOption{padding:8px 10px;font-size:14px;cursor:pointer;}
+  .comboOption:hover, .comboOption.activa{background:var(--brand-light);}
+  .comboEmpty{padding:8px 10px;font-size:13px;color:var(--muted);font-style:italic;}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:1px solid transparent;font-weight:600;font-size:13px;}
+  .btn:disabled{opacity:.55;cursor:not-allowed;}
+  .btn-primary{background:var(--brand);color:#fff;width:100%;justify-content:center;}
+  .btn-primary:hover{background:var(--brand-dark);}
+  .btn-ghost{background:transparent;color:var(--ink-2);border-color:var(--border);}
+  .btn-ghost:hover{background:#f2f2f0;}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px;}
+  .btn-danger{background:var(--critical-bg);color:var(--critical);}
+  .btn-ok{background:var(--good-bg);color:var(--good);}
+  .loginErr{background:var(--critical-bg);color:var(--critical);padding:8px 10px;border-radius:8px;font-size:12px;margin-bottom:12px;}
+  .footNote{text-align:center;color:var(--muted);font-size:11px;margin-top:18px;}
+
+  /* ---- App shell ---- */
+  header.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+  .brand .titles{line-height:1.15;}
+  .brand .titles b{display:block;font-size:14px;}
+  .brand .titles span{font-size:11px;color:var(--muted);}
+  .who{display:flex;align-items:center;gap:12px;}
+  .who .name{text-align:right;line-height:1.1;}
+  .who .name b{display:block;font-size:13px;}
+  .who .name span{font-size:11px;color:var(--muted);}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--brand-light);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;}
+
+  nav.tabs{display:flex;gap:4px;padding:8px 16px 0;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;position:sticky;top:55px;z-index:19;}
+  nav.tabs button{background:transparent;border:none;padding:9px 14px;font-size:13px;color:var(--ink-2);border-bottom:2px solid transparent;white-space:nowrap;font-weight:600;}
+  nav.tabs button.active{color:var(--brand);border-bottom-color:var(--brand);}
+  nav.tabs button:hover{color:var(--brand);}
+
+  main{padding:18px 20px 60px;max-width:1280px;margin:0 auto;}
+  .viewTitle{font-size:18px;margin:4px 0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--bg-ink);}
+  .viewTitle .actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .card{background:var(--surface);border:1px solid var(--border-gold);border-radius:12px;padding:16px;margin-bottom:16px;}
+  .cardTitle{font-size:13px;font-weight:700;color:var(--ink-2);margin:0 0 12px;text-transform:uppercase;letter-spacing:.03em;}
+
+  /* KPI tiles */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;}
+  .kpi{background:var(--surface);border:1px solid var(--border-gold);border-radius:12px;padding:14px 16px;}
+  .kpi .label{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .kpi .value{font-size:24px;font-weight:700;}
+  .kpi.alert .value{color:var(--critical);}
+  .kpi.warn .value{color:var(--warning);}
+
+  /* charts grid */
+  .chartsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;}
+  .chartEmpty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center;}
+  .barRow{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+  .barRow .barLbl{width:110px;flex:0 0 110px;font-size:12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .barRow .barTrack{flex:1;background:#f2f2f0;border-radius:5px;height:16px;position:relative;}
+  .barRow .barFill{height:100%;border-radius:5px;background:var(--brand);}
+  .barRow .barVal{width:92px;flex:0 0 92px;text-align:right;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .barRow.clickable{cursor:pointer;border-radius:6px;padding:3px 4px;margin:0 -4px 9px;transition:background .12s;}
+  .barRow.clickable:hover{background:#f5f4f1;}
+  .barRow.clickable .barLbl{color:var(--brand);font-weight:600;}
+  .dashScroll{max-height:260px;overflow-y:auto;padding-right:4px;}
+  .notaRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:#fafaf9;transition:background .12s,border-color .12s;}
+  .notaRow:hover{background:#f1f0ed;border-color:var(--brand);}
+  .notaRow .notaMain{min-width:0;}
+  .notaRow .notaConcepto{font-weight:400;font-size:13px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .notaRow .notaMeta{font-size:11px;color:var(--muted);margin-top:4px;}
+  .folioChip{display:inline-block;background:var(--brand-light);color:var(--brand);font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:6px;}
+  .notaRow .notaMonto{text-align:right;flex:0 0 auto;}
+  .notaRow .notaMonto .saldo{font-weight:700;font-size:14px;margin-bottom:3px;}
+  .dashTotalRow{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;margin-top:4px;border-top:2px solid var(--ink);font-weight:700;font-size:14px;}
+  .captInfo .captRow{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .captInfo .captRow:last-child{border-bottom:none;}
+  .captInfo .captLbl{color:var(--muted);flex:0 0 auto;}
+  .captInfo .captVal{text-align:right;font-weight:600;}
+
+  /* filters */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;background:var(--surface);border:1px solid var(--border-gold);border-radius:12px;padding:12px;}
+  .filters .f{display:flex;flex-direction:column;gap:4px;}
+  .filters .f label{font-size:11px;color:var(--muted);font-weight:600;}
+  .filters input, .filters select{padding:7px 8px;border:1px solid var(--border);border-radius:7px;min-width:130px;}
+  .filters .fGrow{flex:1;min-width:180px;}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);border-bottom:1px solid var(--border);padding:8px 10px;white-space:nowrap;}
+  table th.sortable{cursor:pointer;user-select:none;}
+  table th.sortable:hover{color:var(--brand);}
+  .sortArrow{font-size:9px;letter-spacing:0;margin-left:3px;opacity:.35;display:inline-block;}
+  .sortArrow.active{opacity:1;color:var(--brand);font-weight:700;}
+  table td{padding:9px 10px;border-bottom:1px solid #f0efec;vertical-align:middle;}
+  table tr:hover td{background:#fafaf9;}
+  tr.blockHeader td{border-bottom:none;}
+  tr.blockHeader:hover td{background:inherit !important;}
+  .tableWrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border-gold);border-radius:12px;}
+  .num{font-variant-numeric:tabular-nums;text-align:right;}
+  .rowActions{display:flex;gap:6px;justify-content:flex-end;}
+  .emptyState{padding:30px;text-align:center;color:var(--muted);}
+
+  /* Cuentas × Pagar: columna Días, Concepto clicable, menú "Opciones" y bloques colapsables
+     (Vigentes/Liquidadas) — ver renderCxpRow/renderCxpTable/toggleBloqueCxp */
+  .diasTxt{font-size:12px;font-weight:700;white-space:nowrap;}
+  .diasTxt.d-vencida{color:var(--critical);}
+  .diasTxt.d-hoy{color:var(--warning);}
+  .diasTxt.d-porvencer{color:var(--ink-2);font-weight:600;}
+  .diasTxt.d-liquidada{color:var(--muted);font-weight:400;}
+  .conceptoCelda{display:flex;align-items:center;gap:10px;}
+  .verGastoBtn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--ink-2);font-size:11px;font-weight:700;cursor:pointer;flex:0 0 auto;transition:background .12s,border-color .12s,color .12s;}
+  .verGastoBtn:hover{background:var(--brand-light);border-color:var(--brand);color:var(--brand);}
+  .verGastoBtn svg{width:12px;height:12px;}
+  .optMenuWrap{position:relative;display:inline-block;}
+  .optMenuBtn{background:transparent;border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:15px;line-height:1;cursor:pointer;color:var(--ink-2);}
+  .optMenuBtn:hover{background:#f2f2f0;}
+  .optMenu{display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:0 10px 24px rgba(0,0,0,.14);min-width:160px;z-index:30;overflow:hidden;}
+  .optMenu.open{display:block;}
+  .optMenu button{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 12px;font-size:13px;cursor:pointer;color:var(--ink);font-family:inherit;}
+  .optMenu button:hover{background:#f5f4f1;}
+  .optMenu button.danger{color:var(--critical);}
+  .optMenu hr{border:none;border-top:1px solid var(--border);margin:0;}
+  .bloqueToggle{cursor:pointer;user-select:none;}
+  .bloqueToggle .chev{display:inline-block;transition:transform .15s;font-size:10px;margin-right:4px;}
+  .bloqueToggle.open .chev{transform:rotate(90deg);}
+  tr.bloqueColapsable{display:none;}
+  tr.bloqueColapsable.open{display:table-row;}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+  .badge-good{background:var(--good-bg);color:var(--good);}
+  .badge-warning{background:var(--warning-bg);color:var(--warning);}
+  .badge-serious{background:var(--serious-bg);color:var(--serious);}
+  .badge-critical{background:var(--critical-bg);color:var(--critical);}
+  .badge-muted{background:#f0efec;color:var(--ink-2);}
+
+  /* ---- Adjuntos (v6.8): evidencia del gasto en CxP, comprobante de pago opcional en Pagos ----
+     Campo de subir (pegar/arrastrar/elegir archivo) + miniatura en tabla + detalle en dos columnas
+     + lightbox de la imagen con tamaño acotado. Ver htmlCampoAdjunto/comprimirImagen/abrirLightbox. */
+  .tagAdjunto{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;}
+  .tag-brand{background:var(--brand-light);color:var(--brand);}
+  .tag-muted-adj{background:#f0efec;color:var(--ink-2);}
+  .subidaBox{border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;outline:none;transition:border-color .12s,background .12s;}
+  .subidaBox.principal{border:1.5px solid var(--brand);background:var(--brand-light);}
+  .subidaBox.principal:hover,.subidaBox.principal:focus{background:#e3e6fb;}
+  .subidaBox.secundario{border:1.5px dashed var(--border);background:var(--surface);}
+  .subidaBox.secundario:hover,.subidaBox.secundario:focus{border-color:var(--muted);background:#faf9f7;}
+  .subidaBox.dragover{border-color:var(--brand) !important;background:var(--brand-light) !important;}
+  .subidaBox.conArchivo{cursor:pointer;border-style:solid !important;align-items:flex-start;}
+  .subidaBox .icono{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;flex:0 0 auto;}
+  .subidaBox.principal .icono{background:var(--brand);color:#fff;}
+  .subidaBox.secundario .icono{background:#f0efec;color:var(--ink-2);}
+  .subidaBox .icono svg{width:17px;height:17px;}
+  .subidaTxt{flex:1;min-width:0;}
+  .subidaTxt .t1{font-weight:700;font-size:12.5px;color:var(--ink);margin-bottom:2px;}
+  .subidaTxt .t2{font-size:11.5px;color:var(--muted);}
+  .subidaBox kbd{background:#f0efec;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:11px;font-family:inherit;color:var(--ink-2);}
+  .thumbChico{width:58px;height:58px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex:0 0 auto;background:#fff;}
+  .infoArchivo{flex:1;min-width:0;}
+  .infoArchivo .nombre{font-weight:700;font-size:12px;color:var(--ink);margin-bottom:3px;word-break:break-all;}
+  .infoArchivo .meta{font-size:11px;color:var(--muted);}
+  .quitarBtn{background:none;border:none;color:var(--critical);font-size:11.5px;font-weight:700;cursor:pointer;padding:4px;flex:0 0 auto;}
+  .clipIcon{display:inline-flex;color:var(--brand);flex:0 0 auto;}
+  .clipIcon svg{width:14px;height:14px;}
+
+
+  /* v7.2: subida de adjuntos en celular/tablet (pantalla táctil o <=640px). En PC sigue la caja
+     de "Clic y pega con Ctrl+V". En táctil el recuadro vacío muestra botones: Pegar imagen
+     (clipboard.read), Fotos/cámara (selector de archivo) y un campo editable de respaldo donde
+     se mantiene presionado y se elige "Pegar". */
+  .subidaBox.movil{flex-direction:column;align-items:stretch;gap:10px;cursor:default;}
+  .movilAcciones{display:flex;flex-direction:column;gap:10px;width:100%;}
+  .movilAcciones .t1{font-weight:700;font-size:12.5px;color:var(--ink);}
+  .movilAcciones .t2{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .movilBtns{display:flex;gap:8px;flex-wrap:wrap;}
+  .movilBtns .btn{flex:1 1 140px;justify-content:center;padding:11px 12px;font-size:14px;}
+  .pegarCampo{border:1.5px dashed var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--muted);text-align:center;min-height:38px;background:var(--surface);outline:none;-webkit-user-select:text;user-select:text;}
+  .pegarCampo:empty:before{content:attr(data-ph);}
+  .pegarCampo:focus{border-color:var(--brand);}
+
+  /* Detalle de captura (modal): resumen condensado + imagen en dos columnas.
+     v6.9: la miniatura crece (220x170 -> 300x230) y pasa de object-fit:cover a contain, para que
+     un documento horizontal (cotización, factura apaisada) se vea completo y más grande en vez de
+     recortado por los lados — los verticales (tickets) ya se veían bien y casi no cambian. */
+  .dosColDetalle{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
+  .detalleResumen .item{margin-bottom:10px;}
+  .detalleResumen .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;margin-bottom:2px;}
+  .detalleResumen .val{font-size:14px;color:var(--ink);}
+  .detalleResumen .val.concepto{font-size:15.5px;font-weight:700;line-height:1.3;}
+  .detalleResumen .val.saldo{font-weight:700;font-size:14px;}
+  .estadoVenceTxt{font-size:11.5px;color:var(--ink-2);font-weight:600;margin-left:4px;}
+  .masDetalleToggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-2);background:none;border:none;cursor:pointer;padding:8px 0 0;font-weight:600;}
+  .masDetalleToggle .chev{display:inline-block;font-size:10px;}
+  .masDetalleBody{margin-top:8px;}
+  .imgColDetalle{position:sticky;top:0;}
+  .thumbWrap{position:relative;cursor:pointer;}
+  .thumbGrande{width:100%;height:230px;border-radius:8px;object-fit:contain;border:1px solid var(--border);display:block;background:#f0efec;}
+  .thumbWrap .lupa{position:absolute;bottom:6px;right:6px;width:22px;height:22px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;}
+  .thumbWrap .lupa svg{width:12px;height:12px;}
+  .sinEvidencia{border:1.5px dashed var(--border);border-radius:8px;padding:16px 10px;text-align:center;color:var(--muted);font-size:12px;min-height:170px;display:flex;align-items:center;justify-content:center;}
+  .verComprobanteBtn{background:none;border:1px solid var(--border);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:var(--brand);cursor:pointer;}
+
+  /* lightbox: imagen agrandada con tope de tamaño fijo y botón de cerrar DENTRO de la caja (nunca
+     se sale de la pantalla, ni en celular) */
+  #lightboxOverlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;}
+  #lightboxOverlay.hidden{display:none;}
+  .lightboxBox{position:relative;display:inline-block;max-width:calc(100vw - 48px);max-height:70vh;}
+  .lightboxImg{display:block;width:auto;height:auto;max-width:420px;max-height:70vh;object-fit:contain;border-radius:10px;background:#111;}
+  .lightboxClose{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .lightboxClose svg{width:16px;height:16px;}
+
+  /* modal */
+  #modalOverlay{position:fixed;inset:0;background:rgba(11,11,11,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  #modalBox{background:var(--surface);border-radius:14px;padding:20px;width:440px;max-width:100%;max-height:88vh;overflow-y:auto;}
+  #modalBox.wide{width:680px;}
+  #modalBox h2{margin:0 0 14px;font-size:16px;}
+  .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .formGrid .full{grid-column:1 / -1;}
+
+  /* tarjeta de cuenta bancaria (proveedores) — una por cuenta, con espacio suficiente para CLABEs de 18 dígitos */
+  .cuentaRow{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fafaf9;}
+  .cuentaRow .cuentaHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .cuentaRow .cuentaHead b{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.03em;}
+  .cuentaRow input{font-variant-numeric:tabular-nums;}
+
+  /* toast */
+  #toastContainer{position:fixed;bottom:16px;right:16px;display:flex;flex-direction:column;gap:8px;z-index:60;}
+  .toast{background:var(--ink);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;box-shadow:0 6px 16px rgba(0,0,0,.2);max-width:320px;}
+  .toast.error{background:var(--critical);}
+  .toast.ok{background:var(--good);}
+  .toast.warning{background:var(--warning);}
+
+  .loadingOverlay{position:fixed;inset:0;background-color:var(--bg);background-image:var(--wood-bg);background-size:cover;background-position:center;color:var(--bg-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:40;}
+  .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  /* Spinner chico para dentro de un botón mientras guarda (ver bloquearFormulario) — mismo giro que
+     .spinner de arriba, pero en blanco y del tamaño del texto para que se note sobre el morado del botón. */
+  .spinnerBtn{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex:0 0 auto;}
+
+  @media (max-width:640px){
+    .formGrid{grid-template-columns:1fr;}
+    .who .name{display:none;}
+    .dosColDetalle{grid-template-columns:1fr;}
+    /* Adjuntar una imagen nueva no es cómodo en pantalla chica (ni pegar ni recortar) — se bloquea
+       con un aviso; VER un adjunto ya subido sigue funcionando igual (botón dentro del aviso). */
+  }
+</style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginScreen">
+    <form class="loginCard" id="loginForm">
+      <h1>Control CxP</h1>
+      <p class="sub">Grupo Nero</p>
+      <div id="loginError" class="loginErr hidden"></div>
+      <div class="field">
+        <label>Usuario</label>
+        <input type="text" id="loginUsuario" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="loginPin" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
+      <p class="footNote">v7.2 BETA · Datos seguros en Supabase</p>
+    </form>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">CxP</div>
+        <div class="titles"><b>Control CxP</b><span>GrupoNero</span></div>
+      </div>
+      <div class="who">
+        <div class="name"><b id="whoNombre">—</b><span id="whoRol">—</span></div>
+        <div class="avatar" id="whoAvatar">—</div>
+        <button class="btn btn-ghost btn-sm" onclick="logout()">Cerrar sesión</button>
+      </div>
+    </header>
+    <nav class="tabs" id="tabs"></nav>
+    <main id="main"></main>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modalOverlay" class="hidden">
+    <div id="modalBox"></div>
+  </div>
+
+  <!-- LIGHTBOX: imagen de un adjunto (evidencia/comprobante) agrandada, tamaño acotado -->
+  <div id="lightboxOverlay" class="hidden" onclick="if(event.target.id==='lightboxOverlay') cerrarLightbox()">
+    <div class="lightboxBox">
+      <button class="lightboxClose" onclick="cerrarLightbox()" title="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <img class="lightboxImg" id="lightboxImg" src="">
+    </div>
+  </div>
+
+  <!-- TOASTS -->
+  <div id="toastContainer"></div>
+
+  <!-- LOADING -->
+  <div class="loadingOverlay hidden" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div>Cargando…</div>
+  </div>
+
+<script>
+/* =========================================================
+   CxP Portal — Grupo Nero — Frontend v5.0
+   Backend: Supabase Edge Function 'api' (reemplaza al Apps Script anterior)
+   ========================================================= */
+
+const API_URL = 'https://mijsirkwfpqwnmdscash.supabase.co/functions/v1/api';
+// Supabase (Postgres) es la única base de datos; GitHub Pages solo sirve este HTML estático.
+// La sesión (token/nombre/rol) se guarda en sessionStorage (NO localStorage) únicamente
+// para que recargar la página (F5, deslizar en iPhone) no pida login de nuevo mientras
+// la pestaña/app siga abierta — en cuanto se cierra la pestaña o el navegador,
+// sessionStorage se borra solo y la próxima vez vuelve a pedir usuario/contraseña.
+// No persiste entre dispositivos ni sobrevive cerrar por completo el navegador.
+
+const ROLES_LABEL = { admin:'Administrador', capturista:'Capturista', tesorero:'Tesorero', viewer:'Solo lectura' };
+
+const state = {
+  token: null, nombre: null, rol: null,
+  proveedores: [], cxp: [], pagos: [], recurrentes: [], config: { cuentas_origen: [] },
+  usuarios: [], log: [],
+  view: 'dashboard',
+  filtrosCxp: { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'todas', texto:'' },
+  filtrosPagos: { estado:'todos' },
+  // Orden por columna (flechitas) — uno independiente por cada tabla/pestaña
+  sortCxp:         { col: null, dir: 'asc' },
+  sortProveedores: { col: null, dir: 'asc' },
+  sortPagos:       { col: null, dir: 'asc' },
+  sortAging:       { col: null, dir: 'asc' },
+  sortCuentas:     { col: null, dir: 'asc' },
+  sortUsuarios:    { col: null, dir: 'asc' },
+  sortAuditoria:   { col: null, dir: 'asc' },
+  sortRecurrentes: { col: null, dir: 'asc' },
+  // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
+  // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
+  // demás filtros de esta vista).
+  cxpBloquesAbiertos: { vigentes: false, liquidadas: false },
+  // v6.8: adjuntos (evidencia/comprobante) del formulario CxP/Pago actualmente abierto — ver
+  // htmlCampoAdjunto() más abajo. Se reinicia cada vez que se abre un formulario.
+  adjuntos: {}
+};
+
+/* ---------------- API ---------------- */
+
+// Tiempo máximo de espera por intento. Apps Script normalmente responde en 1-3s;
+// 20s da margen de sobra para una respuesta lenta legítima sin dejar la pantalla
+// congelada para siempre si Google "pierde" la respuesta en el camino (ver nota abajo).
+const API_TIMEOUT_MS = 20000;
+// v6.10: cuando el guardado incluye una foto nueva (evidencia de CxP o comprobante de pago),
+// Code.gs sube esa imagen a Drive ANTES de escribir la fila — y Drive es notoriamente más lento
+// e impredecible que Sheets dentro de Apps Script. Con el timeout normal de 20s, un guardado con
+// foto podía disparar el error de "tardó demasiado" aunque Google estuviera funcionando normal,
+// nomás porque Drive se tardó. Estos guardados usan este timeout más largo (ver guardarCxp/
+// guardarPago, que lo pasan solo cuando sí hay una imagen nueva por subir — editar sin tocar la
+// foto sigue usando el timeout normal porque ese guardado no toca Drive).
+const API_TIMEOUT_MS_ADJUNTO = 45000;
+
+async function api(action, payload, opts) {
+  opts = opts || {};
+  const timeoutMs = opts.timeoutMs || API_TIMEOUT_MS;
+  const intento = opts._intento || 1;
+  const body = { action, token: state.token, payload: payload || {} };
+  let res;
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    try {
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS en Apps Script
+        body: JSON.stringify(body),
+        signal: ctrl.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (err) {
+    // A veces Apps Script termina de procesar la petición pero la respuesta nunca llega de
+    // vuelta al navegador (falla intermitente de Google, no de este código — ver sesión del
+    // 4-nov-2026). Antes esto dejaba el botón de "Guardando..."/"Entrando..." congelado para
+    // siempre. Ahora, si se agotó el tiempo de espera, reintentamos una vez automáticamente
+    // antes de avisarle al usuario.
+    if (err.name === 'AbortError' && intento < 2) {
+      return api(action, payload, { timeoutMs, _intento: intento + 1 });
+    }
+    if (err.name === 'AbortError') {
+      throw new Error('El servidor tardó demasiado en responder (puede ser una falla temporal de Google). Intenta de nuevo en unos segundos.');
+    }
+    throw new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
+  }
+  let json;
+  try { json = await res.json(); }
+  catch (err) { throw new Error('Respuesta inválida del servidor.'); }
+  if (!json.ok) throw new Error(json.error || 'Error desconocido.');
+  return json;
+}
+
+/* ---------------- Sesión (sessionStorage — se borra sola al cerrar la pestaña) ---------------- */
+
+const SESION_KEY  = 'cxp_sesion';
+const MOTIVO_KEY  = 'cxp_motivo_logout'; // mensaje a mostrar en el login tras un cierre automático
+
+// Cierre automático por inactividad: si no hay click/tecleo/touch/scroll durante este tiempo,
+// se cierra la sesión sola (aunque la pestaña siga abierta) — útil porque el dispositivo puede
+// quedar compartido entre roles. No afecta la expiración de 8h que ya controla el backend
+// (esa sigue siendo el tope absoluto; esta es por INACTIVIDAD, se reinicia con cualquier uso).
+const INACTIVIDAD_LIMITE_MS = 60 * 60 * 1000; // 60 minutos
+let ultimaActividad = Date.now();
+
+function guardarSesionLocal() {
+  try { sessionStorage.setItem(SESION_KEY, JSON.stringify({ token: state.token, nombre: state.nombre, rol: state.rol })); }
+  catch (e) { /* modo privado o storage bloqueado: simplemente no persiste, sin tronar la app */ }
+}
+function leerSesionLocal() {
+  try { const raw = sessionStorage.getItem(SESION_KEY); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+function borrarSesionLocal() {
+  try { sessionStorage.removeItem(SESION_KEY); } catch (e) {}
+}
+
+async function login(usuario, pin) {
+  const r = await api('login', { usuario, pin });
+  state.token = r.token; state.nombre = r.nombre; state.rol = r.rol;
+  guardarSesionLocal();
+  ultimaActividad = Date.now();
+  await bootApp();
+}
+
+async function logout(motivo) {
+  try { await api('logout', {}); } catch (e) {}
+  borrarSesionLocal();
+  if (motivo) { try { sessionStorage.setItem(MOTIVO_KEY, motivo); } catch (e) {} }
+  location.reload();
+}
+
+/* ---------------- Carga de datos ---------------- */
+
+async function loadData() {
+  const r = await api('getData', {});
+  state.proveedores = r.proveedores; state.cxp = r.cxp; state.pagos = r.pagos;
+  state.recurrentes = r.recurrentes || []; state.config = r.config;
+}
+
+async function loadUsuarios() {
+  const r = await api('getUsuarios', {});
+  state.usuarios = r.usuarios;
+}
+
+async function loadLog() {
+  const r = await api('getLog', {});
+  state.log = r.log;
+}
+
+/* ---------------- Helpers de dominio ---------------- */
+
+function proveedorNombre(id) {
+  const p = state.proveedores.find(p => String(p.id) === String(id));
+  return p ? p.nombre : '(sin proveedor)';
+}
+
+function pagosDeCxp(cxpId) {
+  return state.pagos.filter(p => String(p.cxp_id) === String(cxpId));
+}
+
+function saldoCxp(cxpId, monto) {
+  const pagado = pagosDeCxp(cxpId).reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  return (Number(monto) || 0) - pagado;
+}
+
+// --- Índices para recorrer listas grandes sin O(n×m) ---
+// pagosDeCxp()/proveedorNombre() recorren TODO el arreglo correspondiente cada vez que se llaman
+// (un .filter()/.find() completo). Eso es correcto para una sola nota o un solo proveedor, pero
+// si se usa dentro de un .map() sobre TODAS las cuentas por pagar (p.ej. al escribir en "Buscar",
+// que re-renderiza la tabla en cada tecla), el costo se multiplica: N cuentas × M pagos × cada
+// tecla. Con pocas filas no se nota, pero según crece el historial del negocio sí se siente como
+// que la página se queda pensando/congelada al teclear. Estos índices se arman UNA vez por
+// render (no por fila) y después cada búsqueda es O(1) en vez de recorrer el arreglo completo.
+function indexarPagosPorCxp(pagos) {
+  const idx = new Map();
+  pagos.forEach(p => {
+    const key = String(p.cxp_id);
+    if (!idx.has(key)) idx.set(key, []);
+    idx.get(key).push(p);
+  });
+  return idx;
+}
+
+function indexarProveedoresPorId(proveedores) {
+  const idx = new Map();
+  proveedores.forEach(p => idx.set(String(p.id), p));
+  return idx;
+}
+
+// Igual que saldoCxp(), pero usando un índice ya armado (ver indexarPagosPorCxp) en vez de
+// filtrar todo state.pagos otra vez por cada cuenta.
+function saldoDesdeIndice(cxpId, monto, pagosPorCxp) {
+  const pagado = (pagosPorCxp.get(String(cxpId)) || []).reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  return (Number(monto) || 0) - pagado;
+}
+
+function diasEntre(a, b) { return Math.round((a - b) / 86400000); }
+
+// Convierte una fecha "AAAA-MM-DD" (como las que guarda el Sheet, vía <input type="date">) en un Date
+// a medianoche LOCAL. OJO: "new Date('AAAA-MM-DD')" la interpreta como medianoche UTC, y en husos horarios
+// negativos (como México, UTC-6) eso cae en el DÍA ANTERIOR al extraer la fecha local — por eso "Hoy"/"Vencida"
+// podían quedar corridos un día. Esta función evita ese corrimiento parseando los números directamente.
+function parseFechaLocal(str) {
+  if (!str) return null;
+  const partes = String(str).slice(0, 10).split('-').map(Number);
+  if (partes.length !== 3 || partes.some(n => !Number.isFinite(n))) return null;
+  const [y, m, d] = partes;
+  return new Date(y, m - 1, d);
+}
+
+// Los <input type="date"> a veces muestran un año "a medio escribir" (p.ej. 6 dígitos) mientras
+// el usuario teclea directo en el widget nativo del navegador — es un comportamiento del propio
+// input, no de este código, pero por seguridad nunca dejamos pasar un valor que no sea
+// exactamente "AAAA-MM-DD" al estado de filtros (si no es válido, se trata como "sin filtro").
+function fechaInputValida(v) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+}
+
+// Compara dos fechas "sólo-día" (vía parseFechaLocal) para ordenar — robusto aunque el backend
+// mande "AAAA-MM-DD" o un datetime ISO completo (ver nota en cxpFiltradas). Vacías al final.
+function cmpFecha(a, b) {
+  const da = parseFechaLocal(a), db = parseFechaLocal(b);
+  if (!da && !db) return 0;
+  if (!da) return 1;
+  if (!db) return -1;
+  return da - db;
+}
+
+// El segundo parámetro (saldoYaCalculado) es opcional: si quien llama ya calculó el saldo (p.ej.
+// al recorrer toda la tabla con un índice, ver indexarPagosPorCxp), se lo pasa aquí para no
+// recalcularlo otra vez adentro — antes esta función volvía a filtrar todos los pagos de la nota
+// aunque el llamador ya tuviera el saldo a la mano, duplicando el trabajo en cada fila.
+// Días entre hoy y el vencimiento de una CxP: positivo = vencida hace N días, 0 = vence hoy,
+// negativo = faltan |N| días para vencer. null si la nota no tiene fecha de vencimiento
+// capturada. Se separó de estadoCxp() para que la tabla de Cuentas × Pagar pueda mostrar el
+// número exacto (columna "Días") sin tener que volver a calcularlo con su propia lógica de fechas.
+function diasVencimiento(c) {
+  if (!c.fecha_vencimiento) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fv = parseFechaLocal(c.fecha_vencimiento);
+  return diasEntre(hoy, fv);
+}
+
+function estadoCxp(c, saldoYaCalculado) {
+  const saldo = saldoYaCalculado !== undefined ? saldoYaCalculado : saldoCxp(c.id, c.monto);
+  if (saldo <= 0.01) return 'liquidada';
+  const dias = diasVencimiento(c);
+  if (dias === null) return 'vigente';
+  if (dias > 0) return 'vencida';
+  if (dias >= -7) return 'proxima';
+  return 'vigente';
+}
+
+function badgeEstadoCxp(estado) {
+  const map = {
+    liquidada: ['badge-good', 'Liquidada'],
+    vencida:   ['badge-critical', 'Vencida'],
+    proxima:   ['badge-warning', 'Por vencer'],
+    vigente:   ['badge-muted', 'Vigente']
+  };
+  const [cls, label] = map[estado] || map.vigente;
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// Variante del badge de estado SOLO para la tabla de Cuentas × Pagar: distingue visualmente
+// "vence hoy" de "por vencer" (el resto de la app — modal de detalle, notas por proveedor —
+// sigue usando badgeEstadoCxp/estadoCxp tal cual, sin el caso especial de "hoy").
+function badgeEstadoCxpTabla(c, dias) {
+  if (c.est === 'proxima' && dias === 0) return `<span class="badge badge-warning">Vence hoy</span>`;
+  if (c.est === 'proxima' && dias === -1) return `<span class="badge badge-warning">Vence mañana</span>`;
+  return badgeEstadoCxp(c.est);
+}
+
+// Texto de la columna "Días" de Cuentas × Pagar, coherente con el badge de arriba.
+function textoDiasCxp(c, dias) {
+  if (c.saldo <= 0.01) return `<span class="diasTxt d-liquidada">Pagada</span>`;
+  if (dias === null) return `<span class="diasTxt d-porvencer">—</span>`;
+  if (dias > 0) return `<span class="diasTxt d-vencida">${dias} día${dias === 1 ? '' : 's'}</span>`;
+  if (dias === 0) return `<span class="diasTxt d-hoy">Hoy</span>`;
+  const faltan = Math.abs(dias);
+  return `<span class="diasTxt d-porvencer">en ${faltan} día${faltan === 1 ? '' : 's'}</span>`;
+}
+
+// v6.8: frase corta de vencimiento para el resumen condensado del modal de detalle — misma lógica
+// de diasVencimiento() que ya usa la tabla, nomás en prosa ("venció hace N días" / "vence en N días").
+function textoEstadoConVencimiento(c, saldo) {
+  if (saldo <= 0.01) return '';
+  const dias = diasVencimiento(c);
+  if (dias === null) return '';
+  if (dias > 0) return `venció hace ${dias} día${dias === 1 ? '' : 's'}`;
+  if (dias === 0) return 'vence hoy';
+  const faltan = Math.abs(dias);
+  return `vence en ${faltan} día${faltan === 1 ? '' : 's'}`;
+}
+
+function badgeEstadoPago(p) {
+  if (p.estado === 'pendiente_validacion') return `<span class="badge badge-warning">Pendiente de validar</span>`;
+  return `<span class="badge badge-good">Validado</span>`;
+}
+
+function money(n) {
+  n = Number(n) || 0;
+  return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtFecha(d) {
+  if (!d) return '—';
+  // Fechas "AAAA-MM-DD" (sin hora) se parsean en local para no mostrar el día anterior por huso horario;
+  // cualquier otro formato (p.ej. timestamps ISO completos del log) usa el parseo normal de Date.
+  const soloFecha = /^\d{4}-\d{2}-\d{2}$/.test(String(d).slice(0,10)) && String(d).length <= 10;
+  const dt = soloFecha ? parseFechaLocal(d) : new Date(d);
+  if (!dt || isNaN(dt)) return String(d);
+  return dt.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+
+function can(roles) { return roles.includes(state.rol); }
+
+/* ---------------- Ordenamiento por columna (flechitas A-Z / Z-A / fechas / números) ---------------- */
+
+// Indicador visual (flecha) que se pinta junto al encabezado de cada columna ordenable
+function sortIndicator(sortState, col) {
+  const activo = sortState && sortState.col === col;
+  if (!activo) return `<span class="sortArrow">⇅</span>`;
+  return `<span class="sortArrow active">${sortState.dir === 'asc' ? '▲' : '▼'}</span>`;
+}
+
+// Alterna asc/desc (o cambia de columna) y vuelve a pintar la tabla correspondiente
+function toggleSort(stateKey, col, renderFnName) {
+  const s = state[stateKey];
+  if (s.col === col) s.dir = (s.dir === 'asc' ? 'desc' : 'asc');
+  else { s.col = col; s.dir = 'asc'; }
+  window[renderFnName]();
+}
+
+// Encabezado <th> clicable con su flechita — getters indica qué función de orden corresponde a cada columna
+function sortTh(label, col, stateKey, renderFnName) {
+  return `<th class="sortable" onclick="toggleSort('${stateKey}','${col}','${renderFnName}')">${esc(label)}${sortIndicator(state[stateKey], col)}</th>`;
+}
+
+// Ordena un arreglo de registros según sortState.col/dir usando los getters dados (uno por nombre de columna).
+// Orden estable: si no hay columna activa, regresa la lista sin tocar (cada vista define su propio orden por defecto).
+function sortRows(rows, sortState, getters) {
+  if (!sortState || !sortState.col) return rows;
+  const getter = getters[sortState.col];
+  if (!getter) return rows;
+  const conIndice = rows.map((r, i) => ({ r, i }));
+  conIndice.sort((A, B) => {
+    let a = getter(A.r), b = getter(B.r);
+    if (a == null) a = '';
+    if (b == null) b = '';
+    if (typeof a === 'string') a = a.toLowerCase();
+    if (typeof b === 'string') b = b.toLowerCase();
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return A.i - B.i; // estable
+  });
+  let out = conIndice.map(x => x.r);
+  if (sortState.dir === 'desc') out.reverse();
+  return out;
+}
+
+/* ---------------- UI: shell, nav, toasts, modal, loading ---------------- */
+
+function showLoading(v) { document.getElementById('loadingOverlay').classList.toggle('hidden', !v); }
+
+// Evita doble registro por doble clic/doble submit: mientras el formulario de un modal está
+// guardando, el #modalOverlay (z-index 50) sigue por encima del #loadingOverlay (z-index 40) —
+// o sea que la pantalla de "Cargando…" queda tapada por el propio modal y no se ve ni bloquea
+// el clic, así que sin esto un segundo clic en "Guardar"/"Registrar" antes de que vuelva la
+// respuesta volvería a disparar la función. Esta función deshabilita los botones del formulario
+// y cambia el texto del botón de enviar en cuanto se da clic, antes de llamar a la API. Si la
+// llamada falla se vuelve a habilitar con el des-bloqueo que regresa; si tiene éxito no hace
+// falta, porque el modal se cierra. Como segunda capa de protección, el id de los registros
+// nuevos (CxP, proveedor, pago, recurrente) ya se fija al ABRIR el formulario, no al guardar —
+// así que aunque el usuario reabra/reintente el mismo guardado tras una falla, el backend
+// actualiza el mismo registro por id en vez de crear uno duplicado (ver formCxp/formPago/
+// formRecurrente/formProveedor).
+function bloquearFormulario(form, textoProcesando) {
+  if (!form) return function desbloquear() {}; // defensivo: si no hay form (p.ej. llamada directa sin evento real), no hace nada
+  const botones = form.querySelectorAll('button');
+  botones.forEach(b => b.disabled = true);
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const htmlOriginal = submitBtn ? submitBtn.innerHTML : null;
+  if (submitBtn) submitBtn.innerHTML = '<span class="spinnerBtn"></span><span>' + esc(textoProcesando || 'Procesando…') + '</span>';
+  return function desbloquear() {
+    botones.forEach(b => b.disabled = false);
+    if (submitBtn && htmlOriginal !== null) submitBtn.innerHTML = htmlOriginal;
+  };
+}
+
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+function openModal(html, opts) {
+  opts = opts || {};
+  const box = document.getElementById('modalBox');
+  box.className = opts.wide ? 'wide' : '';
+  box.innerHTML = html;
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
+
+function abrirLightbox(url) {
+  if (!url) return;
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightboxOverlay').classList.remove('hidden');
+}
+function cerrarLightbox() {
+  document.getElementById('lightboxOverlay').classList.add('hidden');
+  document.getElementById('lightboxImg').src = '';
+}
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && !document.getElementById('lightboxOverlay').classList.contains('hidden')) cerrarLightbox();
+});
+
+/* ---------------- Adjuntos (v6.8): evidencia del gasto (CxP) / comprobante de pago (Pagos) ----
+   Campo que acepta pegar (Ctrl+V), arrastrar o elegir archivo; la imagen se comprime en el propio
+   navegador (canvas, nunca sube el original) antes de mandarla al guardar. Un mismo juego de
+   funciones sirve para ambos campos — se distinguen por "fieldKey" ('cxpEvidencia' | 'pagoComprobante'),
+   con su estado en state.adjuntos[fieldKey]. ---------------- */
+
+const ICONO_SUBIR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+const SVG_ALERTA  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86l-8.48 14.14A2 2 0 0 0 3.52 21h16.96a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>`;
+const SVG_LUPA    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+const SVG_CLIP    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
+
+const ADJUNTO_MAX_DIM = 1600;       // lado más largo, en px, después de redimensionar
+const ADJUNTO_CALIDAD_INICIAL = 0.75;
+const ADJUNTO_PESO_OBJETIVO = 350 * 1024; // ~350KB — si no se logra, se manda el mejor intento igual
+
+function formatoKB(bytes) { return (Math.max(bytes, 0) / 1024).toFixed(0) + ' KB'; }
+
+// Redimensiona + comprime una imagen en el navegador (canvas) y regresa { b64, mime, pesoFinal }.
+// Siempre produce JPEG (incluso si el original es PNG — se pinta fondo blanco por si tenía
+// transparencia) para que la compresión sea consistente y predecible.
+function comprimirImagen(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || file.type.indexOf('image') !== 0) { reject(new Error('El archivo no es una imagen.')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('No se pudo leer la imagen (¿archivo dañado?).'));
+      img.onload = () => {
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) { reject(new Error('La imagen llegó vacía.')); return; }
+        const escala = Math.min(1, ADJUNTO_MAX_DIM / Math.max(w, h));
+        w = Math.round(w * escala); h = Math.round(h * escala);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        let calidad = ADJUNTO_CALIDAD_INICIAL;
+        let dataUrl = canvas.toDataURL('image/jpeg', calidad);
+        let intentos = 0;
+        while (dataUrl.length * 0.75 > ADJUNTO_PESO_OBJETIVO && calidad > 0.35 && intentos < 5) {
+          calidad -= 0.12;
+          dataUrl = canvas.toDataURL('image/jpeg', calidad);
+          intentos++;
+        }
+        resolve({ b64: dataUrl.split(',').pop(), mime: 'image/jpeg', pesoFinal: Math.round(dataUrl.length * 0.75) });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// v7.2: ¿pantalla táctil o angosta? En PC (puntero fino, >640px) se conserva la caja de Ctrl+V;
+// en iPhone/iPad/Android se muestran botones (Pegar imagen / Fotos o cámara).
+function esModoTactilAdjunto() {
+  try { return window.matchMedia('(max-width:640px), (pointer:coarse)').matches; }
+  catch (e) { return false; }
+}
+
+// Contenido del recuadro cuando todavía no hay imagen (según PC o táctil).
+function htmlVacioAdjunto(fieldKey, placeholder) {
+  if (esModoTactilAdjunto()) {
+    return `<div class="movilAcciones">
+        <div><div class="t1">Pega o elige una imagen</div><div class="t2">${esc(placeholder)}</div></div>
+        <div class="movilBtns">
+          <button type="button" class="btn btn-primary btn-sm" onclick="pegarDesdePortapapeles(event,'${fieldKey}')">📋 Pegar imagen</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="elegirArchivoAdjunto(event,'${fieldKey}')">🖼️ Fotos / cámara</button>
+        </div>
+        <div class="pegarCampo" id="pc_${fieldKey}" contenteditable="true" inputmode="none" role="textbox" aria-label="Campo para pegar imagen"
+             data-ph="…o mantén presionado aquí y elige Pegar" oninput="this.innerHTML=''"></div>
+      </div>`;
+  }
+  return `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Clic y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
+}
+
+// Arma el campo de "Adjuntar" para insertar en un formGrid — reinicia state.adjuntos[fieldKey].
+// opts: { titulo, esPrincipal, placeholder, urlExistente }
+function htmlCampoAdjunto(fieldKey, opts) {
+  const { titulo, esPrincipal, placeholder, urlExistente } = opts;
+  state.adjuntos[fieldKey] = { b64: null, mime: null, clear: false, existente: !!urlExistente };
+  const claseBox = esPrincipal ? 'principal' : 'secundario';
+  const tag = esPrincipal ? `<span class="tagAdjunto tag-brand">Principal</span>` : `<span class="tagAdjunto tag-muted-adj">Opcional</span>`;
+  const contenidoInicial = urlExistente
+    ? `<img class="thumbChico" src="${esc(urlExistente)}">
+       <div class="infoArchivo"><div class="nombre">Ya hay uno adjunto</div><div class="meta">Clic para reemplazar</div></div>
+       <button type="button" class="quitarBtn" onclick="quitarAdjunto(event,'${fieldKey}')">Quitar</button>`
+    : htmlVacioAdjunto(fieldKey, placeholder);
+  const claseMovil = (!urlExistente && esModoTactilAdjunto()) ? ' movil' : '';
+  return `
+    <div class="field full">
+      <label>${esc(titulo)} ${tag}</label>
+      <div class="subidaBox ${claseBox}${urlExistente ? ' conArchivo' : ''}${claseMovil}" id="dz_${fieldKey}" tabindex="0"
+           data-placeholder="${esc(placeholder)}"
+           onclick="clicAdjunto(event,'${fieldKey}')"
+           onpaste="pegarAdjunto(event,'${fieldKey}')"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="soltarAdjunto(event,'${fieldKey}')">${contenidoInicial}</div>
+      <input type="file" id="fi_${fieldKey}" accept="image/png,image/jpeg" style="display:none" onchange="archivoElegidoAdjunto('${fieldKey}')">
+    </div>
+  `;
+}
+
+function clicAdjunto(ev, fieldKey) {
+  if (ev.target.closest('.quitarBtn')) return; // el botón "Quitar" maneja su propio click
+  if (ev.target.closest('.movilAcciones')) return; // v7.2: los botones y el campo de pegado táctil manejan lo suyo
+  document.getElementById('fi_' + fieldKey).click();
+}
+
+// v7.2: botón "Fotos / cámara" — abre el selector de archivo (en iOS ofrece Fototeca, Tomar foto o Archivos).
+function elegirArchivoAdjunto(ev, fieldKey) {
+  ev.stopPropagation();
+  document.getElementById('fi_' + fieldKey).click();
+}
+
+// v7.2: botón "Pegar imagen" — lee el portapapeles al tocar (en Safari de iOS aparece el globito "Pegar").
+// Si el navegador no lo permite o no hay imagen, avisa y deja el campo de respaldo (mantener presionado → Pegar).
+async function pegarDesdePortapapeles(ev, fieldKey) {
+  ev.stopPropagation();
+  const respaldo = () => { const pc = document.getElementById('pc_' + fieldKey); if (pc) pc.focus(); };
+  if (!navigator.clipboard || !navigator.clipboard.read) {
+    toast('Este navegador no deja pegar con botón. Mantén presionado el recuadro de abajo y elige Pegar.', 'warning');
+    respaldo();
+    return;
+  }
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const tipo = item.types.find(t => t.indexOf('image/') === 0);
+      if (tipo) {
+        const blob = await item.getType(tipo);
+        const ext = (tipo.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        const file = new File([blob], 'imagen-pegada.' + ext, { type: tipo });
+        await procesarArchivoAdjunto(fieldKey, file, 'Pegada con el botón');
+        return;
+      }
+    }
+    toast('No hay una imagen copiada. Cópiala primero (en WhatsApp: mantén presionada la imagen → Copiar).', 'warning');
+  } catch (err) {
+    toast('No se pudo leer el portapapeles. Mantén presionado el recuadro de abajo y elige Pegar.', 'warning');
+    respaldo();
+  }
+}
+
+async function archivoElegidoAdjunto(fieldKey) {
+  const fi = document.getElementById('fi_' + fieldKey);
+  const file = fi.files[0];
+  if (file) await procesarArchivoAdjunto(fieldKey, file, 'Elegida con el explorador');
+  fi.value = '';
+}
+
+async function pegarAdjunto(ev, fieldKey) {
+  const items = (ev.clipboardData || window.clipboardData)?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.indexOf('image') === 0) {
+      ev.preventDefault();
+      await procesarArchivoAdjunto(fieldKey, item.getAsFile(), 'Pegada del portapapeles');
+      return;
+    }
+  }
+}
+
+async function soltarAdjunto(ev, fieldKey) {
+  ev.preventDefault();
+  const dz = document.getElementById('dz_' + fieldKey);
+  dz.classList.remove('dragover');
+  const file = ev.dataTransfer.files[0];
+  if (file) await procesarArchivoAdjunto(fieldKey, file, 'Arrastrada');
+}
+
+async function procesarArchivoAdjunto(fieldKey, file, origen) {
+  const dz = document.getElementById('dz_' + fieldKey);
+  if (!dz) return;
+  if (!/^image\/(png|jpe?g|heic|heif|webp)$/i.test(file.type)) { toast('Solo se aceptan imágenes (JPG, PNG, HEIC o WEBP).', 'error'); return; }
+  const placeholder = dz.dataset.placeholder || '';
+  try {
+    dz.innerHTML = `<div class="subidaTxt"><div class="t1">Comprimiendo…</div></div>`;
+    const comp = await comprimirImagen(file);
+    const existente = state.adjuntos[fieldKey]?.existente;
+    state.adjuntos[fieldKey] = { b64: comp.b64, mime: comp.mime, clear: false, existente };
+    const url = 'data:' + comp.mime + ';base64,' + comp.b64;
+    dz.classList.add('conArchivo');
+    dz.classList.remove('movil');
+    dz.innerHTML = `
+      <img class="thumbChico" src="${url}">
+      <div class="infoArchivo"><div class="nombre">${esc(file.name)}</div><div class="meta">${formatoKB(file.size)} → ${formatoKB(comp.pesoFinal)} · ${esc(origen)}</div></div>
+      <button type="button" class="quitarBtn" onclick="quitarAdjunto(event,'${fieldKey}')">Quitar</button>
+    `;
+  } catch (err) {
+    toast('No se pudo procesar la imagen: ' + err.message, 'error');
+    renderVacioAdjunto(fieldKey, placeholder);
+  }
+}
+
+function quitarAdjunto(ev, fieldKey) {
+  ev.stopPropagation();
+  const eraExistente = !!state.adjuntos[fieldKey]?.existente;
+  state.adjuntos[fieldKey] = { b64: null, mime: null, clear: eraExistente, existente: eraExistente };
+  const dz = document.getElementById('dz_' + fieldKey);
+  renderVacioAdjunto(fieldKey, dz?.dataset.placeholder || '');
+}
+
+function renderVacioAdjunto(fieldKey, placeholder) {
+  const dz = document.getElementById('dz_' + fieldKey);
+  if (!dz) return;
+  dz.classList.remove('conArchivo');
+  dz.classList.toggle('movil', esModoTactilAdjunto());
+  dz.innerHTML = htmlVacioAdjunto(fieldKey, placeholder);
+}
+
+// Arma los campos *_b64/*_mime/*_clear a agregar al record antes de api('save', ...) — si no hay
+// nada nuevo ni se pidió quitar, no agrega nada (el backend conserva lo que ya hubiera).
+function datosAdjuntoParaGuardar(fieldKey, campoB64, campoMime, campoClear) {
+  const a = state.adjuntos[fieldKey];
+  const extra = {};
+  if (!a) return extra;
+  if (a.b64) { extra[campoB64] = a.b64; extra[campoMime] = a.mime; }
+  else if (a.clear) { extra[campoClear] = true; }
+  return extra;
+}
+
+const TABS = [
+  { id:'dashboard',   label:'Dashboard',        roles:['admin','capturista','tesorero','viewer'] },
+  { id:'cxp',         label:'Cuentas × Pagar',  roles:['admin','capturista','tesorero','viewer'] },
+  { id:'proveedores', label:'Proveedores',      roles:['admin','capturista','tesorero','viewer'] },
+  { id:'pagos',       label:'Pagos Realizados', roles:['admin','capturista','tesorero','viewer'] },
+  { id:'recurrentes', label:'Gastos Recurrentes', roles:['admin','capturista','tesorero','viewer'] },
+  { id:'aging',       label:'Antigüedad',       roles:['admin','capturista','tesorero','viewer'] },
+  { id:'cuentas',     label:'Mis Cuentas',      roles:['admin'] },
+  { id:'usuarios',    label:'Usuarios',         roles:['admin'] },
+  { id:'auditoria',   label:'Auditoría',        roles:['admin'] },
+  { id:'exportar',    label:'Exportar',         roles:['admin','capturista','tesorero','viewer'] }
+];
+
+function renderTabs() {
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = TABS.filter(t => can(t.roles)).map(t =>
+    `<button data-tab="${t.id}" class="${state.view === t.id ? 'active' : ''}" onclick="setView('${t.id}')">${t.label}</button>`
+  ).join('');
+}
+
+const ULTIMA_VISTA_KEY = 'cxp_ultima_vista'; // para volver a la misma pestaña tras un F5/recarga
+
+async function setView(view) {
+  state.view = view;
+  try { sessionStorage.setItem(ULTIMA_VISTA_KEY, view); } catch (e) {}
+  renderTabs();
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  try {
+    if (view === 'dashboard')   renderDashboard();
+    else if (view === 'cxp')    renderCxp();
+    else if (view === 'proveedores') renderProveedores();
+    else if (view === 'pagos')  renderPagos();
+    else if (view === 'recurrentes') renderRecurrentes();
+    else if (view === 'aging')  renderAging();
+    else if (view === 'cuentas') renderCuentas();
+    else if (view === 'usuarios') { showLoading(true); try { await loadUsuarios(); } finally { showLoading(false); } renderUsuarios(); }
+    else if (view === 'auditoria') { showLoading(true); try { await loadLog(); } finally { showLoading(false); } renderAuditoria(); }
+    else if (view === 'exportar') renderExportar();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+/* ---------------- Gráficas (SVG inline, sin dependencias externas) ---------------- */
+
+function svgBarChart(data, opts) {
+  opts = opts || {};
+  const color = opts.color || '#4f46e5';
+  if (!data.length) return `<div class="chartEmpty">Sin datos para mostrar.</div>`;
+  const max = Math.max(...data.map(d => d.value), 1);
+  return data.map(d => {
+    const pct = Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0);
+    return `<div class="barRow">
+      <div class="barLbl" title="${esc(d.label)}">${esc(d.label)}</div>
+      <div class="barTrack"><div class="barFill" style="width:${pct}%;background:${color}" title="${esc(d.label)}: ${esc(opts.fmt ? opts.fmt(d.value) : d.value)}"></div></div>
+      <div class="barVal">${opts.fmt ? opts.fmt(d.value) : d.value}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- Vista: Dashboard ---------------- */
+
+function renderDashboard() {
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const pendientes = state.cxp.map(c => {
+      const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+      return { ...c, saldo, est: estadoCxp(c, saldo) };
+    })
+    .filter(c => c.saldo > 0.01);
+
+  const totalPendiente = pendientes.reduce((s, c) => s + c.saldo, 0);
+  const totalVencido = pendientes.filter(c => c.est === 'vencida').reduce((s, c) => s + c.saldo, 0);
+  const totalProximo = pendientes.filter(c => c.est === 'proxima').reduce((s, c) => s + c.saldo, 0);
+  const totalValidar = state.pagos.filter(p => p.estado === 'pendiente_validacion').length;
+
+  // Por sucursal
+  const porSucursal = {};
+  pendientes.forEach(c => { const key = c.sucursal || '(sin sucursal)'; porSucursal[key] = (porSucursal[key] || 0) + c.saldo; });
+  const dataSucursal = Object.entries(porSucursal).sort((a,b) => b[1]-a[1]).map(([label,value]) => ({label,value}));
+
+  // Proveedores con saldo pendiente (lista completa, no solo Top 5 — clic en uno abre el desglose de sus notas)
+  const porProveedor = {};
+  pendientes.forEach(c => { const key = c.proveedor_id; porProveedor[key] = (porProveedor[key] || 0) + c.saldo; });
+  const dataProveedor = Object.entries(porProveedor)
+    .map(([id,value]) => ({ id, label: proveedorNombre(id), value }))
+    .sort((a,b) => b.value-a.value);
+
+  // Vencimientos por semana: esta semana, próxima semana, en 2/3 semanas… y el resto agrupado más adelante.
+  // Las semanas van de lunes a domingo; clic en una barra filtra Cuentas × Pagar a ese rango de fechas.
+  const hoyN = new Date(); hoyN.setHours(0,0,0,0);
+  const inicioSemanaActual = lunesDeSemana(hoyN);
+  const inicioSemanaActualIso = isoFecha(inicioSemanaActual);
+  const WEEK_MS = 7 * 86400000;
+  const BUCKETS_SEMANA = [
+    { key:'vencidas',    label:'Vencidas',                   color:'#d03b3b' },
+    { key:'hoy',         label:'Hoy',                         color:'#b8860b' },
+    { key:'mañana',      label:'Mañana',                      color:'#b8860b' },
+    { key:'semana0',     label:'Esta semana',                color:'#c2531f' },
+    { key:'semana1',     label:'Próxima semana',             color:'#4f46e5' },
+    { key:'semana2',     label:'En 2 semanas',                color:'#4f46e5' },
+    { key:'semana3',     label:'En 3 semanas',                color:'#4f46e5' },
+    { key:'masadelante', label:'Más adelante (+4 semanas)',  color:'#898781' },
+    { key:'sinfecha',    label:'Sin fecha de vencimiento',   color:'#898781' }
+  ];
+  const totalesSemana = {}; BUCKETS_SEMANA.forEach(b => totalesSemana[b.key] = 0);
+  pendientes.forEach(c => {
+    let key = 'sinfecha';
+    if (c.fecha_vencimiento) {
+      const fv = parseFechaLocal(c.fecha_vencimiento);
+      const diffDias = Math.round((fv - hoyN) / 86400000);
+      const diffSemanas = Math.round((lunesDeSemana(fv) - inicioSemanaActual) / WEEK_MS);
+      if (diffDias < 0) key = 'vencidas';
+      else if (diffDias === 0) key = 'hoy';
+      else if (diffDias === 1) key = 'mañana';
+      else if (diffSemanas === 0) key = 'semana0';
+      else if (diffSemanas === 1) key = 'semana1';
+      else if (diffSemanas === 2) key = 'semana2';
+      else if (diffSemanas === 3) key = 'semana3';
+      else key = 'masadelante';
+    }
+    totalesSemana[key] += c.saldo;
+  });
+  const dataSemanaVenc = BUCKETS_SEMANA
+    .map(b => ({ ...b, value: totalesSemana[b.key], inicioIso: inicioSemanaActualIso }))
+    .filter(b => b.value > 0.01 || ['vencidas','hoy','mañana','semana0','semana1'].includes(b.key));
+
+  // Flujo de pagos por semana del mes actual
+  const hoy = new Date();
+  const mesActual = hoy.getMonth(), anioActual = hoy.getFullYear();
+  const semanas = [0,0,0,0,0];
+  state.pagos.forEach(p => {
+    if (!p.fecha) return;
+    const f = parseFechaLocal(p.fecha);
+    if (!f || f.getMonth() !== mesActual || f.getFullYear() !== anioActual) return;
+    const semana = Math.min(4, Math.floor((f.getDate() - 1) / 7));
+    semanas[semana] += Number(p.monto) || 0;
+  });
+  const dataSemanas = semanas.map((v,i) => ({ label: 'Semana ' + (i+1), value: v }));
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Dashboard</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Total pendiente</div><div class="value">${money(totalPendiente)}</div></div>
+      <div class="kpi alert"><div class="label">Vencido</div><div class="value">${money(totalVencido)}</div></div>
+      <div class="kpi warn"><div class="label">Por vencer (7 días)</div><div class="value">${money(totalProximo)}</div></div>
+      <div class="kpi ${totalValidar ? 'warn' : ''}"><div class="label">Pagos por validar</div><div class="value">${totalValidar}</div></div>
+    </div>
+    <div class="chartsGrid">
+      <div class="card"><div class="cardTitle">Vencimientos por semana</div>${dashVencimientosSemanaHtml(dataSemanaVenc)}</div>
+      <div class="card"><div class="cardTitle">Pendiente por sucursal</div>${svgBarChart(dataSucursal, { fmt: money })}</div>
+      <div class="card">
+        <div class="cardTitle">Proveedores con saldo pendiente (${dataProveedor.length})</div>
+        <div class="dashScroll">${dashProveedoresListHtml(dataProveedor)}</div>
+      </div>
+      <div class="card"><div class="cardTitle">Flujo de pagos — ${hoy.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</div>${svgBarChart(dataSemanas, { fmt: money, color:'#1baf7a' })}</div>
+    </div>
+  `;
+}
+
+// Lunes (00:00) de la semana a la que pertenece una fecha dada — usado para agrupar vencimientos por semana.
+function lunesDeSemana(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  const dow = dt.getDay(); // 0=domingo…6=sábado
+  const diff = dow === 0 ? -6 : 1 - dow;
+  dt.setDate(dt.getDate() + diff);
+  return dt;
+}
+
+// Formatea una fecha como AAAA-MM-DD usando sus partes locales (evita el corrimiento de día de toISOString()).
+function isoFecha(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function dashVencimientosSemanaHtml(buckets) {
+  if (!buckets.length) return `<div class="chartEmpty">Sin cuentas pendientes.</div>`;
+  const max = Math.max(...buckets.map(b => b.value), 1);
+  return buckets.map(b => {
+    const pct = Math.max((b.value / max) * 100, b.value > 0 ? 2 : 0);
+    return `<div class="barRow clickable" onclick="irAVencimientosSemana('${b.key}','${b.inicioIso}')" title="Ver estas cuentas en Cuentas × Pagar">
+      <div class="barLbl" title="${esc(b.label)}">${esc(b.label)}</div>
+      <div class="barTrack"><div class="barFill" style="width:${pct}%;background:${b.color}"></div></div>
+      <div class="barVal">${money(b.value)}</div>
+    </div>`;
+  }).join('');
+}
+
+// Clic en una barra de "Vencimientos por semana" -> filtra Cuentas × Pagar al rango de esa semana (o a "vencidas").
+function irAVencimientosSemana(key, inicioIso) {
+  state.filtrosCxp = { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'pendientes', texto:'' };
+  if (key === 'vencidas') {
+    state.filtrosCxp.estado = 'vencidas';
+  } else if (key === 'sinfecha') {
+    // No hay filtro de "sin fecha" en Cuentas × Pagar; se muestran todas las pendientes sin acotar fecha.
+  } else if (key === 'hoy' || key === 'mañana') {
+    const dia = new Date(); dia.setHours(0,0,0,0);
+    if (key === 'mañana') dia.setDate(dia.getDate() + 1);
+    state.filtrosCxp.desde = isoFecha(dia);
+    state.filtrosCxp.hasta = isoFecha(dia);
+  } else {
+    const inicio = new Date(inicioIso + 'T00:00:00');
+    const offsets = { semana0:0, semana1:1, semana2:2, semana3:3 };
+    if (key === 'masadelante') {
+      const desde = new Date(inicio); desde.setDate(desde.getDate() + 28);
+      state.filtrosCxp.desde = isoFecha(desde);
+    } else {
+      const off = offsets[key] || 0;
+      const desde = new Date(inicio); desde.setDate(desde.getDate() + off*7);
+      const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 6);
+      state.filtrosCxp.desde = isoFecha(desde);
+      state.filtrosCxp.hasta = isoFecha(hasta);
+    }
+  }
+  setView('cxp');
+}
+
+// Lista completa (no truncada) de proveedores con saldo pendiente, pensada para la tarjeta del Dashboard.
+// Cada renglón es clickable: abre el desglose de "notas" (CxP) pendientes de ese proveedor, con su total.
+function dashProveedoresListHtml(data) {
+  if (!data.length) return `<div class="chartEmpty">Sin saldos pendientes.</div>`;
+  const max = Math.max(...data.map(d => d.value), 1);
+  return data.map(d => {
+    const pct = Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0);
+    return `<div class="barRow clickable" onclick="verNotasProveedorDashboard('${d.id}')" title="Ver notas pendientes de ${esc(d.label)}">
+      <div class="barLbl" title="${esc(d.label)}">${esc(d.label)}</div>
+      <div class="barTrack"><div class="barFill" style="width:${pct}%;background:#eb6834"></div></div>
+      <div class="barVal">${money(d.value)}</div>
+    </div>`;
+  }).join('');
+}
+
+// Modal: desglose de las notas (cuentas por pagar) pendientes de UN proveedor, con el total abajo.
+// Clic en una nota -> detalle de captura (quién la registró, cuándo, y los pagos aplicados).
+function verNotasProveedorDashboard(provId) {
+  const nombre = proveedorNombre(provId);
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const notas = state.cxp
+    .filter(c => String(c.proveedor_id) === String(provId)) // primero filtra por proveedor — así no calculamos el saldo de TODAS las cuentas para quedarnos solo con las de este
+    .map(c => { const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp); return { ...c, saldo, est: estadoCxp(c, saldo) }; })
+    .filter(c => c.saldo > 0.01)
+    .sort((a,b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento));
+  const total = notas.reduce((s,c) => s + c.saldo, 0);
+
+  openModal(`
+    <h2>Notas pendientes — ${esc(nombre)}</h2>
+    ${!notas.length ? `<p class="emptyState">Este proveedor no tiene notas pendientes.</p>` : notas.map(c => `
+      <div class="notaRow" onclick="verCapturaCxp('${c.id}','${provId}')" title="Ver información de la captura">
+        <div class="notaMain">
+          <div class="notaConcepto">${esc(c.concepto || '(sin concepto)')}${c.folio ? ` <span class="folioChip">${esc(c.folio)}</span>` : ''}</div>
+          <div class="notaMeta">${esc(c.sucursal || '—')}${c.fecha_factura ? ' · Surtido ' + fmtFecha(c.fecha_factura) : ''} · Vence ${fmtFecha(c.fecha_vencimiento)}</div>
+        </div>
+        <div class="notaMonto">
+          <div class="saldo">${money(c.saldo)}</div>
+          ${badgeEstadoCxp(c.est)}
+        </div>
+      </div>`).join('')}
+    ${notas.length ? `<div class="dashTotalRow"><span>Total pendiente</span><span>${money(total)}</span></div>` : ''}
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal(); state.filtrosCxp.proveedor='${provId}'; setView('cxp');">Ver en Cuentas × Pagar</button>
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>
+  `, { wide: true });
+}
+
+// Modal: información de captura de una nota (CxP) — quién la registró y cuándo (log de auditoría, solo
+// disponible para el rol administrador en el backend), historial de ediciones, y los pagos aplicados.
+async function verCapturaCxp(cxpId, provId) {
+  const c = state.cxp.find(x => String(x.id) === String(cxpId));
+  if (!c) { toast('No se encontró esa nota.', 'error'); return; }
+  let logError = null;
+  if (can(['admin'])) {
+    showLoading(true);
+    try { await loadLog(); } catch (err) { logError = err.message; }
+    showLoading(false);
+  }
+  renderCapturaCxp(c, provId, logError);
+}
+
+// v6.8: abre/cierra el bloque de "más detalles" (proveedor, fechas, UUID CFDI, notas) del resumen
+// condensado del modal de detalle.
+function toggleMasDetalleCxp(btn) {
+  const body = btn.nextElementSibling;
+  const abierto = !body.classList.contains('hidden');
+  body.classList.toggle('hidden');
+  btn.querySelector('.chev').textContent = abierto ? '▸' : '▾';
+}
+
+function renderCapturaCxp(c, provId, logError) {
+  const saldo = saldoCxp(c.id, c.monto);
+  const ip = c.instrucciones_pago || {};
+  const pagos = pagosDeCxp(c.id).sort((a,b) => cmpFecha(a.fecha, b.fecha));
+
+  let captura = null, ediciones = [];
+  if (can(['admin']) && state.log) {
+    const logsCxp = (state.log || [])
+      .filter(l => l.entidad === 'cxp' && String(l.entidad_id) === String(c.id))
+      .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
+    captura = logsCxp.find(l => l.accion === 'crear') || null;
+    ediciones = logsCxp.filter(l => l !== captura);
+  }
+
+  const estadoTxt = textoEstadoConVencimiento(c, saldo);
+  const tieneEvidencia = !!c.adjunto_evidencia_url;
+
+  openModal(`
+    <h2>Detalle de captura</h2>
+    <div class="dosColDetalle">
+      <div class="detalleResumen">
+        <div class="item"><div class="lbl">Concepto</div><div class="val concepto">${esc(c.concepto || '—')}</div></div>
+        ${c.folio ? `<div class="item"><div class="lbl">Folio</div><div class="val">${esc(c.folio)}</div></div>` : ''}
+        <div class="item"><div class="lbl">Saldo pendiente</div><div class="val saldo">${money(saldo)}</div></div>
+        <div class="item"><div class="lbl">Estado</div><div class="val">${badgeEstadoCxp(estadoCxp(c, saldo))}${estadoTxt ? `<span class="estadoVenceTxt">${esc(estadoTxt)}</span>` : ''}</div></div>
+        <button type="button" class="masDetalleToggle" onclick="toggleMasDetalleCxp(this)"><span class="chev">▸</span> Ver proveedor, fechas, UUID CFDI y notas</button>
+        <div class="masDetalleBody hidden">
+          <div class="captInfo">
+            <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}</span></div>
+            ${c.recurrente_id ? `<div class="captRow"><span class="captLbl">Origen</span><span class="captVal">🔁 Generada automáticamente (Gastos Recurrentes)</span></div>` : ''}
+            <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
+            <div class="captRow"><span class="captLbl">UUID CFDI</span><span class="captVal" style="font-size:11px">${esc(c.uuid_cfdi || '—')}</span></div>
+            <div class="captRow"><span class="captLbl">Fecha factura</span><span class="captVal">${fmtFecha(c.fecha_factura)}</span></div>
+            <div class="captRow"><span class="captLbl">Fecha vencimiento</span><span class="captVal">${fmtFecha(c.fecha_vencimiento)}</span></div>
+            <div class="captRow"><span class="captLbl">Monto original</span><span class="captVal">${money(c.monto)}</span></div>
+            ${ip.pagar_desde ? `<div class="captRow"><span class="captLbl">Pagar desde</span><span class="captVal">${esc(ip.pagar_desde)}</span></div>` : ''}
+            ${c.notas ? `<div class="captRow"><span class="captLbl">Notas</span><span class="captVal">${esc(c.notas)}</span></div>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="imgColDetalle">
+        ${tieneEvidencia
+          ? `<div class="thumbWrap" onclick="abrirLightbox('${esc(c.adjunto_evidencia_url)}')"><img class="thumbGrande" src="${esc(c.adjunto_evidencia_url)}" loading="lazy" alt="Evidencia del gasto"><span class="lupa">${SVG_LUPA}</span></div>`
+          : `<div class="sinEvidencia">Sin evidencia adjunta</div>`}
+      </div>
+    </div>
+
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="cardTitle" style="margin-bottom:8px">Quién la capturó</div>
+      ${!can(['admin'])
+        ? `<p class="emptyState" style="padding:10px 0">Esta información solo está disponible para el rol Administrador.</p>`
+        : logError
+          ? `<p class="emptyState" style="padding:10px 0">No se pudo consultar el historial de auditoría: ${esc(logError)}</p>`
+          : captura
+            ? `<div class="captInfo">
+                <div class="captRow"><span class="captLbl">Capturó</span><span class="captVal">${esc(captura.usuario_nombre)} (${esc(ROLES_LABEL[captura.rol] || captura.rol)})</span></div>
+                <div class="captRow"><span class="captLbl">Fecha de captura</span><span class="captVal">${new Date(captura.fecha).toLocaleString('es-MX')}</span></div>
+              </div>`
+            : `<p class="emptyState" style="padding:10px 0">No hay registro de auditoría para la captura original de esta nota (puede ser anterior a que se activara el log, o el log conserva solo los últimos 500 movimientos).</p>`
+      }
+    </div>
+
+    ${ediciones.length ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="cardTitle" style="margin-bottom:8px">Historial de cambios</div>
+      <div class="captInfo">${ediciones.map(l => `<div class="captRow"><span class="captLbl">${new Date(l.fecha).toLocaleString('es-MX')}</span><span class="captVal">${esc(l.usuario_nombre)} — ${esc(l.detalle || l.accion)}</span></div>`).join('')}</div>
+    </div>` : ''}
+
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="cardTitle" style="margin-bottom:8px">Pagos aplicados ${pagos.length ? '(' + pagos.length + ')' : ''}</div>
+      ${!pagos.length ? `<p class="emptyState" style="padding:10px 0">Todavía no se ha registrado ningún pago para esta nota.</p>` : `
+        <div class="captInfo">${pagos.map(p => {
+          const cuentaDestinoLbl = labelCuentaDestino(c.proveedor_id, p.cuenta_destino_id);
+          return `
+          <div class="captRow"><span class="captLbl">${fmtFecha(p.fecha)} · ${esc(p.capturado_por || '—')}</span><span class="captVal">${money(p.monto)} ${badgeEstadoPago(p)}</span></div>
+          ${p.referencia ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Referencia Pago</span><span class="captVal" style="font-size:11px">${esc(p.referencia)}</span></div>` : ''}
+          ${p.clave_rastreo ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Clave Rastreo Pago</span><span class="captVal" style="font-size:11px">${esc(p.clave_rastreo)}</span></div>` : ''}
+          ${cuentaDestinoLbl ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Cuenta destino</span><span class="captVal" style="font-size:11px">${esc(cuentaDestinoLbl)}</span></div>` : ''}
+          ${p.banco_origen ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Banco origen</span><span class="captVal" style="font-size:11px">${esc(p.banco_origen)}</span></div>` : ''}
+          ${p.notas ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Notas</span><span class="captVal" style="font-size:11px">${esc(p.notas)}</span></div>` : ''}
+          ${p.adjunto_comprobante_url ? `<div class="captRow"><span class="captLbl" style="font-size:11px">Comprobante</span><span class="captVal"><button type="button" class="verComprobanteBtn" onclick="abrirLightbox('${esc(p.adjunto_comprobante_url)}')">Ver</button></span></div>` : ''}
+        `;
+        }).join('')}</div>
+      `}
+    </div>
+
+    <div class="modalActions">
+      ${provId ? `<button class="btn btn-ghost" onclick="verNotasProveedorDashboard('${provId}')">← Volver</button>` : ''}
+      ${can(['admin','capturista']) ? `<button class="btn btn-ghost" onclick="closeModal(); formCxp('${c.id}');">Editar esta nota</button>` : ''}
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>
+  `, { wide: true });
+}
+
+/* ---------------- Vista: Cuentas × Pagar ---------------- */
+
+function cxpFiltradas() {
+  const f = state.filtrosCxp;
+  // IMPORTANTE: "Vence desde/hasta" se compara con parseFechaLocal (día calendario), NO con
+  // comparación de strings. Google Sheets puede guardar fecha_vencimiento como un valor de
+  // fecha real (si Sheets auto-detectó el texto capturado) y entonces el backend lo manda como
+  // un datetime ISO completo ("AAAA-MM-DDТnn:nn:nn.nnnZ") en vez del "AAAA-MM-DD" plano que
+  // escribe el <input type="date">. Comparar esos dos strings directamente rompía el filtro
+  // (p.ej. "2026-10-05T06:00:00.000Z" > "2026-10-05" siempre es true, así que "hasta" fallaba
+  // incluso para la cuenta que vence justo ese día) — por eso "Hoy" mostraba "Sin resultados".
+  const fDesde = f.desde ? parseFechaLocal(f.desde) : null;
+  const fHasta = f.hasta ? parseFechaLocal(f.hasta) : null;
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const provPorId = indexarProveedoresPorId(state.proveedores);
+  return state.cxp.map(c => {
+      const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+      const prov = provPorId.get(String(c.proveedor_id));
+      return { ...c, saldo, est: estadoCxp(c, saldo), provNombre: prov ? prov.nombre : '(sin proveedor)' };
+    })
+    .filter(c => {
+      if (f.sucursal && c.sucursal !== f.sucursal) return false;
+      if (f.proveedor && String(c.proveedor_id) !== String(f.proveedor)) return false;
+      if (fDesde || fHasta) {
+        const fv = parseFechaLocal(c.fecha_vencimiento);
+        if (fDesde && (!fv || fv < fDesde)) return false;
+        if (fHasta && (!fv || fv > fHasta)) return false;
+      }
+      if (f.estado === 'vencidas' && c.est !== 'vencida') return false;
+      if (f.estado === 'urgentes' && !(c.est === 'vencida' || c.est === 'proxima')) return false;
+      if (f.estado === 'pendientes' && c.saldo <= 0.01) return false;
+      if (f.estado === 'liquidadas' && c.est !== 'liquidada') return false;
+      if (f.texto) {
+        const t = f.texto.toLowerCase();
+        const hay = (c.concepto || '') + ' ' + c.provNombre + ' ' + (c.folio || '') + ' ' + (c.sucursal || '');
+        if (!hay.toLowerCase().includes(t)) return false;
+      }
+      return true;
+    })
+    .sort((a,b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento));
+}
+
+function renderCxp() {
+  const sucursales = [...new Set(state.cxp.map(c => c.sucursal).filter(Boolean))].sort();
+  const lista = cxpFiltradas();
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle">
+      <span>Cuentas × Pagar</span>
+      <div class="actions">${can(['admin','capturista']) ? `<button class="btn btn-primary btn-sm" onclick="formCxp()">+ Nueva CxP</button>` : ''}</div>
+    </div>
+    <div class="filters">
+      <div class="f fGrow"><label>Buscar</label><input id="fTexto" placeholder="Proveedor, concepto, folio…" value="${esc(state.filtrosCxp.texto)}" oninput="state.filtrosCxp.texto=this.value; renderCxpTableDebounced();"></div>
+      <div class="f"><label>Sucursal</label><select id="fSucursal" onchange="state.filtrosCxp.sucursal=this.value; renderCxpTable();">
+        <option value="">Todas</option>${sucursales.map(s => `<option value="${esc(s)}" ${state.filtrosCxp.sucursal===s?'selected':''}>${esc(s)}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Proveedor</label><select id="fProveedor" onchange="state.filtrosCxp.proveedor=this.value; renderCxpTable();">
+        <option value="">Todos</option>${proveedoresOrdenados().map(p => `<option value="${p.id}" ${String(state.filtrosCxp.proveedor)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Vence desde</label><input type="date" value="${esc(state.filtrosCxp.desde)}" onchange="state.filtrosCxp.desde=fechaInputValida(this.value); renderCxpTable();"></div>
+      <div class="f"><label>Vence hasta</label><input type="date" value="${esc(state.filtrosCxp.hasta)}" onchange="state.filtrosCxp.hasta=fechaInputValida(this.value); renderCxpTable();"></div>
+      <div class="f"><label>Estado</label><select onchange="state.filtrosCxp.estado=this.value; renderCxpTable();">
+        <option value="todas" ${state.filtrosCxp.estado==='todas'?'selected':''}>Todas</option>
+        <option value="pendientes" ${state.filtrosCxp.estado==='pendientes'?'selected':''}>Con saldo pendiente</option>
+        <option value="vencidas" ${state.filtrosCxp.estado==='vencidas'?'selected':''}>Solo vencidas</option>
+        <option value="urgentes" ${state.filtrosCxp.estado==='urgentes'?'selected':''}>Urgentes (vencidas + por vencer)</option>
+        <option value="liquidadas" ${state.filtrosCxp.estado==='liquidadas'?'selected':''}>Liquidadas</option>
+      </select></div>
+      <div class="f"><button class="btn btn-primary btn-sm" onclick="renderCxpTable()">Buscar</button></div>
+      <div class="f"><button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosCxp()">Limpiar</button></div>
+    </div>
+    <div id="cxpTableWrap"></div>
+  `;
+  renderCxpTable();
+}
+
+function limpiarFiltrosCxp() {
+  state.filtrosCxp = { sucursal:'', proveedor:'', desde:'', hasta:'', estado:'todas', texto:'' };
+  renderCxp();
+}
+
+// Menú "Opciones" (⋮) de cada fila de Cuentas × Pagar — agrupa Registrar pago / Editar / Eliminar
+// (antes botones sueltos) respetando los mismos permisos por rol de siempre. Un solo listener
+// global (ver el final del script) cierra cualquier menú abierto al hacer clic fuera.
+function opcionesCxpMenu(c) {
+  const items = [];
+  if (can(['admin','capturista','tesorero']) && c.saldo > 0.01) items.push(`<button onclick="cerrarMenusCxp(); formPago('${c.id}')">💰 Registrar pago</button>`);
+  if (can(['admin','capturista'])) items.push(`<button onclick="cerrarMenusCxp(); formCxp('${c.id}')">✏️ Editar</button>`);
+  if (can(['admin'])) items.push(`<button class="danger" onclick="cerrarMenusCxp(); confirmarEliminar('cxp','${c.id}','esta CxP')">🗑️ Eliminar</button>`);
+  if (!items.length) return '';
+  return `<div class="optMenuWrap">
+      <button class="optMenuBtn" onclick="toggleMenuCxp(event,'${c.id}')" title="Opciones">⋮</button>
+      <div class="optMenu" id="menuCxp-${c.id}">${items.join('')}</div>
+    </div>`;
+}
+
+function toggleMenuCxp(ev, id) {
+  ev.stopPropagation();
+  const el = document.getElementById('menuCxp-' + id);
+  const yaAbierto = el.classList.contains('open');
+  cerrarMenusCxp();
+  if (!yaAbierto) el.classList.add('open');
+}
+function cerrarMenusCxp() { document.querySelectorAll('.optMenu.open').forEach(el => el.classList.remove('open')); }
+
+function renderCxpRow(c, extraClass) {
+  const dias = c.dias !== undefined ? c.dias : diasVencimiento(c);
+  return `
+      <tr${extraClass ? ` class="${extraClass}"` : ''}>
+        <td>${esc(c.provNombre)}</td>
+        <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<span class="clipIcon" title="Tiene evidencia adjunta">${SVG_CLIP}</span>` : ''}</div></td>
+        <td>${esc(c.folio || '')}</td>
+        <td class="num">${money(c.saldo)}</td>
+        <td>${fmtFecha(c.fecha_vencimiento)}</td>
+        <td>${badgeEstadoCxpTabla(c, dias)}</td>
+        <td>${textoDiasCxp(c, dias)}</td>
+        <td>${opcionesCxpMenu(c)}</td>
+      </tr>`;
+}
+
+// El campo "Buscar" dispara un re-render completo de la tabla en cada tecla (renderCxpTable()
+// reconstruye todo el <tbody>). Con pocas cuentas no se nota, pero si el historial ya creció,
+// escribir rápido podía sentirse "trabado" porque cada tecla disparaba un recálculo completo
+// antes de que terminara el anterior. Este debounce espera a que la persona deje de teclear
+// 180ms antes de volver a pintar la tabla — el campo de texto no se re-renderiza (vive fuera de
+// #cxpTableWrap, ver renderCxp), así que no se pierde el cursor ni el foco mientras se escribe.
+let _debounceCxpTabla = null;
+function renderCxpTableDebounced() {
+  clearTimeout(_debounceCxpTabla);
+  _debounceCxpTabla = setTimeout(renderCxpTable, 180);
+}
+
+// Abre/cierra un bloque colapsable (Vigentes o Liquidadas) y vuelve a pintar la tabla para que
+// las filas y la flechita queden en el estado correcto. El abierto/cerrado se recuerda en
+// state.cxpBloquesAbiertos mientras la pestaña siga abierta (igual que los demás filtros de esta vista).
+function toggleBloqueCxp(clave) {
+  state.cxpBloquesAbiertos[clave] = !state.cxpBloquesAbiertos[clave];
+  renderCxpTable();
+}
+
+function renderCxpTable() {
+  const lista = cxpFiltradas().map(c => ({ ...c, dias: diasVencimiento(c) }));
+  const wrap = document.getElementById('cxpTableWrap');
+  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin resultados con los filtros actuales.</div></div>`; return; }
+
+  const getters = {
+    provNombre: c => c.provNombre,
+    concepto: c => c.concepto || '',
+    folio: c => c.folio || '',
+    saldo: c => Number(c.saldo) || 0,
+    fecha_vencimiento: c => { const d = parseFechaLocal(c.fecha_vencimiento); return d ? d.getTime() : 0; },
+    dias: c => c.dias === null ? Infinity : c.dias
+  };
+
+  // invertir=true voltea el orden por default (más reciente primero) cuando no hay una columna
+  // de orden elegida a mano por el usuario — se usa solo para "Liquidadas" (ver bloqueColapsable).
+  function ordenar(items, invertir) {
+    if (state.sortCxp.col) return sortRows(items, state.sortCxp, getters);
+    const base = [...items].sort((a, b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento)); // por defecto: la que vence más pronto primero
+    return invertir ? base.reverse() : base;
+  }
+
+  // Bloque siempre visible (Vencidas / Vencen hoy / Por vencer)
+  function bloqueFijo(titulo, emoji, color, bg, items) {
+    if (!items.length) return '';
+    return `<tr class="blockHeader"><td colspan="8" style="background:${bg};color:${color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">${emoji} ${esc(titulo)} (${items.length})</td></tr>`
+      + ordenar(items).map(c => renderCxpRow(c)).join('');
+  }
+
+  // Bloque plegado por default (Vigentes / Liquidadas) — clic en el encabezado lo despliega;
+  // las filas quedan en el DOM siempre (con display:none vía CSS) para que abrir/cerrar sea
+  // instantáneo y no dependa de volver a pintar nada.
+  // invertirDefault: solo "Liquidadas" lo manda en true, para que de entrada se vea la más
+  // reciente primero (antes se ordenaba igual que los demás bloques: la más antigua primero,
+  // que para cuentas ya pagadas no tenía mucho sentido).
+  function bloqueColapsable(clave, titulo, emoji, color, bg, items, invertirDefault) {
+    if (!items.length) return '';
+    const abierto = !!state.cxpBloquesAbiertos[clave];
+    const claseFilas = `bloqueColapsable bloqueCxp-${clave}${abierto ? ' open' : ''}`;
+    return `<tr class="blockHeader" style="cursor:pointer" onclick="toggleBloqueCxp('${clave}')">
+        <td colspan="8" style="background:${bg};color:${color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">
+          <span class="bloqueToggle${abierto ? ' open' : ''}"><span class="chev">▶</span>${emoji} ${esc(titulo)} (${items.length}) — clic para mostrar/ocultar</span>
+        </td>
+      </tr>`
+      + ordenar(items, invertirDefault).map(c => renderCxpRow(c, claseFilas)).join('');
+  }
+
+  const vencidas  = lista.filter(c => c.est === 'vencida');
+  const vencenHoy = lista.filter(c => c.est === 'proxima' && c.dias === 0);
+  const vencenManana = lista.filter(c => c.est === 'proxima' && c.dias === -1);
+  const porVencer = lista.filter(c => c.est === 'proxima' && c.dias !== 0 && c.dias !== -1);
+  const vigentes   = lista.filter(c => c.est === 'vigente');
+  const liquidadas = lista.filter(c => c.est === 'liquidada');
+
+  let filasHtml = '';
+  filasHtml += bloqueFijo('Vencidas', '🔴', 'var(--critical)', 'var(--critical-bg)', vencidas);
+  filasHtml += bloqueFijo('Vencen hoy', '🟠', 'var(--warning)', 'var(--warning-bg)', vencenHoy);
+  filasHtml += bloqueFijo('Vencen mañana', '🟡', 'var(--warning)', 'var(--warning-bg)', vencenManana);
+  filasHtml += bloqueFijo('Por vencer — próximos 7 días', '⚪', 'var(--ink-2)', '#f0efec', porVencer);
+  filasHtml += bloqueColapsable('vigentes', 'Vigentes — vencen en más de 7 días', '⚪', 'var(--ink-2)', '#f0efec', vigentes);
+  filasHtml += bloqueColapsable('liquidadas', 'Liquidadas', '🟢', 'var(--good)', 'var(--good-bg)', liquidadas, true);
+
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Proveedor','provNombre','sortCxp','renderCxpTable')}
+      ${sortTh('Concepto','concepto','sortCxp','renderCxpTable')}
+      ${sortTh('Folio','folio','sortCxp','renderCxpTable')}
+      ${sortTh('Saldo','saldo','sortCxp','renderCxpTable')}
+      ${sortTh('Vence','fecha_vencimiento','sortCxp','renderCxpTable')}
+      <th>Estado</th>
+      ${sortTh('Días','dias','sortCxp','renderCxpTable')}
+      <th>Opciones</th>
+    </tr></thead>
+    <tbody>${filasHtml}</tbody>
+  </table></div>`;
+}
+
+function opcionesCuentasDestino(provId, selectedId) {
+  if (!provId) return `<option value="">(selecciona un proveedor primero)</option>`;
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cuentas = prov?.cuentas || [];
+  if (!cuentas.length) return `<option value="">(el proveedor no tiene cuentas registradas)</option>`;
+  return `<option value="">(sin especificar)</option>` + cuentas.map(cu => {
+    const label = labelCuenta(cu);
+    return `<option value="${esc(cu.id)}" ${String(cu.id)===String(selectedId||'')?'selected':''}>${esc(label)}</option>`;
+  }).join('');
+}
+
+// Etiqueta legible de una cuenta bancaria para mostrar en los <select>/textos de "cuenta destino":
+// Banco — Cliente (últimos 4 dígitos de la cuenta), omitiendo cada parte que no esté capturada.
+// Antes se armaba con "alias"; como ese campo ya no se usa, Banco + Cliente son los datos que
+// realmente distinguen una cuenta de otra cuando el proveedor tiene varias.
+function labelCuenta(cu) {
+  const partes = [cu.banco || 'Cuenta'];
+  if (cu.cliente) partes.push(cu.cliente);
+  let label = partes.join(' — ');
+  if (cu.clabe && cu.clabe.length >= 4) label += ' (···' + cu.clabe.slice(-4) + ')';
+  return label;
+}
+
+// Para mostrar en texto (no <select>) la cuenta destino de un pago ya guardado: busca la cuenta del
+// proveedor con ese id y arma la misma etiqueta legible que usa opcionesCuentasDestino.
+function labelCuentaDestino(provId, cuentaId) {
+  if (!cuentaId) return null;
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cu = (prov?.cuentas || []).find(x => String(x.id) === String(cuentaId));
+  if (!cu) return null;
+  return labelCuenta(cu);
+}
+
+// v6.10: cada cuenta bancaria del proveedor ya trae su propia "referencia" (lo que hay que anotar
+// al pagar — depende de con cuál de tus sucursales/razones sociales te facturó ese proveedor, no
+// de la cuenta en sí, pero vive junto con la cuenta para no duplicar catálogos). Al elegir la
+// cuenta destino en una CxP/pago, se sugiere automáticamente esa referencia (ver
+// sugerirReferenciaCxp/sugerirReferenciaPago) — el campo se queda editable por si hace falta un
+// ajuste puntual.
+function referenciaDeCuenta(provId, cuentaId) {
+  if (!cuentaId) return '';
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cu = (prov?.cuentas || []).find(x => String(x.id) === String(cuentaId));
+  return cu?.referencia || '';
+}
+
+// Mismo mecanismo que referenciaDeCuenta pero para el campo "Cliente" de la cuenta — se muestra como
+// aviso (no editable) junto al selector de cuenta destino, para recordar con qué cliente/razón social
+// se facturó esa cuenta en particular.
+function clienteDeCuenta(provId, cuentaId) {
+  if (!cuentaId) return '';
+  const prov = state.proveedores.find(p => String(p.id) === String(provId));
+  const cu = (prov?.cuentas || []).find(x => String(x.id) === String(cuentaId));
+  return cu?.cliente || '';
+}
+
+// Opciones de "Pagar desde" tomadas de las cuentas ya registradas en "Mis Cuentas" (state.config.cuentas_origen),
+// incluyendo "EFECTIVO" si está dada de alta ahí. Si el valor ya guardado (texto libre capturado antes de
+// este cambio) no coincide con ninguna cuenta actual, se agrega como opción aparte para no perder el dato.
+function opcionesPagarDesde(selectedValue) {
+  const nombres = (state.config.cuentas_origen || []).map(cu => cu.nombre || cu.banco || cu.id).filter(Boolean);
+  let html = `<option value="">(sin especificar)</option>` + nombres.map(n =>
+    `<option value="${esc(n)}" ${String(n)===String(selectedValue||'')?'selected':''}>${esc(n)}</option>`
+  ).join('');
+  if (selectedValue && !nombres.includes(selectedValue)) {
+    html += `<option value="${esc(selectedValue)}" selected>${esc(selectedValue)}</option>`;
+  }
+  return html;
+}
+
+// v6.9: combobox de proveedor con búsqueda — lista alfabética que se filtra conforme se escribe
+// (antes era un <select> en el orden crudo de la hoja). El input oculto con id=fieldId conserva el
+// id del proveedor elegido: el resto del código sigue leyendo document.getElementById(fieldId).value
+// exactamente igual que con el <select> anterior, así que no hay que tocar guardarCxp/guardarRecurrente
+// más que mover la validación de "requerido" aquí (un input oculto no puede mostrar la validación
+// nativa del navegador).
+const COMBO_PROVEEDOR_ONCHANGE = {
+  cxp_proveedor_id: 'actualizarCuentasDestinoCxp',
+  rec_proveedor_id: 'actualizarCuentasDestinoRecurrente'
+};
+
+function proveedoresOrdenados() {
+  return [...state.proveedores].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
+}
+
+// Quita acentos y pasa a minúsculas para que buscar "coca" encuentre "COCA COLA ROO" sin importar
+// mayúsculas/acentos.
+function normalizarBusqueda(s) {
+  return (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+function htmlComboProveedor(fieldId, valorInicial) {
+  const sel = valorInicial ? state.proveedores.find(p => String(p.id) === String(valorInicial)) : null;
+  return `<div class="comboProveedor">
+    <input type="hidden" id="${fieldId}" value="${esc(valorInicial || '')}">
+    <input type="text" id="${fieldId}_q" class="comboInput" autocomplete="off" role="combobox" aria-expanded="false"
+      placeholder="Escribe para buscar un proveedor…" value="${esc(sel ? sel.nombre : '')}"
+      oninput="comboProveedorFiltrar('${fieldId}')" onfocus="comboProveedorAbrir('${fieldId}')"
+      onkeydown="comboProveedorTeclado(event, '${fieldId}')" onblur="comboProveedorCerrar('${fieldId}')">
+    <div class="comboList hidden" id="${fieldId}_list" role="listbox"></div>
+  </div>`;
+}
+
+function comboProveedorListaFiltrada(fieldId) {
+  const q = normalizarBusqueda(document.getElementById(fieldId + '_q').value);
+  const todos = proveedoresOrdenados();
+  return q ? todos.filter(p => normalizarBusqueda(p.nombre).includes(q)) : todos;
+}
+
+function comboProveedorRenderLista(fieldId) {
+  const cont = document.getElementById(fieldId + '_list');
+  if (!cont) return;
+  const lista = comboProveedorListaFiltrada(fieldId);
+  cont.innerHTML = lista.length
+    ? lista.map(p => `<div class="comboOption" role="option" data-id="${esc(p.id)}" onmousedown="event.preventDefault()" onclick="comboProveedorSeleccionar('${fieldId}','${esc(p.id)}')">${esc(p.nombre)}</div>`).join('')
+    : `<div class="comboEmpty">Sin resultados</div>`;
+}
+
+function comboProveedorAbrir(fieldId) {
+  comboProveedorRenderLista(fieldId);
+  document.getElementById(fieldId + '_list')?.classList.remove('hidden');
+  document.getElementById(fieldId + '_q')?.setAttribute('aria-expanded', 'true');
+}
+
+function comboProveedorFiltrar(fieldId) {
+  // en cuanto se vuelve a escribir, la selección previa deja de ser válida hasta que se elija
+  // de nuevo de la lista (evita guardar un id que ya no corresponde al texto visible)
+  document.getElementById(fieldId).value = '';
+  comboProveedorAbrir(fieldId);
+}
+
+function comboProveedorSeleccionar(fieldId, provId) {
+  const p = state.proveedores.find(x => String(x.id) === String(provId));
+  document.getElementById(fieldId).value = provId;
+  document.getElementById(fieldId + '_q').value = p ? p.nombre : '';
+  comboProveedorCerrar(fieldId, true);
+  const fn = COMBO_PROVEEDOR_ONCHANGE[fieldId];
+  if (fn && typeof window[fn] === 'function') window[fn]();
+}
+
+function comboProveedorCerrar(fieldId, inmediato) {
+  setTimeout(() => {
+    document.getElementById(fieldId + '_list')?.classList.add('hidden');
+    document.getElementById(fieldId + '_q')?.setAttribute('aria-expanded', 'false');
+    // si lo que quedó escrito no corresponde a un proveedor seleccionado (lo borró, escribió
+    // basura, o se salió del campo sin elegir), se revierte al último válido o se limpia
+    const idActual = document.getElementById(fieldId)?.value;
+    const p = idActual ? state.proveedores.find(x => String(x.id) === String(idActual)) : null;
+    const q = document.getElementById(fieldId + '_q');
+    if (q) q.value = p ? p.nombre : '';
+  }, inmediato ? 0 : 120);
+}
+
+function comboProveedorTeclado(event, fieldId) {
+  const cont = document.getElementById(fieldId + '_list');
+  if (!cont) return;
+  if (event.key === 'Escape') { comboProveedorCerrar(fieldId); event.target.blur(); return; }
+  if (cont.classList.contains('hidden') && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+    comboProveedorAbrir(fieldId);
+  }
+  const opciones = Array.from(cont.querySelectorAll('.comboOption'));
+  if (!opciones.length) return;
+  let idx = opciones.findIndex(o => o.classList.contains('activa'));
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    idx = (idx + 1) % opciones.length;
+    opciones.forEach(o => o.classList.remove('activa'));
+    opciones[idx].classList.add('activa');
+    opciones[idx].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    idx = idx <= 0 ? opciones.length - 1 : idx - 1;
+    opciones.forEach(o => o.classList.remove('activa'));
+    opciones[idx].classList.add('activa');
+    opciones[idx].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    const activa = opciones.find(o => o.classList.contains('activa')) || (opciones.length === 1 ? opciones[0] : null);
+    if (activa) comboProveedorSeleccionar(fieldId, activa.getAttribute('data-id'));
+  }
+}
+
+function actualizarCuentasDestinoCxp() {
+  const provId = document.getElementById('cxp_proveedor_id').value;
+  const sel = document.getElementById('cxp_cuenta_destino_id');
+  if (sel) sel.innerHTML = opcionesCuentasDestino(provId, '');
+}
+
+// v6.10: al elegir una cuenta destino, sugiere la referencia guardada en esa cuenta (si tiene) —
+// no borra lo que ya esté escrito si la cuenta elegida no trae referencia guardada.
+function sugerirReferenciaCxp() {
+  const provId = document.getElementById('cxp_proveedor_id').value;
+  const cuentaId = document.getElementById('cxp_cuenta_destino_id').value;
+  const ref = referenciaDeCuenta(provId, cuentaId);
+  if (ref) document.getElementById('cxp_referencia_sugerida').value = ref;
+  actualizarClienteHint('cxp_cliente_hint', clienteDeCuenta(provId, cuentaId));
+}
+
+// Muestra/oculta el aviso "Cliente: X" junto al selector de cuenta destino — se queda vacío/oculto
+// si la cuenta elegida no tiene cliente capturado, en vez de mostrar un hint vacío.
+function actualizarClienteHint(elId, cliente) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = cliente ? ('Cliente: ' + cliente) : '';
+  el.classList.toggle('hidden', !cliente);
+}
+
+function formCxp(id) {
+  const c = id ? state.cxp.find(x => String(x.id) === String(id)) : null;
+  const ip = c?.instrucciones_pago || {};
+  const provIdInicial = c?.proveedor_id || '';
+  // El id se genera aquí, al ABRIR el formulario, y no al guardar — así, si el guardado tarda o
+  // la respuesta se pierde (falla de Google) y el usuario le da clic a "Guardar" otra vez sin
+  // cerrar el modal, se reintenta con el MISMO id en vez de crear una CxP duplicada: el backend
+  // ya hace upsert por id, así que un reintento con el mismo id simplemente sobreescribe el
+  // mismo registro en vez de crear uno nuevo.
+  const idEstable = id || ('cxp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  openModal(`
+    <h2>${c ? 'Editar' : 'Nueva'} Cuenta por Pagar</h2>
+    <form id="cxpForm" onsubmit="return guardarCxp(event, '${idEstable}')">
+      <div class="formGrid">
+        <div class="field full"><label>Proveedor</label>
+          ${htmlComboProveedor('cxp_proveedor_id', provIdInicial)}
+        </div>
+        <div class="field full"><label>Concepto</label><input id="cxp_concepto" value="${esc(c?.concepto||'')}" required></div>
+        <div class="field"><label>Monto</label><input type="number" step="0.01" id="cxp_monto" value="${c?.monto||''}" required></div>
+        <div class="field"><label>Sucursal</label><input id="cxp_sucursal" value="${esc(c?.sucursal||'')}"></div>
+        <div class="field"><label>Fecha factura</label><input type="date" id="cxp_fecha_factura" value="${esc(c?.fecha_factura||'')}"></div>
+        <div class="field"><label>Fecha vencimiento</label><input type="date" id="cxp_fecha_vencimiento" value="${esc(c?.fecha_vencimiento||'')}" required></div>
+        <div class="field"><label>Folio</label><input id="cxp_folio" value="${esc(c?.folio||'')}"></div>
+        <div class="field"><label>UUID CFDI</label><input id="cxp_uuid_cfdi" value="${esc(c?.uuid_cfdi||'')}"></div>
+        <div class="field full"><label>Notas</label><input id="cxp_notas" value="${esc(c?.notas||'')}"></div>
+        ${htmlCampoAdjunto('cxpEvidencia', { titulo:'Evidencia del gasto', esPrincipal:true, placeholder:'foto o captura de la factura/ticket (JPG, PNG)', urlExistente: c?.adjunto_evidencia_url })}
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Datos sugeridos para cuando se registre el pago de esta factura — la referencia puede variar según la sucursal o razón social a la que viene facturado; se puede ajustar también al momento de pagar.</p>
+        <div class="formGrid">
+          <div class="field full"><label>Cuenta del proveedor a pagar</label>
+            <select id="cxp_cuenta_destino_id" onchange="sugerirReferenciaCxp()">${opcionesCuentasDestino(provIdInicial, ip.cuenta_destino_id)}</select>
+            <p id="cxp_cliente_hint" class="${clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) ? '' : 'hidden'}" style="font-size:11px;color:var(--muted);margin:4px 0 0">${esc(clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) ? 'Cliente: ' + clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) : '')}</p>
+          </div>
+          <div class="field full"><label>Referencia sugerida</label><input id="cxp_referencia_sugerida" value="${esc(ip.referencia_sugerida||'')}" placeholder="Ej. nombre/sucursal que factura"></div>
+          <div class="field full"><label>Pagar desde</label><select id="cxp_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
+        </div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarCxp(ev, id) {
+  ev.preventDefault();
+  // el <select> nativo validaba "requerido" solo; el combobox de búsqueda usa un input oculto,
+  // que el navegador no puede marcar como inválido de forma visible — se valida aquí a mano.
+  const proveedorIdCxp = document.getElementById('cxp_proveedor_id').value;
+  if (!proveedorIdCxp) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
+  const record = {
+    id, // ya viene fijo desde formCxp (ver nota ahí) — seguro reintentar con el mismo id.
+    proveedor_id: proveedorIdCxp,
+    concepto: document.getElementById('cxp_concepto').value,
+    monto: document.getElementById('cxp_monto').value,
+    sucursal: document.getElementById('cxp_sucursal').value,
+    fecha_factura: document.getElementById('cxp_fecha_factura').value,
+    fecha_vencimiento: document.getElementById('cxp_fecha_vencimiento').value,
+    folio: document.getElementById('cxp_folio').value,
+    uuid_cfdi: document.getElementById('cxp_uuid_cfdi').value,
+    notas: document.getElementById('cxp_notas').value,
+    instrucciones_pago: {
+      cuenta_destino_id: document.getElementById('cxp_cuenta_destino_id').value,
+      referencia_sugerida: document.getElementById('cxp_referencia_sugerida').value,
+      pagar_desde: document.getElementById('cxp_pagar_desde').value
+    },
+    ...datosAdjuntoParaGuardar('cxpEvidencia', 'evidencia_b64', 'evidencia_mime', 'evidencia_clear')
+  };
+  try {
+    showLoading(true);
+    // v6.10: si este guardado trae una foto nueva, Code.gs la sube a Drive antes de escribir la
+    // fila — dale más margen de timeout que a un guardado normal (ver API_TIMEOUT_MS_ADJUNTO).
+    const res = await api('save', { entity: 'cxp', record }, record.evidencia_b64 ? { timeoutMs: API_TIMEOUT_MS_ADJUNTO } : undefined);
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('CxP guardada correctamente.', 'ok');
+    if (res.warning) toast(res.warning, 'warning');
+    renderCxp();
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+/* ---------------- Registrar / validar pagos ---------------- */
+
+// v6.10: mismo mecanismo que sugerirReferenciaCxp pero para el formulario de pago — recibe el
+// proveedor_id directo porque aquí ya es fijo (viene de la CxP que se está pagando).
+function sugerirReferenciaPago(provId) {
+  const cuentaId = document.getElementById('pg_cuenta_destino_id').value;
+  const ref = referenciaDeCuenta(provId, cuentaId);
+  if (ref) document.getElementById('pg_referencia').value = ref;
+  actualizarClienteHint('pg_cliente_hint', clienteDeCuenta(provId, cuentaId));
+}
+
+function formPago(cxpId, pagoId) {
+  const c = state.cxp.find(x => String(x.id) === String(cxpId));
+  const pago = pagoId ? state.pagos.find(x => String(x.id) === String(pagoId)) : null;
+  // Al editar, el monto del propio pago ya está descontado del saldo (sigue en state.pagos) —
+  // se vuelve a sumar aquí para no mostrar/limitar el saldo como si ese pago no existiera.
+  const saldo = saldoCxp(cxpId, c.monto) + (pago ? (Number(pago.monto) || 0) : 0);
+  const prov = state.proveedores.find(p => String(p.id) === String(c.proveedor_id));
+  const cuentasDestino = prov?.cuentas || [];
+  const ip = c.instrucciones_pago || {};
+  let avisoEstado;
+  if (!pago) {
+    avisoEstado = state.rol === 'admin' ? 'Como administrador, este pago quedará validado automáticamente.' : 'Este pago quedará pendiente de validación por el administrador.';
+  } else if (state.rol !== 'admin' && pago.estado === 'validado') {
+    avisoEstado = 'Este pago ya estaba validado — al guardar los cambios regresará a "pendiente de validar" para que el administrador lo revise de nuevo.';
+  } else {
+    avisoEstado = 'Se conserva el estado de validación actual de este pago.';
+  }
+  // Mismo criterio que en formCxp: el id del pago se fija aquí, al abrir el formulario — así un
+  // reintento tras un timeout/falla de Google sobreescribe el mismo pago en vez de registrarlo
+  // dos veces. "esEdicion" viaja aparte para no perder el mensaje correcto ("registrado" vs
+  // "actualizado") ahora que pagoId ya siempre viene con un valor.
+  const pagoIdEstable = pagoId || ('pago_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  openModal(`
+    <h2>${pago ? 'Editar pago' : 'Registrar pago'} — ${esc(proveedorNombre(c.proveedor_id))}</h2>
+    <p style="color:var(--muted);font-size:12px;margin-top:-8px">Saldo pendiente: <b>${money(saldo)}</b></p>
+    <form onsubmit="return guardarPago(event, '${cxpId}', '${pagoIdEstable}', ${pago ? 'true' : 'false'})">
+      <div class="formGrid">
+        <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${pago ? pago.monto : saldo}" required></div>
+        <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${pago ? esc(pago.fecha) : formatYMD(new Date())}" max="${formatYMD(new Date())}" required></div>
+        <div class="field full"><label>Pagado desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(pago ? pago.pagar_desde : ip.pagar_desde)}</select></div>
+        <div class="field full"><label>Cuenta destino (del proveedor)</label>
+          <select id="pg_cuenta_destino_id" onchange="sugerirReferenciaPago('${c.proveedor_id}')">${opcionesCuentasDestino(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id)}</select>
+          <p id="pg_cliente_hint" class="${clienteDeCuenta(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id) ? '' : 'hidden'}" style="font-size:11px;color:var(--muted);margin:4px 0 0">${esc(clienteDeCuenta(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id) ? 'Cliente: ' + clienteDeCuenta(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id) : '')}</p>
+          ${cuentasDestino.length > 1 ? `<p style="font-size:11px;color:var(--muted);margin:4px 0 0">El proveedor tiene ${cuentasDestino.length} cuentas registradas — si la sugerida no sirve, elige otra aquí.</p>` : ''}
+        </div>
+        <div class="field full"><label>Referencia Pago</label><input id="pg_referencia" value="${esc(pago ? (pago.referencia||'') : (ip.referencia_sugerida||''))}"></div>
+        <div class="field full"><label>Clave Rastreo Pago</label><input id="pg_clave_rastreo" value="${esc(pago?.clave_rastreo||'')}" placeholder="Clave de rastreo SPEI (si aplica)"></div>
+        <div class="field full"><label>Banco origen</label><input id="pg_banco_origen" value="${esc(pago?.banco_origen||'')}"></div>
+        <div class="field full"><label>Notas</label><input id="pg_notas" value="${esc(pago?.notas||'')}"></div>
+        ${htmlCampoAdjunto('pagoComprobante', { titulo:'Comprobante de pago', esPrincipal:false, placeholder:'captura de la transferencia, si quieres respaldarlo', urlExistente: pago?.adjunto_comprobante_url })}
+      </div>
+      <p style="font-size:12px;color:var(--muted)">${avisoEstado}</p>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${pago ? 'Guardar cambios' : 'Registrar pago'}</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarPago(ev, cxpId, pagoId, esEdicion) {
+  ev.preventDefault();
+  const fechaPago = document.getElementById('pg_fecha').value;
+  if (fechaPago > formatYMD(new Date())) {
+    toast('La fecha de pago no puede ser posterior a hoy.', 'error');
+    return false;
+  }
+  const desbloquear = bloquearFormulario(ev.target, esEdicion ? 'Guardando…' : 'Registrando…');
+  const record = {
+    id: pagoId, // ya viene fijo desde formPago — seguro reintentar con el mismo id.
+    cxp_id: cxpId,
+    pagar_desde: document.getElementById('pg_pagar_desde').value,
+    cuenta_destino_id: document.getElementById('pg_cuenta_destino_id').value,
+    monto: document.getElementById('pg_monto').value,
+    fecha: fechaPago,
+    referencia: document.getElementById('pg_referencia').value,
+    clave_rastreo: document.getElementById('pg_clave_rastreo').value,
+    banco_origen: document.getElementById('pg_banco_origen').value,
+    notas: document.getElementById('pg_notas').value,
+    ...datosAdjuntoParaGuardar('pagoComprobante', 'comprobante_b64', 'comprobante_mime', 'comprobante_clear')
+  };
+  try {
+    showLoading(true);
+    // v6.10: mismo criterio que en guardarCxp — más margen de timeout si este pago trae un
+    // comprobante nuevo (sube a Drive antes de escribir la fila).
+    const res = await api('save', { entity: 'pagos', record }, record.comprobante_b64 ? { timeoutMs: API_TIMEOUT_MS_ADJUNTO } : undefined);
+    await loadData();
+    closeModal(); showLoading(false);
+    toast(esEdicion ? 'Pago actualizado.' : 'Pago registrado.', 'ok');
+    if (res.warning) toast(res.warning, 'warning');
+    setView(state.view);
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+function confirmarValidarPago(id) {
+  openModal(`
+    <h2>Validar pago</h2>
+    <p>¿Confirmas que este pago fue capturado correctamente y debe marcarse como <b>validado</b>?</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-ok" onclick="validarPago('${id}')">Confirmar</button>
+    </div>
+  `);
+}
+
+async function validarPago(id) {
+  try {
+    showLoading(true);
+    await api('validarPago', { id });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Pago validado.', 'ok');
+    renderPagos();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Vista: Pagos Realizados ---------------- */
+
+function renderPagos() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Pagos Realizados</span></div>
+    <div class="filters">
+      <div class="f"><label>Estado</label><select onchange="state.filtrosPagos.estado=this.value; renderPagosTable();">
+        <option value="todos" ${state.filtrosPagos.estado==='todos'?'selected':''}>Todos</option>
+        <option value="pendiente_validacion" ${state.filtrosPagos.estado==='pendiente_validacion'?'selected':''}>Pendientes de validar</option>
+        <option value="validado" ${state.filtrosPagos.estado==='validado'?'selected':''}>Validados</option>
+      </select></div>
+    </div>
+    <div id="pagosTableWrap"></div>
+  `;
+  renderPagosTable();
+}
+
+function renderPagosTable() {
+  let lista = state.pagos.map(p => {
+    const c = state.cxp.find(x => String(x.id) === String(p.cxp_id));
+    return { ...p, provNombre: c ? proveedorNombre(c.proveedor_id) : '—', concepto: c ? c.concepto : '—' };
+  });
+  if (state.filtrosPagos.estado !== 'todos') lista = lista.filter(p => (p.estado || 'validado') === state.filtrosPagos.estado);
+  const wrap = document.getElementById('pagosTableWrap');
+  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin pagos registrados.</div></div>`; return; }
+
+  const getters = {
+    fecha: p => { const d = parseFechaLocal(p.fecha); return d ? d.getTime() : 0; },
+    provNombre: p => p.provNombre,
+    concepto: p => p.concepto || '',
+    monto: p => Number(p.monto) || 0,
+    pagar_desde: p => p.pagar_desde || '',
+    referencia: p => p.referencia || '',
+    clave_rastreo: p => p.clave_rastreo || '',
+    capturado_por: p => p.capturado_por || ''
+  };
+  lista = state.sortPagos.col ? sortRows(lista, state.sortPagos, getters) : [...lista].sort((a,b) => cmpFecha(b.fecha, a.fecha));
+
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Fecha','fecha','sortPagos','renderPagosTable')}
+      ${sortTh('Proveedor','provNombre','sortPagos','renderPagosTable')}
+      ${sortTh('Concepto','concepto','sortPagos','renderPagosTable')}
+      ${sortTh('Monto','monto','sortPagos','renderPagosTable')}
+      ${sortTh('Pagó desde','pagar_desde','sortPagos','renderPagosTable')}
+      ${sortTh('Referencia','referencia','sortPagos','renderPagosTable')}
+      ${sortTh('Clave Rastreo','clave_rastreo','sortPagos','renderPagosTable')}
+      ${sortTh('Capturó','capturado_por','sortPagos','renderPagosTable')}
+      <th>Estado</th><th></th>
+    </tr></thead>
+    <tbody>${lista.map(p => {
+      return `<tr>
+        <td>${fmtFecha(p.fecha)}</td>
+        <td>${esc(p.provNombre)}</td>
+        <td>${esc(p.concepto)}</td>
+        <td class="num">${money(p.monto)}</td>
+        <td>${esc(p.pagar_desde || '—')}</td>
+        <td>${esc(p.referencia || '—')}</td>
+        <td style="font-size:11px">${esc(p.clave_rastreo || '—')}</td>
+        <td>${esc(p.capturado_por || '—')}</td>
+        <td>${badgeEstadoPago(p)}</td>
+        <td><div class="rowActions">
+          ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formPago('${p.cxp_id}','${p.id}')">Editar</button>` : ''}
+          ${can(['admin']) && p.estado === 'pendiente_validacion' ? `<button class="btn btn-ok btn-sm" onclick="confirmarValidarPago('${p.id}')">✓ Validar</button>` : ''}
+          ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('pagos','${p.id}','este pago')">Eliminar</button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+/* ---------------- Vista: Gastos Recurrentes ---------------- */
+// Catálogo de gastos que se repiten cada cierto número de meses con (normalmente) el mismo monto
+// (p.ej. la renta de un local). El backend (generarGastosRecurrentes, corre solo todos los días a
+// las 6am) genera automáticamente la CxP correspondiente unos días antes de que venza, y recorre
+// "Próxima fecha de vencimiento" hacia adelante según la frecuencia — aquí solo se da de alta y se
+// mantiene (p.ej. actualizar el monto una vez al año); el portal no genera nada por sí mismo, eso
+// lo hace el trigger del lado de Apps Script.
+
+function labelFrecuencia(n) {
+  const map = { 1: 'Mensual', 2: 'Bimestral', 3: 'Trimestral', 6: 'Semestral', 12: 'Anual' };
+  return map[n] || ('Cada ' + n + ' meses');
+}
+
+function opcionesFrecuencia(selected) {
+  const valores = [1, 2, 3, 6, 12];
+  return valores.map(v => `<option value="${v}" ${Number(selected||1)===v?'selected':''}>${labelFrecuencia(v)}</option>`).join('');
+}
+
+// Formatea un Date a "AAAA-MM-DD" usando sus componentes LOCALES (nunca toISOString, que convierte
+// a UTC y puede correr la fecha un día — mismo cuidado que ya se tiene en parseFechaLocal/Code.gs).
+function formatYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// Fecha estimada en que se generará la próxima CxP (próxima vencimiento menos días de anticipación) —
+// solo para mostrarla en la tabla; el cálculo real y autoritativo ocurre en el backend.
+function fechaEstimadaGeneracion(r) {
+  const fv = parseFechaLocal(r.proxima_fecha_vencimiento);
+  if (!fv) return null;
+  const d = new Date(fv);
+  d.setDate(d.getDate() - (Number(r.dias_anticipacion) || 0));
+  return d;
+}
+
+function renderRecurrentes() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle">
+      <span>Gastos Recurrentes</span>
+      <div class="actions">${can(['admin','capturista']) ? `<button class="btn btn-primary btn-sm" onclick="formRecurrente()">+ Nuevo gasto recurrente</button>` : ''}</div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:-6px">Para gastos que se repiten cada cierto número de meses con el mismo monto (renta, etc.) — el sistema genera la cuenta por pagar solo, unos días antes de que venza.</p>
+    <div id="recurrentesTableWrap"></div>
+  `;
+  renderRecurrentesTable();
+}
+
+function renderRecurrentesTable() {
+  let lista = state.recurrentes.map(r => ({ ...r, provNombre: proveedorNombre(r.proveedor_id) }));
+  const wrap = document.getElementById('recurrentesTableWrap');
+  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin gastos recurrentes configurados.</div></div>`; return; }
+
+  const getters = {
+    provNombre: r => r.provNombre,
+    concepto: r => r.concepto || '',
+    sucursal: r => r.sucursal || '',
+    monto: r => Number(r.monto) || 0,
+    frecuencia_meses: r => Number(r.frecuencia_meses) || 1,
+    proxima_fecha_vencimiento: r => { const d = parseFechaLocal(r.proxima_fecha_vencimiento); return d ? d.getTime() : 0; }
+  };
+  lista = state.sortRecurrentes.col ? sortRows(lista, state.sortRecurrentes, getters) : [...lista].sort((a,b) => cmpFecha(a.proxima_fecha_vencimiento, b.proxima_fecha_vencimiento));
+
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Proveedor','provNombre','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Concepto','concepto','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Sucursal','sucursal','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Monto','monto','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Frecuencia','frecuencia_meses','sortRecurrentes','renderRecurrentesTable')}
+      ${sortTh('Próx. vencimiento','proxima_fecha_vencimiento','sortRecurrentes','renderRecurrentesTable')}
+      <th>Se genera el</th><th>Estado</th><th></th>
+    </tr></thead>
+    <tbody>${lista.map(r => {
+      const estimada = fechaEstimadaGeneracion(r);
+      return `<tr>
+        <td>${esc(r.provNombre)}</td>
+        <td>${esc(r.concepto || '')}</td>
+        <td>${esc(r.sucursal || '')}</td>
+        <td class="num">${money(r.monto)}</td>
+        <td>${labelFrecuencia(Number(r.frecuencia_meses) || 1)}</td>
+        <td>${fmtFecha(r.proxima_fecha_vencimiento)}</td>
+        <td style="font-size:11px;color:var(--muted)">${estimada ? fmtFecha(formatYMD(estimada)) : '—'}</td>
+        <td>${r.activo ? '<span class="badge badge-good">Activo</span>' : '<span class="badge badge-muted">Pausado</span>'}</td>
+        <td><div class="rowActions">
+          ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="toggleActivoRecurrente('${r.id}', ${!r.activo})">${r.activo ? 'Pausar' : 'Reactivar'}</button>` : ''}
+          ${can(['admin','capturista']) ? `<button class="btn btn-ghost btn-sm" onclick="formRecurrente('${r.id}')">Editar</button>` : ''}
+          ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('recurrentes','${r.id}','este gasto recurrente')">Eliminar</button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+function formRecurrente(id) {
+  const r = id ? state.recurrentes.find(x => String(x.id) === String(id)) : null;
+  const provIdInicial = r?.proveedor_id || '';
+  // Mismo criterio que en formCxp: id fijo al abrir, para que un reintento no duplique el gasto recurrente.
+  const idEstable = id || ('rec_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  openModal(`
+    <h2>${r ? 'Editar' : 'Nuevo'} gasto recurrente</h2>
+    <form onsubmit="return guardarRecurrente(event, '${idEstable}')">
+      <div class="formGrid">
+        <div class="field full"><label>Proveedor</label>
+          ${htmlComboProveedor('rec_proveedor_id', provIdInicial)}
+        </div>
+        <div class="field full"><label>Concepto</label><input id="rec_concepto" value="${esc(r?.concepto||'')}" placeholder="Ej. Renta local Chemuyil" required></div>
+        <div class="field"><label>Monto</label><input type="number" step="0.01" id="rec_monto" value="${r?.monto||''}" required></div>
+        <div class="field"><label>Sucursal</label><input id="rec_sucursal" value="${esc(r?.sucursal||'')}"></div>
+        <div class="field"><label>Frecuencia</label><select id="rec_frecuencia_meses">${opcionesFrecuencia(r?.frecuencia_meses)}</select></div>
+        <div class="field"><label>Próxima fecha de vencimiento</label><input type="date" id="rec_proxima_fecha_vencimiento" value="${esc(r?.proxima_fecha_vencimiento||'')}" required></div>
+        <div class="field full"><label>Días de anticipación para generar la CxP</label><input type="number" id="rec_dias_anticipacion" value="${r?.dias_anticipacion ?? 5}" min="0">
+          <p style="font-size:11px;color:var(--muted);margin:4px 0 0">Con cuántos días de anticipación a la fecha de vencimiento se crea automáticamente la cuenta por pagar.</p>
+        </div>
+        <div class="field full"><label>Cuenta del proveedor a pagar</label>
+          <select id="rec_cuenta_destino_id">${opcionesCuentasDestino(provIdInicial, r?.cuenta_destino_id)}</select>
+        </div>
+        <div class="field full"><label>Pagar desde</label><select id="rec_pagar_desde">${opcionesPagarDesde(r?.pagar_desde)}</select></div>
+        <div class="field full"><label>Notas</label><input id="rec_notas" value="${esc(r?.notas||'')}"></div>
+        <div class="field full"><label style="display:flex;align-items:center;gap:8px;font-weight:400">
+          <input type="checkbox" id="rec_activo" ${(!r || r.activo) ? 'checked' : ''} style="width:auto"> Activo (genera CxP automáticamente)
+        </label></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+function actualizarCuentasDestinoRecurrente() {
+  const provId = document.getElementById('rec_proveedor_id').value;
+  const sel = document.getElementById('rec_cuenta_destino_id');
+  if (sel) sel.innerHTML = opcionesCuentasDestino(provId, '');
+}
+
+async function guardarRecurrente(ev, id) {
+  ev.preventDefault();
+  // ver nota equivalente en guardarCxp: el combobox de búsqueda ya no valida "requerido" solo
+  const proveedorIdRec = document.getElementById('rec_proveedor_id').value;
+  if (!proveedorIdRec) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
+  const record = {
+    id, // ya viene fijo desde formRecurrente — seguro reintentar con el mismo id.
+    proveedor_id: proveedorIdRec,
+    concepto: document.getElementById('rec_concepto').value,
+    monto: document.getElementById('rec_monto').value,
+    sucursal: document.getElementById('rec_sucursal').value,
+    frecuencia_meses: document.getElementById('rec_frecuencia_meses').value,
+    proxima_fecha_vencimiento: document.getElementById('rec_proxima_fecha_vencimiento').value,
+    dias_anticipacion: document.getElementById('rec_dias_anticipacion').value,
+    cuenta_destino_id: document.getElementById('rec_cuenta_destino_id').value,
+    pagar_desde: document.getElementById('rec_pagar_desde').value,
+    notas: document.getElementById('rec_notas').value,
+    activo: document.getElementById('rec_activo').checked
+  };
+  try {
+    showLoading(true);
+    await api('save', { entity: 'recurrentes', record });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Gasto recurrente guardado.', 'ok');
+    renderRecurrentes();
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+async function toggleActivoRecurrente(id, nuevoActivo) {
+  const r = state.recurrentes.find(x => String(x.id) === String(id));
+  if (!r) return;
+  try {
+    showLoading(true);
+    await api('save', { entity: 'recurrentes', record: { id, activo: nuevoActivo } });
+    await loadData();
+    showLoading(false);
+    toast(nuevoActivo ? 'Gasto recurrente reactivado.' : 'Gasto recurrente pausado.', 'ok');
+    renderRecurrentesTable();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Vista: Antigüedad de saldos (Aging) ---------------- */
+
+function renderAging() {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const buckets = { vigente:{}, b30:{}, b60:{}, b90:{}, b90p:{} };
+  const totales = { vigente:0, b30:0, b60:0, b90:0, b90p:0 };
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const provPorId = indexarProveedoresPorId(state.proveedores);
+
+  state.cxp.forEach(c => {
+    const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+    if (saldo <= 0.01) return;
+    const prov = (provPorId.get(String(c.proveedor_id)) || {}).nombre || '(sin proveedor)';
+    let bucket = 'vigente';
+    if (c.fecha_vencimiento) {
+      const fv = parseFechaLocal(c.fecha_vencimiento);
+      const dias = diasEntre(hoy, fv);
+      if (dias > 90) bucket = 'b90p';
+      else if (dias > 60) bucket = 'b90';
+      else if (dias > 30) bucket = 'b60';
+      else if (dias > 0) bucket = 'b30';
+      else bucket = 'vigente';
+    }
+    buckets[bucket][prov] = (buckets[bucket][prov] || 0) + saldo;
+    totales[bucket] += saldo;
+  });
+
+  const proveedoresConSaldo = [...new Set([
+    ...Object.keys(buckets.vigente), ...Object.keys(buckets.b30), ...Object.keys(buckets.b60),
+    ...Object.keys(buckets.b90), ...Object.keys(buckets.b90p)
+  ])].sort();
+
+  const totalGeneral = Object.values(totales).reduce((a,b) => a+b, 0);
+
+  __agingFilas = proveedoresConSaldo.map(prov => {
+    const v = buckets.vigente[prov]||0, b30 = buckets.b30[prov]||0, b60 = buckets.b60[prov]||0, b90 = buckets.b90[prov]||0, b90p = buckets.b90p[prov]||0;
+    return { prov, v, b30, b60, b90, b90p, total: v+b30+b60+b90+b90p };
+  });
+  __agingTotales = totales;
+  __agingTotalGeneral = totalGeneral;
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Antigüedad de saldos (Aging)</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Vigente</div><div class="value">${money(totales.vigente)}</div></div>
+      <div class="kpi"><div class="label">1–30 días</div><div class="value">${money(totales.b30)}</div></div>
+      <div class="kpi warn"><div class="label">31–60 días</div><div class="value">${money(totales.b60)}</div></div>
+      <div class="kpi warn"><div class="label">61–90 días</div><div class="value">${money(totales.b90)}</div></div>
+      <div class="kpi alert"><div class="label">+90 días</div><div class="value">${money(totales.b90p)}</div></div>
+    </div>
+    <div id="agingTableWrap"></div>
+  `;
+  renderAgingTable();
+}
+
+let __agingFilas = [], __agingTotales = {}, __agingTotalGeneral = 0;
+
+function renderAgingTable() {
+  const wrap = document.getElementById('agingTableWrap');
+  if (!__agingFilas.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">No hay saldos pendientes. 🎉</div></div>`; return; }
+  const getters = { prov: r => r.prov, v: r => r.v, b30: r => r.b30, b60: r => r.b60, b90: r => r.b90, b90p: r => r.b90p, total: r => r.total };
+  const filas = sortRows(__agingFilas, state.sortAging, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Proveedor','prov','sortAging','renderAgingTable')}
+        ${sortTh('Vigente','v','sortAging','renderAgingTable')}
+        ${sortTh('1–30','b30','sortAging','renderAgingTable')}
+        ${sortTh('31–60','b60','sortAging','renderAgingTable')}
+        ${sortTh('61–90','b90','sortAging','renderAgingTable')}
+        ${sortTh('+90','b90p','sortAging','renderAgingTable')}
+        ${sortTh('Total','total','sortAging','renderAgingTable')}
+      </tr></thead>
+      <tbody>${filas.map(r => `<tr><td>${esc(r.prov)}</td><td class="num">${money(r.v)}</td><td class="num">${money(r.b30)}</td><td class="num">${money(r.b60)}</td><td class="num">${money(r.b90)}</td><td class="num" style="color:var(--critical);font-weight:700">${money(r.b90p)}</td><td class="num" style="font-weight:700">${money(r.total)}</td></tr>`).join('')}
+      <tr style="font-weight:700;background:#fafaf9"><td>Total</td><td class="num">${money(__agingTotales.vigente)}</td><td class="num">${money(__agingTotales.b30)}</td><td class="num">${money(__agingTotales.b60)}</td><td class="num">${money(__agingTotales.b90)}</td><td class="num">${money(__agingTotales.b90p)}</td><td class="num">${money(__agingTotalGeneral)}</td></tr>
+      </tbody>
+    </table></div>`;
+}
+
+/* ---------------- Vista: Proveedores ---------------- */
+
+function renderProveedores() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Proveedores</span>
+      <div class="actions">${can(['admin']) ? `<button class="btn btn-primary btn-sm" onclick="formProveedor()">+ Nuevo proveedor</button>` : ''}</div>
+    </div>
+    <div id="proveedoresTableWrap"></div>
+  `;
+  renderProveedoresTable();
+}
+
+function renderProveedoresTable() {
+  const wrap = document.getElementById('proveedoresTableWrap');
+  // v6.9: la lista ya no muestra Email/Teléfono/RFC (RFC se sigue viendo/editando en el proveedor) —
+  // en su lugar Referencia, Banco y Cuenta (CLABE completa) de la PRIMERA cuenta registrada, con un
+  // "+N más" si hay otras. La referencia ahora vive dentro de cada cuenta bancaria (ver
+  // renderCuentasProveedorRows), no es un dato aparte.
+  const getters = {
+    nombre: p => p.nombre || '',
+    cliente: p => (p.cuentas||[])[0]?.cliente || '',
+    referencia: p => (p.cuentas||[])[0]?.referencia || '',
+    banco: p => (p.cuentas||[])[0]?.banco || '',
+    cuenta: p => (p.cuentas||[])[0]?.clabe || ''
+  };
+  const lista = sortRows(state.proveedores, state.sortProveedores, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Nombre','nombre','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Cliente','cliente','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Referencia','referencia','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Banco','banco','sortProveedores','renderProveedoresTable')}
+        ${sortTh('Cuenta','cuenta','sortProveedores','renderProveedoresTable')}
+        <th></th>
+      </tr></thead>
+      <tbody>${lista.map(p => {
+        const cuentas = p.cuentas || [];
+        const principal = cuentas[0];
+        const extra = cuentas.length > 1 ? ` <span class="badge badge-muted" title="Tiene ${cuentas.length} cuentas registradas">+${cuentas.length - 1} más</span>` : '';
+        return `
+        <tr>
+          <td>${esc(p.nombre)}</td>
+          <td>${esc(principal?.cliente || '—')}</td>
+          <td>${esc(principal?.referencia || '—')}</td>
+          <td>${esc(principal?.banco || '—')}</td>
+          <td style="font-variant-numeric:tabular-nums">${esc(principal?.clabe || '—')}${extra}</td>
+          <td><div class="rowActions">
+            <button class="btn btn-ghost btn-sm" onclick="verCuentasProveedor('${p.id}')">Ver cuentas</button>
+            ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
+            ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor (y sus CxP/pagos)')">Eliminar</button>` : ''}
+          </div></td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="6" class="emptyState">Sin proveedores.</td></tr>`}
+      </tbody>
+    </table></div>`;
+}
+
+function verCuentasProveedor(id) {
+  const p = state.proveedores.find(x => String(x.id) === String(id));
+  const cuentas = p?.cuentas || [];
+  openModal(`
+    <h2>Cuentas de ${esc(p ? p.nombre : '')}</h2>
+    ${!cuentas.length ? `<p class="emptyState">Este proveedor no tiene cuentas bancarias registradas todavía.</p>` : `
+    <div class="tableWrap" style="border:1px solid var(--border)"><table>
+      <thead><tr><th>Banco</th><th>Cuenta (interbancaria)</th><th>Titular</th><th>Cliente</th><th>Referencia de pago</th></tr></thead>
+      <tbody>${cuentas.map(c => `
+        <tr>
+          <td>${esc(c.banco || '—')}</td>
+          <td style="font-variant-numeric:tabular-nums">${esc(c.clabe || '—')}</td>
+          <td>${esc(c.titular || '—')}</td>
+          <td>${esc(c.cliente || '—')}</td>
+          <td>${esc(c.referencia || '—')}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>`}
+    <div class="modalActions">
+      ${can(['admin']) ? `<button class="btn btn-ghost" onclick="closeModal(); formProveedor('${id}')">Editar cuentas</button>` : ''}
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>
+  `, { wide: cuentas.length > 0 });
+}
+
+let __pvCuentasTmp = [];
+
+function formProveedor(id) {
+  const p = id ? state.proveedores.find(x => String(x.id) === String(id)) : null;
+  __pvCuentasTmp = (p?.cuentas || []).map(c => ({ ...c }));
+  // Mismo criterio que en formCxp: el id se fija al abrir el formulario, no al guardar, para que
+  // un reintento (tras un timeout o falla de Google) sobreescriba el mismo registro en vez de
+  // crear un proveedor duplicado.
+  const idEstable = id || ('prov_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  openModal(`
+    <h2>${p ? 'Editar' : 'Nuevo'} proveedor</h2>
+    <form onsubmit="return guardarProveedor(event, '${idEstable}')">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre</label><input id="pv_nombre" value="${esc(p?.nombre||'')}" required></div>
+        <div class="field"><label>RFC</label><input id="pv_rfc" value="${esc(p?.rfc||'')}"></div>
+        <div class="field"><label>Email</label><input type="email" id="pv_email" value="${esc(p?.email||'')}"></div>
+        <div class="field"><label>Teléfono</label><input id="pv_telefono" value="${esc(p?.telefono||'')}"></div>
+        <div class="field full"><label>Notas</label><input id="pv_notas" value="${esc(p?.notas||'')}"></div>
+      </div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="viewTitle" style="margin-bottom:6px"><span style="font-size:14px">Cuentas bancarias del proveedor</span>
+          <div class="actions"><button type="button" class="btn btn-ghost btn-sm" onclick="agregarCuentaProveedorTmp()">+ Agregar cuenta</button></div>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Registra todas las cuentas donde este proveedor puede recibir pago. Si al pagar una no sirve, se podrá elegir otra desde la misma CxP sin tener que volver aquí.</p>
+        <div id="pvCuentasList">${renderCuentasProveedorRows()}</div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `, { wide: true });
+}
+
+function renderCuentasProveedorRows() {
+  if (!__pvCuentasTmp.length) return `<p class="emptyState" style="padding:10px 0">Sin cuentas registradas.</p>`;
+  return __pvCuentasTmp.map((c, i) => `
+    <div class="cuentaRow" data-id="${esc(c.id||'')}">
+      <div class="cuentaHead">
+        <b>Cuenta ${i+1}</b>
+        <button type="button" class="btn btn-danger btn-sm" onclick="eliminarCuentaProveedorTmp(this)">Eliminar</button>
+      </div>
+      <div class="formGrid">
+        <div class="field"><label>Banco</label><input class="cta_banco" value="${esc(c.banco||'')}" placeholder="Ej. SANTANDER"></div>
+        <div class="field"><label>Cuenta (interbancaria)</label><input class="cta_clabe" value="${esc(c.clabe||'')}" placeholder="18 dígitos"></div>
+        <div class="field full"><label>Titular</label><input class="cta_titular" value="${esc(c.titular||'')}"></div>
+        <div class="field"><label>Cliente</label><input class="cta_cliente" value="${esc(c.cliente||'')}" placeholder="Ej. código o razón social con la que te facturan"></div>
+        <div class="field"><label>Referencia de pago</label><input class="cta_referencia" value="${esc(c.referencia||'')}" placeholder="Ej. REF-TORRES-7"></div>
+      </div>
+    </div>`).join('');
+}
+
+function leerCuentasProveedorDesdeDOM() {
+  const rows = document.querySelectorAll('#pvCuentasList .cuentaRow');
+  const out = [];
+  rows.forEach(row => {
+    out.push({
+      id: row.dataset.id || ('cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6)),
+      referencia: row.querySelector('.cta_referencia').value.trim(),
+      banco: row.querySelector('.cta_banco').value.trim(),
+      clabe: row.querySelector('.cta_clabe').value.trim(),
+      titular: row.querySelector('.cta_titular').value.trim(),
+      cliente: row.querySelector('.cta_cliente').value.trim()
+    });
+  });
+  __pvCuentasTmp = out;
+}
+
+function agregarCuentaProveedorTmp() {
+  leerCuentasProveedorDesdeDOM();
+  __pvCuentasTmp.push({ id: 'cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), referencia:'', banco:'', clabe:'', titular:'', cliente:'' });
+  document.getElementById('pvCuentasList').innerHTML = renderCuentasProveedorRows();
+}
+
+function eliminarCuentaProveedorTmp(btn) {
+  leerCuentasProveedorDesdeDOM();
+  const id = btn.closest('.cuentaRow').dataset.id;
+  __pvCuentasTmp = __pvCuentasTmp.filter(c => c.id !== id);
+  document.getElementById('pvCuentasList').innerHTML = renderCuentasProveedorRows();
+}
+
+async function guardarProveedor(ev, id) {
+  ev.preventDefault();
+  leerCuentasProveedorDesdeDOM();
+  const cuentas = __pvCuentasTmp.filter(c => c.cliente || c.referencia || c.banco || c.clabe || c.titular);
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
+  const record = {
+    id, // ya viene fijo desde formProveedor — seguro reintentar con el mismo id.
+    nombre: document.getElementById('pv_nombre').value,
+    rfc: document.getElementById('pv_rfc').value,
+    email: document.getElementById('pv_email').value,
+    telefono: document.getElementById('pv_telefono').value,
+    notas: document.getElementById('pv_notas').value,
+    cuentas
+  };
+  try {
+    showLoading(true);
+    await api('save', { entity: 'prov', record });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Proveedor guardado.', 'ok');
+    renderProveedores();
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+/* ---------------- Vista: Mis Cuentas (cuentas de origen) ---------------- */
+
+function renderCuentas() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Mis Cuentas</span>
+      <div class="actions"><button class="btn btn-primary btn-sm" onclick="formCuenta()">+ Nueva cuenta</button></div>
+    </div>
+    <div id="cuentasTableWrap"></div>
+  `;
+  renderCuentasTable();
+}
+
+function renderCuentasTable() {
+  const wrap = document.getElementById('cuentasTableWrap');
+  const getters = { nombre: c => c.nombre || '', banco: c => c.banco || '', numero: c => c.numero || '' };
+  const cuentas = sortRows(state.config.cuentas_origen || [], state.sortCuentas, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Nombre','nombre','sortCuentas','renderCuentasTable')}
+        ${sortTh('Banco','banco','sortCuentas','renderCuentasTable')}
+        ${sortTh('Número / CLABE','numero','sortCuentas','renderCuentasTable')}
+        <th></th>
+      </tr></thead>
+      <tbody>${cuentas.map(c => `
+        <tr><td>${esc(c.nombre||'')}</td><td>${esc(c.banco||'')}</td><td>${esc(c.numero||'')}</td>
+        <td><div class="rowActions">
+          <button class="btn btn-ghost btn-sm" onclick="formCuenta('${c.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarCuenta('${c.id}')">Eliminar</button>
+        </div></td></tr>`).join('') || `<tr><td colspan="4" class="emptyState">Sin cuentas registradas.</td></tr>`}
+      </tbody>
+    </table></div>`;
+}
+
+function formCuenta(id) {
+  const cuentas = state.config.cuentas_origen || [];
+  const c = id ? cuentas.find(x => String(x.id) === String(id)) : null;
+  // Mismo criterio que en formCxp/formProveedor/formPago/formRecurrente: el id se fija al abrir
+  // el formulario, no al guardar, para que un reintento (tras un timeout o falla de Google)
+  // sobreescriba la misma cuenta en vez de crear una duplicada.
+  const idEstable = id || ('cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  openModal(`
+    <h2>${c ? 'Editar' : 'Nueva'} cuenta</h2>
+    <form onsubmit="return guardarCuenta(event, '${idEstable}')">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre / alias</label><input id="ct_nombre" value="${esc(c?.nombre||'')}" required></div>
+        <div class="field"><label>Banco</label><input id="ct_banco" value="${esc(c?.banco||'')}"></div>
+        <div class="field"><label>Número / CLABE</label><input id="ct_numero" value="${esc(c?.numero||'')}"></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarCuenta(ev, id) {
+  ev.preventDefault();
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
+  const cuentas = [...(state.config.cuentas_origen || [])];
+  const nueva = { id, nombre: document.getElementById('ct_nombre').value, banco: document.getElementById('ct_banco').value, numero: document.getElementById('ct_numero').value }; // id ya viene fijo desde formCuenta — seguro reintentar con el mismo id.
+  const idx = cuentas.findIndex(c => String(c.id) === String(id));
+  if (idx >= 0) cuentas[idx] = nueva; else cuentas.push(nueva);
+  try {
+    showLoading(true);
+    await api('saveConfig', { cuentas_origen: cuentas });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Cuenta guardada.', 'ok');
+    renderCuentas();
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+async function eliminarCuenta(id) {
+  const cuentas = (state.config.cuentas_origen || []).filter(c => String(c.id) !== String(id));
+  try {
+    showLoading(true);
+    await api('saveConfig', { cuentas_origen: cuentas });
+    await loadData();
+    showLoading(false);
+    toast('Cuenta eliminada.', 'ok');
+    renderCuentas();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Vista: Usuarios ---------------- */
+
+function renderUsuarios() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Usuarios</span>
+      <div class="actions"><button class="btn btn-primary btn-sm" onclick="formUsuario()">+ Nuevo usuario</button></div>
+    </div>
+    <div id="usuariosTableWrap"></div>
+  `;
+  renderUsuariosTable();
+}
+
+function renderUsuariosTable() {
+  const wrap = document.getElementById('usuariosTableWrap');
+  const getters = { nombre: u => u.nombre || '', usuario: u => u.usuario || '', rol: u => ROLES_LABEL[u.rol] || u.rol || '' };
+  const lista = sortRows(state.usuarios, state.sortUsuarios, getters);
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Nombre','nombre','sortUsuarios','renderUsuariosTable')}
+        ${sortTh('Usuario','usuario','sortUsuarios','renderUsuariosTable')}
+        ${sortTh('Rol','rol','sortUsuarios','renderUsuariosTable')}
+        <th></th>
+      </tr></thead>
+      <tbody>${lista.map(u => `
+        <tr><td>${esc(u.nombre)}</td><td>${esc(u.usuario)}</td><td>${esc(ROLES_LABEL[u.rol] || u.rol)}</td>
+        <td><div class="rowActions">
+          <button class="btn btn-ghost btn-sm" onclick="formUsuario('${u.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmarEliminarUsuario('${u.id}')">Eliminar</button>
+        </div></td></tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+function formUsuario(id) {
+  const u = id ? state.usuarios.find(x => String(x.id) === String(id)) : null;
+  // Mismo criterio que en formCxp/formProveedor/formPago/formRecurrente/formCuenta: el id se fija
+  // al abrir el formulario, no al guardar. Confirmado contra Code.gs: handleSaveUsuario solo genera
+  // un id en el servidor cuando record.id llega vacío ("if (!record.id) record.id = ...") — si el
+  // navegador ya manda un id fijo, el backend lo respeta y hace upsert normal, así que un reintento
+  // (tras un timeout o falla de Google) actualiza el mismo usuario en vez de crear uno duplicado.
+  const idEstable = id || ('user_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  openModal(`
+    <h2>${u ? 'Editar' : 'Nuevo'} usuario</h2>
+    <form onsubmit="return guardarUsuario(event, '${idEstable}')">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre</label><input id="us_nombre" value="${esc(u?.nombre||'')}" required></div>
+        <div class="field"><label>Usuario (login)</label><input id="us_usuario" value="${esc(u?.usuario||'')}" required></div>
+        <div class="field"><label>Rol</label><select id="us_rol">${Object.entries(ROLES_LABEL).map(([k,v]) => `<option value="${k}" ${u?.rol===k?'selected':''}>${v}</option>`).join('')}</select></div>
+        <div class="field full"><label>Contraseña ${u ? '(dejar en blanco para no cambiar)' : ''}</label><input id="us_pin" type="password" ${u?'':'required'}></div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function guardarUsuario(ev, id) {
+  ev.preventDefault();
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
+  const record = {
+    id, // ya viene fijo desde formUsuario — seguro reintentar con el mismo id.
+    nombre: document.getElementById('us_nombre').value,
+    usuario: document.getElementById('us_usuario').value,
+    rol: document.getElementById('us_rol').value,
+    pin: document.getElementById('us_pin').value
+  };
+  try {
+    showLoading(true);
+    await api('saveUsuario', record);
+    await loadUsuarios();
+    closeModal(); showLoading(false);
+    toast('Usuario guardado.', 'ok');
+    renderUsuarios();
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+function confirmarEliminarUsuario(id) {
+  openModal(`
+    <h2>Eliminar usuario</h2>
+    <p>¿Confirmas eliminar a este usuario? No podrá volver a iniciar sesión.</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="eliminarUsuario('${id}')">Eliminar</button>
+    </div>
+  `);
+}
+
+async function eliminarUsuario(id) {
+  try {
+    showLoading(true);
+    await api('deleteUsuario', { id });
+    await loadUsuarios();
+    closeModal(); showLoading(false);
+    toast('Usuario eliminado.', 'ok');
+    renderUsuarios();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Vista: Auditoría ---------------- */
+
+function renderAuditoria() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Auditoría — quién hizo qué y cuándo</span></div>
+    <div id="auditoriaTableWrap"></div>
+  `;
+  renderAuditoriaTable();
+}
+
+function renderAuditoriaTable() {
+  const wrap = document.getElementById('auditoriaTableWrap');
+  const getters = {
+    fecha: l => l.fecha || '',
+    usuario_nombre: l => l.usuario_nombre || '',
+    rol: l => ROLES_LABEL[l.rol] || l.rol || '',
+    accion: l => l.accion || '',
+    entidad: l => l.entidad || '',
+    detalle: l => l.detalle || ''
+  };
+  const lista = state.sortAuditoria.col ? sortRows(state.log, state.sortAuditoria, getters) : state.log;
+  wrap.innerHTML = `<div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha','fecha','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Usuario','usuario_nombre','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Rol','rol','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Acción','accion','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Entidad','entidad','sortAuditoria','renderAuditoriaTable')}
+        ${sortTh('Detalle','detalle','sortAuditoria','renderAuditoriaTable')}
+      </tr></thead>
+      <tbody>${lista.map(l => `
+        <tr>
+          <td>${new Date(l.fecha).toLocaleString('es-MX')}</td>
+          <td>${esc(l.usuario_nombre)}</td>
+          <td>${esc(ROLES_LABEL[l.rol] || l.rol)}</td>
+          <td>${esc(l.accion)}</td>
+          <td>${esc(l.entidad)}${l.entidad_id ? ' · ' + esc(l.entidad_id) : ''}</td>
+          <td>${esc(l.detalle||'')}</td>
+        </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin movimientos registrados todavía.</td></tr>`}
+      </tbody>
+    </table></div>`;
+}
+
+/* ---------------- Vista: Exportar ---------------- */
+
+function renderExportar() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Exportar</span></div>
+    <div class="card">
+      <div class="cardTitle">Descargar datos en CSV</div>
+      <div class="actions" style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="exportarCxpCsv()">Cuentas × Pagar</button>
+        <button class="btn btn-ghost" onclick="exportarPagosCsv()">Pagos Realizados</button>
+        <button class="btn btn-ghost" onclick="exportarProveedoresCsv()">Proveedores</button>
+        <button class="btn btn-ghost" onclick="exportarRecurrentesCsv()">Gastos Recurrentes</button>
+      </div>
+    </div>
+  `;
+}
+
+function descargarCsv(filename, headers, rows) {
+  const esc2 = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const csv = [headers.map(esc2).join(',')].concat(rows.map(r => r.map(esc2).join(','))).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function exportarCxpCsv() {
+  const rows = state.cxp.map(c => [c.id, proveedorNombre(c.proveedor_id), c.concepto, c.sucursal, c.fecha_factura, c.fecha_vencimiento, c.monto, saldoCxp(c.id, c.monto), c.folio, c.uuid_cfdi]);
+  descargarCsv('cxp_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','fecha_factura','fecha_vencimiento','monto','saldo','folio','uuid_cfdi'], rows);
+}
+function exportarPagosCsv() {
+  const rows = state.pagos.map(p => {
+    const cxpDePago = state.cxp.find(x => String(x.id) === String(p.cxp_id));
+    const cuentaDestinoLbl = cxpDePago ? (labelCuentaDestino(cxpDePago.proveedor_id, p.cuenta_destino_id) || '') : '';
+    return [p.id, p.cxp_id, p.monto, p.fecha, p.referencia, p.clave_rastreo, p.banco_origen, cuentaDestinoLbl, p.notas, p.capturado_por, p.estado, p.validado_por, p.fecha_validacion];
+  });
+  descargarCsv('pagos_' + new Date().toISOString().slice(0,10) + '.csv', ['id','cxp_id','monto','fecha','referencia','clave_rastreo','banco_origen','cuenta_destino','notas','capturado_por','estado','validado_por','fecha_validacion'], rows);
+}
+function exportarProveedoresCsv() {
+  const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc, p.email, p.telefono, p.notas]);
+  descargarCsv('proveedores_' + new Date().toISOString().slice(0,10) + '.csv', ['id','nombre','rfc','email','telefono','notas'], rows);
+}
+function exportarRecurrentesCsv() {
+  const rows = state.recurrentes.map(r => [r.id, proveedorNombre(r.proveedor_id), r.concepto, r.sucursal, r.monto, labelFrecuencia(Number(r.frecuencia_meses)||1), r.proxima_fecha_vencimiento, r.dias_anticipacion, r.activo ? 'Activo' : 'Pausado', r.notas]);
+  descargarCsv('gastos_recurrentes_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','monto','frecuencia','proxima_fecha_vencimiento','dias_anticipacion','estado','notas'], rows);
+}
+
+/* ---------------- Eliminar genérico ---------------- */
+
+function confirmarEliminar(entity, id, descripcion) {
+  openModal(`
+    <h2>Confirmar eliminación</h2>
+    <p>¿Seguro que deseas eliminar ${esc(descripcion)}? Esta acción no se puede deshacer.</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="eliminarRegistro('${entity}','${id}')">Eliminar</button>
+    </div>
+  `);
+}
+
+async function eliminarRegistro(entity, id) {
+  try {
+    showLoading(true);
+    await api('delete', { entity, id });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Eliminado correctamente.', 'ok');
+    setView(state.view);
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- Boot ---------------- */
+
+async function bootApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('whoNombre').textContent = state.nombre;
+  document.getElementById('whoRol').textContent = ROLES_LABEL[state.rol] || state.rol;
+  document.getElementById('whoAvatar').textContent = (state.nombre || '?').slice(0,1).toUpperCase();
+  showLoading(true);
+  try {
+    await loadData();
+    showLoading(false);
+    renderTabs();
+    // Vuelve a la pestaña donde estaba antes de recargar (F5) en vez de siempre al Dashboard —
+    // solo si esa pestaña sigue siendo válida para su rol (por si cambió de rol mientras tanto).
+    let ultimaVista = 'dashboard';
+    try {
+      const guardada = sessionStorage.getItem(ULTIMA_VISTA_KEY);
+      if (guardada && TABS.some(t => t.id === guardada && can(t.roles))) ultimaVista = guardada;
+    } catch (e) {}
+    setView(ultimaVista);
+  } catch (err) {
+    showLoading(false);
+    if (/sesión inválida|sesión expirada/i.test(err.message)) {
+      // Token guardado ya no sirve (expiró en el backend u otro dispositivo cerró la sesión) —
+      // hay que borrarlo antes de recargar, si no se queda en loop intentando restaurarlo.
+      borrarSesionLocal();
+      try { sessionStorage.setItem(MOTIVO_KEY, 'Tu sesión expiró. Vuelve a iniciar sesión.'); } catch (e) {}
+      location.reload();
+    } else {
+      toast(err.message, 'error');
+    }
+  }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const errBox = document.getElementById('loginError');
+  errBox.classList.add('hidden');
+  btn.textContent = 'Entrando…'; btn.disabled = true;
+  try {
+    await login(document.getElementById('loginUsuario').value.trim(), document.getElementById('loginPin').value.trim());
+  } catch (err) {
+    errBox.textContent = err.message; errBox.classList.remove('hidden');
+  } finally {
+    btn.textContent = 'Iniciar sesión'; btn.disabled = false;
+  }
+});
+
+// Si el último cierre de sesión fue automático (expiró o por inactividad), mostrar por qué antes
+// de que el usuario intente entrar de nuevo — si no, parece que la contraseña falló sin motivo.
+(function mostrarMotivoDeLogoutSiAplica() {
+  try {
+    const motivo = sessionStorage.getItem(MOTIVO_KEY);
+    if (motivo) {
+      sessionStorage.removeItem(MOTIVO_KEY);
+      const errBox = document.getElementById('loginError');
+      errBox.textContent = motivo;
+      errBox.classList.remove('hidden');
+    }
+  } catch (e) {}
+})();
+
+// Al cargar/recargar la página (F5, deslizar en iPhone), si ya había una sesión guardada en
+// sessionStorage de ESTA misma pestaña, se restaura directo sin pedir login de nuevo. Si el
+// token ya expiró, bootApp() lo detecta por su cuenta (ver el catch de arriba) y vuelve a
+// mostrar el login.
+(function restaurarSesionAlCargar() {
+  const s = leerSesionLocal();
+  if (s && s.token) {
+    state.token = s.token; state.nombre = s.nombre; state.rol = s.rol;
+    bootApp();
+  }
+})();
+
+// Cierre automático por inactividad (60 min sin click/tecleo/touch/scroll) — ver
+// INACTIVIDAD_LIMITE_MS arriba. Cualquier interacción reinicia el contador; el chequeo corre
+// cada 30s, que sobra de margen para una ventana de 60 minutos.
+['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(ev =>
+  document.addEventListener(ev, () => { ultimaActividad = Date.now(); }, { passive: true })
+);
+setInterval(() => {
+  if (!state.token) return; // no hay sesión activa, nada que cerrar
+  if (Date.now() - ultimaActividad >= INACTIVIDAD_LIMITE_MS) {
+    logout('Tu sesión se cerró por inactividad (60 min). Vuelve a iniciar sesión.');
+  }
+}, 30000);
+
+// Cierra cualquier menú "Opciones" abierto de Cuentas × Pagar al hacer clic en cualquier otra
+// parte de la página (el propio botón ⋮ detiene la propagación, ver toggleMenuCxp).
+document.addEventListener('click', cerrarMenusCxp);
+
+</script>
+</body>
+</html>
