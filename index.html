@@ -213,6 +213,12 @@
   .pegarCampo:empty:before{content:attr(data-ph);}
   .pegarCampo:focus{border-color:var(--brand);}
 
+  /* v7.3: Auditoría — bloque colapsable de movimientos anteriores */
+  .audNota{font-size:12.5px;color:rgba(255,255,255,.82);margin:0 0 10px;}
+  .audAnteriores{margin-top:16px;}
+  .audAnteriores > summary{cursor:pointer;font-weight:700;font-size:13px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;list-style:revert;}
+  .audAnteriores[open] > summary{margin-bottom:10px;}
+
   /* Detalle de captura (modal): resumen condensado + imagen en dos columnas.
      v6.9: la miniatura crece (220x170 -> 300x230) y pasa de object-fit:cover a contain, para que
      un documento horizontal (cotización, factura apaisada) se vea completo y más grande en vez de
@@ -299,7 +305,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v7.2 · Datos seguros en Supabase</p>
+      <p class="footNote">v7.3 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -373,6 +379,7 @@ const state = {
   sortCuentas:     { col: null, dir: 'asc' },
   sortUsuarios:    { col: null, dir: 'asc' },
   sortAuditoria:   { col: null, dir: 'asc' },
+  auditoriaAbierto: false,
   sortRecurrentes: { col: null, dir: 'asc' },
   // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
   // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
@@ -2723,6 +2730,11 @@ function renderAuditoria() {
   renderAuditoriaTable();
 }
 
+// v7.3: se muestran los movimientos de los últimos AUDITORIA_DIAS días (hasta AUDITORIA_MAX_VISIBLES);
+// el resto queda en un bloque colapsable "Movimientos anteriores".
+const AUDITORIA_DIAS = 7;
+const AUDITORIA_MAX_VISIBLES = 300;
+
 function renderAuditoriaTable() {
   const wrap = document.getElementById('auditoriaTableWrap');
   const getters = {
@@ -2733,17 +2745,25 @@ function renderAuditoriaTable() {
     entidad: l => l.entidad || '',
     detalle: l => l.detalle || ''
   };
-  const lista = state.sortAuditoria.col ? sortRows(state.log, state.sortAuditoria, getters) : state.log;
-  wrap.innerHTML = `<div class="tableWrap"><table>
-      <thead><tr>
+  const todos = state.log || [];
+  const corte = Date.now() - AUDITORIA_DIAS * 86400000;
+  const enVentana = todos.filter(l => new Date(l.fecha).getTime() >= corte);
+  let recientes = enVentana.slice(0, AUDITORIA_MAX_VISIBLES);
+  const excedente = enVentana.slice(AUDITORIA_MAX_VISIBLES);
+  const anteriores = excedente.concat(todos.filter(l => !(new Date(l.fecha).getTime() >= corte)));
+  const ordenar = lista => state.sortAuditoria.col ? sortRows(lista, state.sortAuditoria, getters) : lista;
+  recientes = ordenar(recientes);
+  const antiguos = ordenar(anteriores);
+
+  const thead = `<thead><tr>
         ${sortTh('Fecha','fecha','sortAuditoria','renderAuditoriaTable')}
         ${sortTh('Usuario','usuario_nombre','sortAuditoria','renderAuditoriaTable')}
         ${sortTh('Rol','rol','sortAuditoria','renderAuditoriaTable')}
         ${sortTh('Acción','accion','sortAuditoria','renderAuditoriaTable')}
         ${sortTh('Entidad','entidad','sortAuditoria','renderAuditoriaTable')}
         ${sortTh('Detalle','detalle','sortAuditoria','renderAuditoriaTable')}
-      </tr></thead>
-      <tbody>${lista.map(l => `
+      </tr></thead>`;
+  const fila = l => `
         <tr>
           <td>${new Date(l.fecha).toLocaleString('es-MX')}</td>
           <td>${esc(l.usuario_nombre)}</td>
@@ -2751,9 +2771,24 @@ function renderAuditoriaTable() {
           <td>${esc(l.accion)}</td>
           <td>${esc(l.entidad)}${l.entidad_id ? ' · ' + esc(l.entidad_id) : ''}</td>
           <td>${esc(l.detalle||'')}</td>
-        </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin movimientos registrados todavía.</td></tr>`}
-      </tbody>
-    </table></div>`;
+        </tr>`;
+  const tabla = (lista, vacio) => `<div class="tableWrap"><table>${thead}<tbody>${lista.map(fila).join('') || `<tr><td colspan="6" class="emptyState">${vacio}</td></tr>`}</tbody></table></div>`;
+
+  let nota;
+  const topeSistema = todos.length >= 500 ? ' El sistema muestra como máximo los 500 movimientos más recientes.' : '';
+  if (!todos.length) nota = '';
+  else if (excedente.length) nota = `Mostrando los ${recientes.length} movimientos más recientes de los últimos ${AUDITORIA_DIAS} días (hay ${enVentana.length}). El resto está en «Movimientos anteriores».${topeSistema}`;
+  else nota = `Mostrando los últimos ${AUDITORIA_DIAS} días (${recientes.length} movimientos). Lo anterior está en «Movimientos anteriores».${topeSistema}`;
+
+  wrap.innerHTML =
+    (nota ? `<p class="audNota">${nota}</p>` : '') +
+    tabla(recientes, todos.length ? `Sin movimientos en los últimos ${AUDITORIA_DIAS} días.` : 'Sin movimientos registrados todavía.') +
+    (antiguos.length
+      ? `<details class="audAnteriores" id="audAnteriores"${state.auditoriaAbierto ? ' open' : ''} ontoggle="state.auditoriaAbierto=this.open">
+           <summary>Movimientos anteriores (${antiguos.length})</summary>
+           ${tabla(antiguos, '')}
+         </details>`
+      : '');
 }
 
 /* ---------------- Vista: Exportar ---------------- */
