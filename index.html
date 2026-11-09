@@ -197,11 +197,21 @@
   .quitarBtn{background:none;border:none;color:var(--critical);font-size:11.5px;font-weight:700;cursor:pointer;padding:4px;flex:0 0 auto;}
   .clipIcon{display:inline-flex;color:var(--brand);flex:0 0 auto;}
   .clipIcon svg{width:14px;height:14px;}
-  .avisoMovil{display:none;border:1px solid var(--warning);background:var(--warning-bg);border-radius:10px;padding:12px;gap:9px;align-items:flex-start;}
-  .avisoMovil svg{width:17px;height:17px;color:var(--warning);flex:0 0 auto;margin-top:1px;}
-  .avisoMovil .t1{font-weight:700;font-size:12.5px;color:var(--ink);margin-bottom:2px;}
-  .avisoMovil .t2{font-size:11.5px;color:var(--ink-2);line-height:1.4;}
-  .verAdjuntoMovilBtn{display:inline-block;margin-top:7px;background:none;border:none;padding:0;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline;}
+
+
+  /* v7.2: subida de adjuntos en celular/tablet (pantalla táctil o <=640px). En PC sigue la caja
+     de "Clic y pega con Ctrl+V". En táctil el recuadro vacío muestra botones: Pegar imagen
+     (clipboard.read), Fotos/cámara (selector de archivo) y un campo editable de respaldo donde
+     se mantiene presionado y se elige "Pegar". */
+  .subidaBox.movil{flex-direction:column;align-items:stretch;gap:10px;cursor:default;}
+  .movilAcciones{display:flex;flex-direction:column;gap:10px;width:100%;}
+  .movilAcciones .t1{font-weight:700;font-size:12.5px;color:var(--ink);}
+  .movilAcciones .t2{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .movilBtns{display:flex;gap:8px;flex-wrap:wrap;}
+  .movilBtns .btn{flex:1 1 140px;justify-content:center;padding:11px 12px;font-size:14px;}
+  .pegarCampo{border:1.5px dashed var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--muted);text-align:center;min-height:38px;background:var(--surface);outline:none;-webkit-user-select:text;user-select:text;}
+  .pegarCampo:empty:before{content:attr(data-ph);}
+  .pegarCampo:focus{border-color:var(--brand);}
 
   /* Detalle de captura (modal): resumen condensado + imagen en dos columnas.
      v6.9: la miniatura crece (220x170 -> 300x230) y pasa de object-fit:cover a contain, para que
@@ -269,8 +279,6 @@
     .dosColDetalle{grid-template-columns:1fr;}
     /* Adjuntar una imagen nueva no es cómodo en pantalla chica (ni pegar ni recortar) — se bloquea
        con un aviso; VER un adjunto ya subido sigue funcionando igual (botón dentro del aviso). */
-    .subidaBox{display:none;}
-    .avisoMovil{display:flex;}
   }
 </style>
 </head>
@@ -291,7 +299,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v7.1 · Datos seguros en Supabase</p>
+      <p class="footNote">v7.2 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -817,6 +825,29 @@ function comprimirImagen(file) {
   });
 }
 
+// v7.2: ¿pantalla táctil o angosta? En PC (puntero fino, >640px) se conserva la caja de Ctrl+V;
+// en iPhone/iPad/Android se muestran botones (Pegar imagen / Fotos o cámara).
+function esModoTactilAdjunto() {
+  try { return window.matchMedia('(max-width:640px), (pointer:coarse)').matches; }
+  catch (e) { return false; }
+}
+
+// Contenido del recuadro cuando todavía no hay imagen (según PC o táctil).
+function htmlVacioAdjunto(fieldKey, placeholder) {
+  if (esModoTactilAdjunto()) {
+    return `<div class="movilAcciones">
+        <div><div class="t1">Pega o elige una imagen</div><div class="t2">${esc(placeholder)}</div></div>
+        <div class="movilBtns">
+          <button type="button" class="btn btn-primary btn-sm" onclick="pegarDesdePortapapeles(event,'${fieldKey}')">📋 Pegar imagen</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="elegirArchivoAdjunto(event,'${fieldKey}')">🖼️ Fotos / cámara</button>
+        </div>
+        <div class="pegarCampo" id="pc_${fieldKey}" contenteditable="true" inputmode="none" role="textbox" aria-label="Campo para pegar imagen"
+             data-ph="…o mantén presionado aquí y elige Pegar" oninput="this.innerHTML=''"></div>
+      </div>`;
+  }
+  return `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Clic y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
+}
+
 // Arma el campo de "Adjuntar" para insertar en un formGrid — reinicia state.adjuntos[fieldKey].
 // opts: { titulo, esPrincipal, placeholder, urlExistente }
 function htmlCampoAdjunto(fieldKey, opts) {
@@ -828,12 +859,12 @@ function htmlCampoAdjunto(fieldKey, opts) {
     ? `<img class="thumbChico" src="${esc(urlExistente)}">
        <div class="infoArchivo"><div class="nombre">Ya hay uno adjunto</div><div class="meta">Clic para reemplazar</div></div>
        <button type="button" class="quitarBtn" onclick="quitarAdjunto(event,'${fieldKey}')">Quitar</button>`
-    : `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Clic y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
-  const avisoVerBtn = urlExistente ? `<button type="button" class="verAdjuntoMovilBtn" onclick="abrirLightbox('${esc(urlExistente)}')">Ver lo ya adjuntado</button>` : '';
+    : htmlVacioAdjunto(fieldKey, placeholder);
+  const claseMovil = (!urlExistente && esModoTactilAdjunto()) ? ' movil' : '';
   return `
     <div class="field full">
       <label>${esc(titulo)} ${tag}</label>
-      <div class="subidaBox ${claseBox}${urlExistente ? ' conArchivo' : ''}" id="dz_${fieldKey}" tabindex="0"
+      <div class="subidaBox ${claseBox}${urlExistente ? ' conArchivo' : ''}${claseMovil}" id="dz_${fieldKey}" tabindex="0"
            data-placeholder="${esc(placeholder)}"
            onclick="clicAdjunto(event,'${fieldKey}')"
            onpaste="pegarAdjunto(event,'${fieldKey}')"
@@ -841,14 +872,49 @@ function htmlCampoAdjunto(fieldKey, opts) {
            ondragleave="this.classList.remove('dragover')"
            ondrop="soltarAdjunto(event,'${fieldKey}')">${contenidoInicial}</div>
       <input type="file" id="fi_${fieldKey}" accept="image/png,image/jpeg" style="display:none" onchange="archivoElegidoAdjunto('${fieldKey}')">
-      <div class="avisoMovil">${SVG_ALERTA}<div><div class="t1">Adjuntar aquí no está disponible en celular</div><div class="t2">Usa una computadora o tablet para subir la imagen.${avisoVerBtn}</div></div></div>
     </div>
   `;
 }
 
 function clicAdjunto(ev, fieldKey) {
   if (ev.target.closest('.quitarBtn')) return; // el botón "Quitar" maneja su propio click
+  if (ev.target.closest('.movilAcciones')) return; // v7.2: los botones y el campo de pegado táctil manejan lo suyo
   document.getElementById('fi_' + fieldKey).click();
+}
+
+// v7.2: botón "Fotos / cámara" — abre el selector de archivo (en iOS ofrece Fototeca, Tomar foto o Archivos).
+function elegirArchivoAdjunto(ev, fieldKey) {
+  ev.stopPropagation();
+  document.getElementById('fi_' + fieldKey).click();
+}
+
+// v7.2: botón "Pegar imagen" — lee el portapapeles al tocar (en Safari de iOS aparece el globito "Pegar").
+// Si el navegador no lo permite o no hay imagen, avisa y deja el campo de respaldo (mantener presionado → Pegar).
+async function pegarDesdePortapapeles(ev, fieldKey) {
+  ev.stopPropagation();
+  const respaldo = () => { const pc = document.getElementById('pc_' + fieldKey); if (pc) pc.focus(); };
+  if (!navigator.clipboard || !navigator.clipboard.read) {
+    toast('Este navegador no deja pegar con botón. Mantén presionado el recuadro de abajo y elige Pegar.', 'warning');
+    respaldo();
+    return;
+  }
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const tipo = item.types.find(t => t.indexOf('image/') === 0);
+      if (tipo) {
+        const blob = await item.getType(tipo);
+        const ext = (tipo.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        const file = new File([blob], 'imagen-pegada.' + ext, { type: tipo });
+        await procesarArchivoAdjunto(fieldKey, file, 'Pegada con el botón');
+        return;
+      }
+    }
+    toast('No hay una imagen copiada. Cópiala primero (en WhatsApp: mantén presionada la imagen → Copiar).', 'warning');
+  } catch (err) {
+    toast('No se pudo leer el portapapeles. Mantén presionado el recuadro de abajo y elige Pegar.', 'warning');
+    respaldo();
+  }
 }
 
 async function archivoElegidoAdjunto(fieldKey) {
@@ -881,7 +947,7 @@ async function soltarAdjunto(ev, fieldKey) {
 async function procesarArchivoAdjunto(fieldKey, file, origen) {
   const dz = document.getElementById('dz_' + fieldKey);
   if (!dz) return;
-  if (!/^image\/(png|jpe?g)$/.test(file.type)) { toast('Solo se aceptan imágenes JPG o PNG.', 'error'); return; }
+  if (!/^image\/(png|jpe?g|heic|heif|webp)$/i.test(file.type)) { toast('Solo se aceptan imágenes (JPG, PNG, HEIC o WEBP).', 'error'); return; }
   const placeholder = dz.dataset.placeholder || '';
   try {
     dz.innerHTML = `<div class="subidaTxt"><div class="t1">Comprimiendo…</div></div>`;
@@ -890,6 +956,7 @@ async function procesarArchivoAdjunto(fieldKey, file, origen) {
     state.adjuntos[fieldKey] = { b64: comp.b64, mime: comp.mime, clear: false, existente };
     const url = 'data:' + comp.mime + ';base64,' + comp.b64;
     dz.classList.add('conArchivo');
+    dz.classList.remove('movil');
     dz.innerHTML = `
       <img class="thumbChico" src="${url}">
       <div class="infoArchivo"><div class="nombre">${esc(file.name)}</div><div class="meta">${formatoKB(file.size)} → ${formatoKB(comp.pesoFinal)} · ${esc(origen)}</div></div>
@@ -913,7 +980,8 @@ function renderVacioAdjunto(fieldKey, placeholder) {
   const dz = document.getElementById('dz_' + fieldKey);
   if (!dz) return;
   dz.classList.remove('conArchivo');
-  dz.innerHTML = `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Clic y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
+  dz.classList.toggle('movil', esModoTactilAdjunto());
+  dz.innerHTML = htmlVacioAdjunto(fieldKey, placeholder);
 }
 
 // Arma los campos *_b64/*_mime/*_clear a agregar al record antes de api('save', ...) — si no hay
