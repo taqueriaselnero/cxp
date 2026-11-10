@@ -220,6 +220,13 @@
   .repSeccion small{font-weight:400;opacity:.8;}
   .viewTitle .actions.repNoPrint .btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--border-gold);}
   .viewTitle .actions.repNoPrint .btn-ghost:hover{background:var(--brand-light);}
+  .repDet{margin-top:14px;}
+  .repDet > summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border-gold);border-radius:12px;padding:12px 14px;font-weight:700;font-size:14px;list-style:none;}
+  .repDet > summary::-webkit-details-marker{display:none;}
+  .repDet > summary .chev{display:inline-block;transition:transform .15s;font-size:10px;margin-right:8px;}
+  .repDet[open] > summary .chev{transform:rotate(90deg);}
+  .repDet > summary .repSumTot{font-weight:600;font-size:12.5px;color:var(--ink-2);}
+  .repDet[open] > summary{margin-bottom:8px;}
   tr.repFilaClick{cursor:pointer;}
   tr.repFilaClick:hover td{background:var(--brand-light);}
   .repProvLink{font-weight:700;color:var(--brand);}
@@ -333,7 +340,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v7.4 · Datos seguros en Supabase</p>
+      <p class="footNote">v7.5 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -413,6 +420,7 @@ const state = {
   sortRepResumen: { col: null, dir: 'asc' },
   sortRepGastos:  { col: null, dir: 'asc' },
   sortRepPagos:   { col: null, dir: 'asc' },
+  repAbiertos:    { gastos: false, pagos: false },
   sortRecurrentes: { col: null, dir: 'asc' },
   // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
   // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
@@ -2854,6 +2862,11 @@ function repRango(id) {
 
 function repSetProveedor(id) { state.filtrosRepProv.proveedor = id || ''; renderReporteProv(); window.scrollTo(0, 0); }
 function repAbrirProveedor(id) { state.filtrosRepProv.proveedor = String(id); setView('repprov'); }
+function repLimpiar() {
+  state.filtrosRepProv = { proveedor:'', periodo:'todo', desde:'', hasta:'' };
+  state.sortRepGastos = { col: null, dir: 'asc' }; state.sortRepPagos = { col: null, dir: 'asc' };
+  renderReporteProv(); window.scrollTo(0, 0);
+}
 function repSetPeriodo(id) {
   const f = state.filtrosRepProv;
   f.periodo = id;
@@ -2958,6 +2971,7 @@ function renderReporteProv() {
       </select></div>
       <div class="f"><label>Desde</label><input type="date" value="${esc(f.desde)}" onchange="repSetFecha('desde', this.value)"></div>
       <div class="f"><label>Hasta</label><input type="date" value="${esc(f.hasta)}" onchange="repSetFecha('hasta', this.value)"></div>
+      <div class="f"><button type="button" class="btn btn-ghost btn-sm" style="padding:8px 14px" onclick="repLimpiar()" title="Quitar proveedor y periodo">Limpiar</button></div>
     </div>
     <div id="repProvWrap"></div>
   `;
@@ -3040,7 +3054,8 @@ function renderReporteProvBody() {
       <div class="kpi alert"><div class="label">De ese saldo, vencido</div><div class="value">${money(r.vencido)}</div></div>
     </div>
 
-    <div class="repSeccion"><span>Gastos registrados <small>(${gastos.length})</small></span></div>
+    <details class="repDet" ${state.repAbiertos.gastos ? 'open' : ''} ontoggle="state.repAbiertos.gastos=this.open">
+    <summary><span><span class="chev">▶</span>Gastos registrados (${gastos.length})</span><span class="repSumTot">Total ${money(totG.monto)} · Saldo ${money(totG.saldo)}</span></summary>
     <div class="tableWrap"><table>
       <thead><tr>
         ${sortTh('Fecha factura','fecha','sortRepGastos','renderReporteProvBody')}
@@ -3066,8 +3081,10 @@ function renderReporteProvBody() {
       </tbody>
     </table></div>
     <p class="repNota">«Pagado» y «Saldo» de cada gasto consideran todos sus pagos, aunque se hayan hecho fuera del periodo.</p>
+    </details>
 
-    <div class="repSeccion"><span>Pagos realizados <small>(${pagos.length})</small></span></div>
+    <details class="repDet" ${state.repAbiertos.pagos ? 'open' : ''} ontoggle="state.repAbiertos.pagos=this.open">
+    <summary><span><span class="chev">▶</span>Pagos realizados (${pagos.length})</span><span class="repSumTot">Total ${money(totP)}</span></summary>
     <div class="tableWrap"><table>
       <thead><tr>
         ${sortTh('Fecha de pago','fecha','sortRepPagos','renderReporteProvBody')}
@@ -3091,8 +3108,13 @@ function renderReporteProvBody() {
         ${pagos.length ? `<tr class="repTotal"><td colspan="2">Total</td><td class="num">${money(totP)}</td><td colspan="5"></td></tr>` : ''}
       </tbody>
     </table></div>
+    </details>
   `;
 }
+
+// Al imprimir / guardar PDF se abren todos los bloques y luego se regresan a como estaban.
+window.addEventListener('beforeprint', () => { document.querySelectorAll('details.repDet').forEach(d => { d.dataset.antes = d.open ? '1' : '0'; d.open = true; }); });
+window.addEventListener('afterprint', () => { document.querySelectorAll('details.repDet').forEach(d => { d.open = d.dataset.antes === '1'; }); });
 
 function exportarReporteProvCsv() {
   const f = state.filtrosRepProv;
