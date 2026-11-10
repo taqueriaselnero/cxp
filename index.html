@@ -213,6 +213,34 @@
   .pegarCampo:empty:before{content:attr(data-ph);}
   .pegarCampo:focus{border-color:var(--brand);}
 
+  /* v7.4: Reporte por proveedor */
+  .repSub{font-size:12.5px;color:rgba(255,255,255,.82);margin:0 0 12px;}
+  .repNota{font-size:12px;color:rgba(255,255,255,.72);margin:8px 0 0;}
+  .repSeccion{font-size:14px;font-weight:700;color:var(--bg-ink);margin:18px 0 8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .repSeccion small{font-weight:400;opacity:.8;}
+  .viewTitle .actions.repNoPrint .btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--border-gold);}
+  .viewTitle .actions.repNoPrint .btn-ghost:hover{background:var(--brand-light);}
+  tr.repFilaClick{cursor:pointer;}
+  tr.repFilaClick:hover td{background:var(--brand-light);}
+  .repProvLink{font-weight:700;color:var(--brand);}
+  tr.repTotal td{font-weight:700;background:#fafaf9;}
+  .repLinkBtn{background:none;border:none;padding:0;color:var(--brand);font-weight:600;font-size:inherit;text-align:left;cursor:pointer;}
+  .repLinkBtn:hover{text-decoration:underline;}
+  @media print{
+    body{background:#fff !important;color:#000 !important;}
+    .topbar,.tabs,.repNoPrint,#toastContainer,#loadingOverlay{display:none !important;}
+    main{padding:0 !important;max-width:none !important;}
+    .viewTitle,.repSeccion{color:#000 !important;}
+    .repSub,.repNota{color:#333 !important;}
+    .tableWrap,.kpi{border:1px solid #999 !important;box-shadow:none !important;}
+    .tableWrap{overflow:visible !important;}
+    thead{display:table-header-group;}
+    tr{break-inside:avoid;}
+    .kpi{break-inside:avoid;}
+    .repFilaClick{cursor:default;}
+    .sortArrow{display:none !important;}
+  }
+
   /* v7.3: Auditoría — bloque colapsable de movimientos anteriores */
   .audNota{font-size:12.5px;color:rgba(255,255,255,.82);margin:0 0 10px;}
   .audAnteriores{margin-top:16px;}
@@ -305,7 +333,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v7.3 · Datos seguros en Supabase</p>
+      <p class="footNote">v7.4 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -380,6 +408,11 @@ const state = {
   sortUsuarios:    { col: null, dir: 'asc' },
   sortAuditoria:   { col: null, dir: 'asc' },
   auditoriaAbierto: false,
+  // v7.4: Reporte por proveedor
+  filtrosRepProv: { proveedor:'', periodo:'todo', desde:'', hasta:'' },
+  sortRepResumen: { col: null, dir: 'asc' },
+  sortRepGastos:  { col: null, dir: 'asc' },
+  sortRepPagos:   { col: null, dir: 'asc' },
   sortRecurrentes: { col: null, dir: 'asc' },
   // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
   // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
@@ -1006,6 +1039,7 @@ const TABS = [
   { id:'dashboard',   label:'Dashboard',        roles:['admin','capturista','tesorero','viewer'] },
   { id:'cxp',         label:'Cuentas × Pagar',  roles:['admin','capturista','tesorero','viewer'] },
   { id:'proveedores', label:'Proveedores',      roles:['admin','capturista','tesorero','viewer'] },
+  { id:'repprov',     label:'Reporte × Proveedor', roles:['admin','capturista','tesorero','viewer'] },
   { id:'pagos',       label:'Pagos Realizados', roles:['admin','capturista','tesorero','viewer'] },
   { id:'recurrentes', label:'Gastos Recurrentes', roles:['admin','capturista','tesorero','viewer'] },
   { id:'aging',       label:'Antigüedad',       roles:['admin','capturista','tesorero','viewer'] },
@@ -1034,6 +1068,7 @@ async function setView(view) {
     if (view === 'dashboard')   renderDashboard();
     else if (view === 'cxp')    renderCxp();
     else if (view === 'proveedores') renderProveedores();
+    else if (view === 'repprov') renderReporteProv();
     else if (view === 'pagos')  renderPagos();
     else if (view === 'recurrentes') renderRecurrentes();
     else if (view === 'aging')  renderAging();
@@ -2390,6 +2425,7 @@ function renderProveedoresTable() {
           <td>${esc(principal?.banco || '—')}</td>
           <td style="font-variant-numeric:tabular-nums">${esc(principal?.clabe || '—')}${extra}</td>
           <td><div class="rowActions">
+            <button class="btn btn-ghost btn-sm" onclick="repAbrirProveedor('${p.id}')">Reporte</button>
             <button class="btn btn-ghost btn-sm" onclick="verCuentasProveedor('${p.id}')">Ver cuentas</button>
             ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
             ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor (y sus CxP/pagos)')">Eliminar</button>` : ''}
@@ -2789,6 +2825,298 @@ function renderAuditoriaTable() {
            ${tabla(antiguos, '')}
          </details>`
       : '');
+}
+
+/* ---------------- Vista: Reporte × Proveedor (v7.4) ---------------- */
+// Sin proveedor elegido: resumen de todos (registrado, pagado, saldo). Con proveedor: sus gastos
+// registrados (CxP) y los pagos que se le han hecho. El periodo filtra los gastos por FECHA DE
+// FACTURA y los pagos por FECHA DE PAGO; "Pagado" y "Saldo" de cada gasto, y el saldo pendiente
+// de las tarjetas, siempre consideran todo el historial (no dependen del periodo).
+
+const REP_PERIODOS = [
+  { id:'todo',   label:'Todo el historial' },
+  { id:'mes',    label:'Este mes' },
+  { id:'mesant', label:'Mes pasado' },
+  { id:'90',     label:'Últimos 90 días' },
+  { id:'anio',   label:'Este año' },
+  { id:'custom', label:'Personalizado' }
+];
+
+function repRango(id) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const y = hoy.getFullYear(), m = hoy.getMonth();
+  if (id === 'mes')    return { desde: formatYMD(new Date(y, m, 1)),     hasta: formatYMD(new Date(y, m + 1, 0)) };
+  if (id === 'mesant') return { desde: formatYMD(new Date(y, m - 1, 1)), hasta: formatYMD(new Date(y, m, 0)) };
+  if (id === '90')     { const d = new Date(hoy); d.setDate(d.getDate() - 89); return { desde: formatYMD(d), hasta: formatYMD(hoy) }; }
+  if (id === 'anio')   return { desde: y + '-01-01', hasta: y + '-12-31' };
+  return { desde: '', hasta: '' };
+}
+
+function repSetProveedor(id) { state.filtrosRepProv.proveedor = id || ''; renderReporteProv(); window.scrollTo(0, 0); }
+function repAbrirProveedor(id) { state.filtrosRepProv.proveedor = String(id); setView('repprov'); }
+function repSetPeriodo(id) {
+  const f = state.filtrosRepProv;
+  f.periodo = id;
+  if (id !== 'custom') { const r = repRango(id); f.desde = r.desde; f.hasta = r.hasta; }
+  renderReporteProv();
+}
+function repSetFecha(campo, v) {
+  const f = state.filtrosRepProv;
+  f[campo] = fechaInputValida(v);
+  f.periodo = (f.desde || f.hasta) ? 'custom' : 'todo';
+  renderReporteProv();
+}
+
+function repTextoPeriodo() {
+  const f = state.filtrosRepProv;
+  if (!f.desde && !f.hasta) return 'todo el historial';
+  if (f.desde && f.hasta) return 'del ' + fmtFecha(f.desde) + ' al ' + fmtFecha(f.hasta);
+  return f.desde ? 'desde el ' + fmtFecha(f.desde) : 'hasta el ' + fmtFecha(f.hasta);
+}
+
+function repEnRango(fecha) {
+  const f = state.filtrosRepProv;
+  if (!f.desde && !f.hasta) return true;
+  const x = String(fecha || '').slice(0, 10);
+  if (!x) return false;
+  return (!f.desde || x >= f.desde) && (!f.hasta || x <= f.hasta);
+}
+
+// Acumula por proveedor (resumen) y deja a mano los gastos/pagos del periodo.
+function repCalcular() {
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const cxpPorId = new Map(state.cxp.map(c => [String(c.id), c]));
+  const acum = new Map();
+  const get = id => {
+    const k = String(id);
+    if (!acum.has(k)) acum.set(k, { id:k, nombre: proveedorNombre(id), nGastos:0, registrado:0, nPagos:0, pagado:0, pendValidar:0, saldo:0, vencido:0, nAbiertas:0, ultimoPago:'' });
+    return acum.get(k);
+  };
+  state.cxp.forEach(c => {
+    const r = get(c.proveedor_id);
+    const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+    if (saldo > 0.01) {
+      r.saldo += saldo; r.nAbiertas++;
+      if (estadoCxp(c, saldo) === 'vencida') r.vencido += saldo;
+    }
+    if (repEnRango(c.fecha_factura || c.fecha_vencimiento)) { r.nGastos++; r.registrado += Number(c.monto) || 0; }
+  });
+  state.pagos.forEach(p => {
+    const c = cxpPorId.get(String(p.cxp_id));
+    if (!c) return;
+    const r = get(c.proveedor_id);
+    const fp = String(p.fecha || '').slice(0, 10);
+    if (fp > r.ultimoPago) r.ultimoPago = fp;
+    if (repEnRango(p.fecha)) {
+      r.nPagos++; r.pagado += Number(p.monto) || 0;
+      if (p.estado === 'pendiente_validacion') r.pendValidar++;
+    }
+  });
+  return { acum, pagosPorCxp, cxpPorId };
+}
+
+function repGastosDe(provId, pagosPorCxp) {
+  return state.cxp.filter(c => String(c.proveedor_id) === String(provId) && repEnRango(c.fecha_factura || c.fecha_vencimiento)).map(c => {
+    const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+    return { c, fecha: String(c.fecha_factura || c.fecha_vencimiento || '').slice(0, 10), concepto: c.concepto || '(sin concepto)',
+             sucursal: c.sucursal || '', folio: c.folio || '', monto: Number(c.monto) || 0,
+             pagado: (Number(c.monto) || 0) - saldo, saldo, est: estadoCxp(c, saldo) };
+  });
+}
+
+function repPagosDe(provId, cxpPorId) {
+  const out = [];
+  state.pagos.forEach(p => {
+    const c = cxpPorId.get(String(p.cxp_id));
+    if (!c || String(c.proveedor_id) !== String(provId) || !repEnRango(p.fecha)) return;
+    out.push({ p, c, fecha: String(p.fecha || '').slice(0, 10), concepto: c.concepto || '(sin concepto)', monto: Number(p.monto) || 0,
+               pagar_desde: p.pagar_desde || p.banco_origen || '', referencia: p.referencia || '', capturado_por: p.capturado_por || '',
+               pendiente: p.estado === 'pendiente_validacion' });
+  });
+  return out;
+}
+
+function renderReporteProv() {
+  const f = state.filtrosRepProv;
+  if (f.proveedor && !state.proveedores.some(p => String(p.id) === String(f.proveedor))) f.proveedor = '';
+  const provs = [...state.proveedores].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Reporte × Proveedor</span>
+      <div class="actions repNoPrint">
+        <button class="btn btn-ghost btn-sm" onclick="exportarReporteProvCsv()">Descargar CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </div>
+    <div class="filters repNoPrint">
+      <div class="f fGrow"><label>Proveedor</label><select onchange="repSetProveedor(this.value)">
+        <option value="">Todos (resumen)</option>
+        ${provs.map(p => `<option value="${esc(p.id)}" ${String(p.id) === String(f.proveedor) ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Periodo</label><select onchange="repSetPeriodo(this.value)">
+        ${REP_PERIODOS.map(o => `<option value="${o.id}" ${o.id === f.periodo ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Desde</label><input type="date" value="${esc(f.desde)}" onchange="repSetFecha('desde', this.value)"></div>
+      <div class="f"><label>Hasta</label><input type="date" value="${esc(f.hasta)}" onchange="repSetFecha('hasta', this.value)"></div>
+    </div>
+    <div id="repProvWrap"></div>
+  `;
+  renderReporteProvBody();
+}
+
+function renderReporteProvBody() {
+  const f = state.filtrosRepProv;
+  const wrap = document.getElementById('repProvWrap');
+  const { acum, pagosPorCxp, cxpPorId } = repCalcular();
+  const generado = new Date().toLocaleString('es-MX');
+  const pie = `Generado el ${generado} por ${esc(state.nombre || '')}.`;
+
+  /* ---- Resumen de todos los proveedores ---- */
+  if (!f.proveedor) {
+    let filas = [...acum.values()].filter(r => r.nGastos || r.nPagos || r.saldo > 0.01);
+    const getters = {
+      nombre: r => r.nombre, nGastos: r => r.nGastos, registrado: r => r.registrado, nPagos: r => r.nPagos,
+      pagado: r => r.pagado, saldo: r => r.saldo, ultimoPago: r => r.ultimoPago
+    };
+    filas = state.sortRepResumen.col
+      ? sortRows(filas, state.sortRepResumen, getters)
+      : filas.sort((a, b) => (b.registrado - a.registrado) || (b.pagado - a.pagado) || a.nombre.localeCompare(b.nombre, 'es'));
+    const tot = filas.reduce((t, r) => ({ nGastos: t.nGastos + r.nGastos, registrado: t.registrado + r.registrado, nPagos: t.nPagos + r.nPagos, pagado: t.pagado + r.pagado, saldo: t.saldo + r.saldo, vencido: t.vencido + r.vencido }),
+      { nGastos:0, registrado:0, nPagos:0, pagado:0, saldo:0, vencido:0 });
+    wrap.innerHTML = `
+      <p class="repSub">Resumen de todos los proveedores · Periodo: ${repTextoPeriodo()} · ${pie}</p>
+      <div class="kpis">
+        <div class="kpi"><div class="label">Registrado en el periodo</div><div class="value">${money(tot.registrado)}</div><div class="label" style="margin:4px 0 0">${tot.nGastos} gasto${tot.nGastos === 1 ? '' : 's'}</div></div>
+        <div class="kpi"><div class="label">Pagado en el periodo</div><div class="value">${money(tot.pagado)}</div><div class="label" style="margin:4px 0 0">${tot.nPagos} pago${tot.nPagos === 1 ? '' : 's'}</div></div>
+        <div class="kpi warn"><div class="label">Saldo pendiente hoy</div><div class="value">${money(tot.saldo)}</div></div>
+        <div class="kpi alert"><div class="label">De ese saldo, vencido</div><div class="value">${money(tot.vencido)}</div></div>
+      </div>
+      <div class="tableWrap"><table>
+        <thead><tr>
+          ${sortTh('Proveedor','nombre','sortRepResumen','renderReporteProvBody')}
+          ${sortTh('Gastos','nGastos','sortRepResumen','renderReporteProvBody')}
+          ${sortTh('Registrado','registrado','sortRepResumen','renderReporteProvBody')}
+          ${sortTh('Pagos','nPagos','sortRepResumen','renderReporteProvBody')}
+          ${sortTh('Pagado','pagado','sortRepResumen','renderReporteProvBody')}
+          ${sortTh('Saldo hoy','saldo','sortRepResumen','renderReporteProvBody')}
+          ${sortTh('Último pago','ultimoPago','sortRepResumen','renderReporteProvBody')}
+        </tr></thead>
+        <tbody>${filas.map(r => `<tr class="repFilaClick" onclick="repSetProveedor('${esc(r.id)}')">
+            <td><span class="repProvLink">${esc(r.nombre)}</span></td>
+            <td class="num">${r.nGastos}</td>
+            <td class="num">${money(r.registrado)}</td>
+            <td class="num">${r.nPagos}</td>
+            <td class="num">${money(r.pagado)}</td>
+            <td class="num" style="${r.saldo > 0.01 ? 'font-weight:700' : ''}">${money(r.saldo > 0.01 ? r.saldo : 0)}</td>
+            <td>${r.ultimoPago ? fmtFecha(r.ultimoPago) : '—'}</td>
+          </tr>`).join('') || `<tr><td colspan="7" class="emptyState">Sin movimientos en este periodo.</td></tr>`}
+          ${filas.length ? `<tr class="repTotal"><td>Total</td><td class="num">${tot.nGastos}</td><td class="num">${money(tot.registrado)}</td><td class="num">${tot.nPagos}</td><td class="num">${money(tot.pagado)}</td><td class="num">${money(tot.saldo)}</td><td></td></tr>` : ''}
+        </tbody>
+      </table></div>
+      <p class="repNota repNoPrint">Toca un proveedor para ver el detalle de sus gastos y pagos. «Saldo hoy» considera todo el historial, sin importar el periodo.</p>
+    `;
+    return;
+  }
+
+  /* ---- Detalle de un proveedor ---- */
+  const prov = state.proveedores.find(p => String(p.id) === String(f.proveedor)) || {};
+  const r = acum.get(String(f.proveedor)) || { nGastos:0, registrado:0, nPagos:0, pagado:0, pendValidar:0, saldo:0, vencido:0, nAbiertas:0 };
+  let gastos = repGastosDe(f.proveedor, pagosPorCxp);
+  let pagos = repPagosDe(f.proveedor, cxpPorId);
+  const gGet = { fecha: g => g.fecha, concepto: g => g.concepto, sucursal: g => g.sucursal, folio: g => g.folio, monto: g => g.monto, pagado: g => g.pagado, saldo: g => g.saldo, est: g => g.est };
+  const pGet = { fecha: x => x.fecha, concepto: x => x.concepto, monto: x => x.monto, pagar_desde: x => x.pagar_desde, referencia: x => x.referencia, capturado_por: x => x.capturado_por };
+  gastos = state.sortRepGastos.col ? sortRows(gastos, state.sortRepGastos, gGet) : gastos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+  pagos  = state.sortRepPagos.col  ? sortRows(pagos,  state.sortRepPagos,  pGet) : pagos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const totG = gastos.reduce((t, g) => ({ monto: t.monto + g.monto, pagado: t.pagado + g.pagado, saldo: t.saldo + Math.max(g.saldo, 0) }), { monto:0, pagado:0, saldo:0 });
+  const totP = pagos.reduce((t, x) => t + x.monto, 0);
+  const rfc = prov.rfc ? ' · RFC ' + esc(prov.rfc) : '';
+
+  wrap.innerHTML = `
+    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · Periodo: ${repTextoPeriodo()} · ${pie}</p>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Registrado en el periodo</div><div class="value">${money(r.registrado)}</div><div class="label" style="margin:4px 0 0">${r.nGastos} gasto${r.nGastos === 1 ? '' : 's'}</div></div>
+      <div class="kpi"><div class="label">Pagado en el periodo</div><div class="value">${money(r.pagado)}</div><div class="label" style="margin:4px 0 0">${r.nPagos} pago${r.nPagos === 1 ? '' : 's'}${r.pendValidar ? ' · ' + r.pendValidar + ' sin validar' : ''}</div></div>
+      <div class="kpi warn"><div class="label">Saldo pendiente hoy</div><div class="value">${money(r.saldo)}</div><div class="label" style="margin:4px 0 0">${r.nAbiertas} nota${r.nAbiertas === 1 ? '' : 's'} abierta${r.nAbiertas === 1 ? '' : 's'}</div></div>
+      <div class="kpi alert"><div class="label">De ese saldo, vencido</div><div class="value">${money(r.vencido)}</div></div>
+    </div>
+
+    <div class="repSeccion"><span>Gastos registrados <small>(${gastos.length})</small></span></div>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha factura','fecha','sortRepGastos','renderReporteProvBody')}
+        ${sortTh('Concepto','concepto','sortRepGastos','renderReporteProvBody')}
+        ${sortTh('Sucursal','sucursal','sortRepGastos','renderReporteProvBody')}
+        ${sortTh('Folio','folio','sortRepGastos','renderReporteProvBody')}
+        ${sortTh('Monto','monto','sortRepGastos','renderReporteProvBody')}
+        ${sortTh('Pagado','pagado','sortRepGastos','renderReporteProvBody')}
+        ${sortTh('Saldo','saldo','sortRepGastos','renderReporteProvBody')}
+        ${sortTh('Estado','est','sortRepGastos','renderReporteProvBody')}
+      </tr></thead>
+      <tbody>${gastos.map(g => `<tr>
+          <td>${fmtFecha(g.fecha)}</td>
+          <td><button type="button" class="repLinkBtn" onclick="verCapturaCxp('${esc(g.c.id)}','${esc(g.c.proveedor_id)}')" title="Ver detalle del gasto">${esc(g.concepto)}</button></td>
+          <td>${esc(g.sucursal || '—')}</td>
+          <td>${esc(g.folio || '—')}</td>
+          <td class="num">${money(g.monto)}</td>
+          <td class="num">${money(g.pagado)}</td>
+          <td class="num" style="${g.saldo > 0.01 ? 'font-weight:700' : ''}">${money(g.saldo > 0.01 ? g.saldo : 0)}</td>
+          <td>${badgeEstadoCxp(g.est)}</td>
+        </tr>`).join('') || `<tr><td colspan="8" class="emptyState">Sin gastos registrados en este periodo.</td></tr>`}
+        ${gastos.length ? `<tr class="repTotal"><td colspan="4">Total</td><td class="num">${money(totG.monto)}</td><td class="num">${money(totG.pagado)}</td><td class="num">${money(totG.saldo)}</td><td></td></tr>` : ''}
+      </tbody>
+    </table></div>
+    <p class="repNota">«Pagado» y «Saldo» de cada gasto consideran todos sus pagos, aunque se hayan hecho fuera del periodo.</p>
+
+    <div class="repSeccion"><span>Pagos realizados <small>(${pagos.length})</small></span></div>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha de pago','fecha','sortRepPagos','renderReporteProvBody')}
+        ${sortTh('Gasto pagado','concepto','sortRepPagos','renderReporteProvBody')}
+        ${sortTh('Monto','monto','sortRepPagos','renderReporteProvBody')}
+        ${sortTh('Pagó desde','pagar_desde','sortRepPagos','renderReporteProvBody')}
+        ${sortTh('Referencia','referencia','sortRepPagos','renderReporteProvBody')}
+        ${sortTh('Capturó','capturado_por','sortRepPagos','renderReporteProvBody')}
+        <th>Estado</th><th class="repNoPrint">Comprobante</th>
+      </tr></thead>
+      <tbody>${pagos.map(x => `<tr>
+          <td>${fmtFecha(x.fecha)}</td>
+          <td><button type="button" class="repLinkBtn" onclick="verCapturaCxp('${esc(x.c.id)}','${esc(x.c.proveedor_id)}')" title="Ver detalle del gasto">${esc(x.concepto)}</button></td>
+          <td class="num">${money(x.monto)}</td>
+          <td>${esc(x.pagar_desde || '—')}</td>
+          <td>${esc(x.referencia || '—')}</td>
+          <td>${esc(x.capturado_por || '—')}</td>
+          <td>${badgeEstadoPago(x.p)}</td>
+          <td class="repNoPrint">${x.p.adjunto_comprobante_url ? `<button type="button" class="verComprobanteBtn" onclick="abrirLightbox('${esc(x.p.adjunto_comprobante_url)}')">Ver</button>` : '—'}</td>
+        </tr>`).join('') || `<tr><td colspan="8" class="emptyState">Sin pagos en este periodo.</td></tr>`}
+        ${pagos.length ? `<tr class="repTotal"><td colspan="2">Total</td><td class="num">${money(totP)}</td><td colspan="5"></td></tr>` : ''}
+      </tbody>
+    </table></div>
+  `;
+}
+
+function exportarReporteProvCsv() {
+  const f = state.filtrosRepProv;
+  const hoy = formatYMD(new Date());
+  const { acum, pagosPorCxp, cxpPorId } = repCalcular();
+  if (!f.proveedor) {
+    const filas = [...acum.values()].filter(r => r.nGastos || r.nPagos || r.saldo > 0.01).sort((a, b) => b.registrado - a.registrado);
+    descargarCsv('reporte_proveedores_' + hoy + '.csv',
+      ['proveedor','periodo_desde','periodo_hasta','gastos_en_periodo','registrado','pagos_en_periodo','pagado','saldo_pendiente_hoy','vencido_hoy','ultimo_pago'],
+      filas.map(r => [r.nombre, f.desde, f.hasta, r.nGastos, r.registrado.toFixed(2), r.nPagos, r.pagado.toFixed(2), Math.max(r.saldo, 0).toFixed(2), r.vencido.toFixed(2), r.ultimoPago]));
+    return;
+  }
+  const prov = proveedorNombre(f.proveedor);
+  const etiquetaEstado = { liquidada:'Liquidada', vencida:'Vencida', proxima:'Por vencer', vigente:'Vigente' };
+  const mov = [];
+  repGastosDe(f.proveedor, pagosPorCxp).forEach(g => mov.push({ fecha: g.fecha, ord: 0,
+    fila: ['Gasto registrado', g.fecha, prov, g.concepto, g.sucursal, g.folio, g.monto.toFixed(2), '', Math.max(g.saldo, 0).toFixed(2), '', '', etiquetaEstado[g.est] || g.est, ''] }));
+  repPagosDe(f.proveedor, cxpPorId).forEach(x => mov.push({ fecha: x.fecha, ord: 1,
+    fila: ['Pago', x.fecha, prov, x.concepto, '', '', '', x.monto.toFixed(2), '', x.referencia, x.pagar_desde, x.pendiente ? 'Pendiente de validar' : 'Validado', x.capturado_por] }));
+  mov.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.ord - b.ord);
+  const slug = prov.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'proveedor';
+  descargarCsv('reporte_' + slug + '_' + hoy + '.csv',
+    ['tipo','fecha','proveedor','concepto','sucursal','folio','monto_registrado','monto_pagado','saldo_de_la_nota','referencia','pagado_desde','estado','capturo'],
+    mov.map(m => m.fila));
 }
 
 /* ---------------- Vista: Exportar ---------------- */
