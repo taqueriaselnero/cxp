@@ -235,7 +235,7 @@
   .repLinkBtn:hover{text-decoration:underline;}
   @media print{
     body{background:#fff !important;color:#000 !important;}
-    .topbar,.tabs,.repNoPrint,#toastContainer,#loadingOverlay{display:none !important;}
+    .topbar,.tabs,.navWrap,.subtabs,.searchBtn,.repNoPrint,#toastContainer,#loadingOverlay{display:none !important;}
     main{padding:0 !important;max-width:none !important;}
     .viewTitle,.repSeccion{color:#000 !important;}
     .repSub,.repNota{color:#333 !important;}
@@ -300,7 +300,7 @@
   .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .formGrid .full{grid-column:1 / -1;}
   /* v7.6: lo que se captura se ve en MAYÚSCULAS (y se guarda así). Lista = SEL_MAYUS en el script. */
-  #modalBox :is(#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia){text-transform:uppercase;}
+  #modalBox :is(#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia){text-transform:uppercase;}
 
   /* v7.6: aviso de fechas (Editar / Aceptar) encima del formulario abierto */
   #avisoOverlay{position:fixed;inset:0;background:rgba(11,11,11,.55);display:flex;align-items:center;justify-content:center;z-index:80;padding:16px;}
@@ -338,6 +338,43 @@
     /* Adjuntar una imagen nueva no es cómodo en pantalla chica (ni pegar ni recortar) — se bloquea
        con un aviso; VER un adjunto ya subido sigue funcionando igual (botón dentro del aviso). */
   }
+  /* ---- v8.0: 6 pestañas con sub-pestañas, buscador general, "Esta semana", flujo por mes ---- */
+  .navWrap{position:sticky;top:55px;z-index:19;background:var(--surface);}
+  .navWrap nav.tabs{position:static;}
+  nav.subtabs{display:flex;gap:6px;padding:8px 16px;background:var(--brand-light);border-bottom:1px solid var(--border);overflow-x:auto;}
+  nav.subtabs button{background:var(--surface);border:1px solid var(--border);padding:5px 13px;font-size:12.5px;border-radius:999px;color:var(--ink-2);font-weight:600;white-space:nowrap;}
+  nav.subtabs button:hover{color:var(--brand);border-color:var(--brand);}
+  nav.subtabs button.active{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .searchBtn{padding:6px 11px;font-size:15px;line-height:1;margin-right:2px;}
+  .bgWrap input.bgInput{width:100%;padding:12px 14px;font-size:16px;border:1px solid var(--border);border-radius:10px;}
+  .bgWrap input.bgInput:focus{outline:2px solid var(--brand-light);border-color:var(--brand);}
+  .bgHint{font-size:12px;color:var(--muted);margin:8px 2px 0;}
+  .bgRes{margin-top:10px;max-height:62vh;overflow-y:auto;}
+  .bgGrupo{margin-top:12px;}
+  .bgGrupo h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);}
+  .bgItem{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 11px;margin-bottom:6px;font-size:13px;color:var(--ink);}
+  .bgItem:hover{background:var(--brand-light);border-color:var(--brand);}
+  .bgItem b{display:block;font-size:13.5px;}
+  .bgItem > span{display:block;font-size:12px;color:var(--ink-2);margin-top:2px;}
+  .bgMas{font-size:12px;color:var(--muted);margin:0 0 6px;}
+  .esCard .esTiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;}
+  .esTile{display:flex;flex-direction:column;gap:2px;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+  .esTile:hover{border-color:var(--brand);background:var(--brand-light);}
+  .esTile .esLbl{font-size:12px;color:var(--muted);}
+  .esTile .esVal{font-size:20px;font-weight:700;}
+  .esTile .esSub{font-size:11.5px;color:var(--ink-2);}
+  .esTile.alert .esVal{color:var(--critical);}
+  .esTile.warn .esVal{color:var(--warning);}
+  .esLista{max-height:260px;overflow-y:auto;border-top:1px solid var(--border);}
+  .esDia{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);padding:8px 2px 4px;}
+  .esItem{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid #f0efec;padding:6px 2px;font-size:13px;color:var(--ink);}
+  .esItem:hover{background:var(--brand-light);}
+  .esItem small{display:block;color:var(--muted);font-size:11.5px;}
+  .esItem .esMonto{font-weight:700;white-space:nowrap;}
+  .flujoHead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .flujoNav{display:inline-flex;gap:6px;}
+  .flujoTot{font-size:12.5px;color:var(--ink-2);margin:0 0 10px;}
+  .sucEstado-off{opacity:.6;}
 </style>
 </head>
 <body>
@@ -357,7 +394,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v7.6 · Datos seguros en Supabase</p>
+      <p class="footNote">v8.0 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -369,12 +406,13 @@
         <div class="titles"><b>Control CxP</b><span>GrupoNero</span></div>
       </div>
       <div class="who">
+        <button type="button" class="btn btn-ghost btn-sm searchBtn" onclick="abrirBuscador()" title="Buscar (atajo: /)" aria-label="Buscar">🔍</button>
         <div class="name"><b id="whoNombre">—</b><span id="whoRol">—</span></div>
         <div class="avatar" id="whoAvatar">—</div>
         <button class="btn btn-ghost btn-sm" onclick="logout()">Cerrar sesión</button>
       </div>
     </header>
-    <nav class="tabs" id="tabs"></nav>
+    <div class="navWrap"><nav class="tabs" id="tabs"></nav><nav class="subtabs hidden" id="subtabs"></nav></div>
     <main id="main"></main>
   </div>
 
@@ -454,11 +492,20 @@ const state = {
   sortRepGastos:  { col: null, dir: 'asc' },
   sortRepPagos:   { col: null, dir: 'asc' },
   repAbiertos:    { gastos: false, pagos: false },
+  // v8.0: Reporte por sucursal, catálogo de sucursales y flujo de pagos por mes
+  filtrosRepSuc: { sucursal:'', periodo:'todo', desde:'', hasta:'' },
+  sortRepSucResumen: { col: null, dir: 'asc' },
+  sortRepSucGastos:  { col: null, dir: 'asc' },
+  sortRepSucPagos:   { col: null, dir: 'asc' },
+  sortRepSucProv:    { col: null, dir: 'asc' },
+  repAbiertosSuc:    { prov: true, gastos: false, pagos: false },
+  sortSucursales:    { col: null, dir: 'asc' },
+  flujoMes: null, // null = mes actual; {y, m} = otro mes (no sobrevive un F5)
   sortRecurrentes: { col: null, dir: 'asc' },
   // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
   // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
   // demás filtros de esta vista).
-  cxpBloquesAbiertos: { vigentes: false, liquidadas: false },
+  cxpBloquesAbiertos: { vencidas: true, hoy: true, manana: true, porvencer: true, vigentes: false, liquidadas: false },
   // v6.8: adjuntos (evidencia/comprobante) del formulario CxP/Pago actualmente abierto — ver
   // htmlCampoAdjunto() más abajo. Se reinicia cada vez que se abre un formulario.
   adjuntos: {}
@@ -710,7 +757,7 @@ function confirmarFechas(items) {
 
 // Campos de texto que se capturan y se guardan en MAYÚSCULAS. Quedan fuera (a propósito): correos, contraseñas,
 // usuario de acceso, URLs, ids/UUID del CFDI, clave de rastreo y los nombres de "Mis Cuentas" (se enlazan por nombre).
-const SEL_MAYUS = '#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia';
+const SEL_MAYUS = '#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia';
 function aMayus(v) { return String(v == null ? '' : v).toUpperCase(); }
 document.addEventListener('input', ev => {
   const t = ev.target;
@@ -1178,20 +1225,44 @@ const TABS = [
   { id:'cuentas',     label:'Mis Cuentas',      roles:['admin'] },
   { id:'usuarios',    label:'Usuarios',         roles:['admin'] },
   { id:'auditoria',   label:'Auditoría',        roles:['admin'] },
-  { id:'exportar',    label:'Exportar',         roles:['admin','capturista','tesorero','viewer'] }
+  { id:'exportar',    label:'Exportar',         roles:['admin','capturista','tesorero','viewer'] },
+  { id:'repsuc',      label:'Reporte × Sucursal', roles:['admin','capturista','tesorero','viewer'] },
+  { id:'sucursales',  label:'Sucursales',       roles:['admin'] }
 ];
 
+// v8.0: las 11 vistas se agrupan en 6 pestañas; las que tienen varias vistas muestran una segunda fila de sub-pestañas.
+const GRUPOS = [
+  { id:'dashboard', label:'Dashboard',        views:[{ id:'dashboard', label:'Dashboard' }] },
+  { id:'cxp',       label:'Cuentas × Pagar',  views:[{ id:'cxp', label:'Cuentas × Pagar' }] },
+  { id:'pagos',     label:'Pagos Realizados', views:[{ id:'pagos', label:'Pagos Realizados' }] },
+  { id:'prov',      label:'Proveedores',      views:[{ id:'proveedores', label:'Proveedores' }, { id:'recurrentes', label:'Gastos Recurrentes' }] },
+  { id:'reportes',  label:'Reportes',         views:[{ id:'repprov', label:'Por proveedor' }, { id:'repsuc', label:'Por sucursal' }, { id:'aging', label:'Antigüedad' }, { id:'exportar', label:'Exportar' }] },
+  { id:'admin',     label:'Administración',   views:[{ id:'cuentas', label:'Mis Cuentas' }, { id:'usuarios', label:'Usuarios' }, { id:'auditoria', label:'Auditoría' }, { id:'sucursales', label:'Sucursales' }] }
+];
+const ULTIMA_SUB = {}; // última sub-pestaña visitada por grupo (en memoria)
+function vistasPermitidas(g) { return g.views.filter(v => { const t = TABS.find(x => x.id === v.id); return t && can(t.roles); }); }
+function grupoDeVista(view) { return GRUPOS.find(g => g.views.some(v => v.id === view)); }
+
 function renderTabs() {
-  const nav = document.getElementById('tabs');
-  nav.innerHTML = TABS.filter(t => can(t.roles)).map(t =>
-    `<button data-tab="${t.id}" class="${state.view === t.id ? 'active' : ''}" onclick="setView('${t.id}')">${t.label}</button>`
-  ).join('');
+  const nav = document.getElementById('tabs'), sub = document.getElementById('subtabs');
+  const actual = grupoDeVista(state.view);
+  nav.innerHTML = GRUPOS.filter(g => vistasPermitidas(g).length).map(g => {
+    const vs = vistasPermitidas(g);
+    const destino = (ULTIMA_SUB[g.id] && vs.some(v => v.id === ULTIMA_SUB[g.id])) ? ULTIMA_SUB[g.id] : vs[0].id;
+    return `<button data-tab="${g.id}" class="${actual && actual.id === g.id ? 'active' : ''}" onclick="setView('${destino}')">${g.label}</button>`;
+  }).join('');
+  const vs = actual ? vistasPermitidas(actual) : [];
+  if (vs.length > 1) {
+    sub.innerHTML = vs.map(v => `<button data-view="${v.id}" class="${state.view === v.id ? 'active' : ''}" onclick="setView('${v.id}')">${v.label}</button>`).join('');
+    sub.classList.remove('hidden');
+  } else { sub.innerHTML = ''; sub.classList.add('hidden'); }
 }
 
 const ULTIMA_VISTA_KEY = 'cxp_ultima_vista'; // para volver a la misma pestaña tras un F5/recarga
 
 async function setView(view) {
   state.view = view;
+  const grupoVista = grupoDeVista(view); if (grupoVista) ULTIMA_SUB[grupoVista.id] = view;
   try { sessionStorage.setItem(ULTIMA_VISTA_KEY, view); } catch (e) {}
   renderTabs();
   const main = document.getElementById('main');
@@ -1201,6 +1272,7 @@ async function setView(view) {
     else if (view === 'cxp')    renderCxp();
     else if (view === 'proveedores') renderProveedores();
     else if (view === 'repprov') renderReporteProv();
+    else if (view === 'repsuc') renderReporteSuc();
     else if (view === 'pagos')  renderPagos();
     else if (view === 'recurrentes') renderRecurrentes();
     else if (view === 'aging')  renderAging();
@@ -1208,6 +1280,7 @@ async function setView(view) {
     else if (view === 'usuarios') { showLoading(true); try { await loadUsuarios(); } finally { showLoading(false); } renderUsuarios(); }
     else if (view === 'auditoria') { showLoading(true); try { await loadLog(); } finally { showLoading(false); } renderAuditoria(); }
     else if (view === 'exportar') renderExportar();
+    else if (view === 'sucursales') renderSucursales();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -1298,14 +1371,16 @@ function renderDashboard() {
 
   // Flujo de pagos por semana del mes actual
   const hoy = new Date();
-  const mesActual = hoy.getMonth(), anioActual = hoy.getFullYear();
+  const fm = state.flujoMes || { y: hoy.getFullYear(), m: hoy.getMonth() };
+  const mesActual = fm.m, anioActual = fm.y;
   const semanas = [0,0,0,0,0];
+  let flujoN = 0;
   state.pagos.forEach(p => {
     if (!p.fecha) return;
     const f = parseFechaLocal(p.fecha);
     if (!f || f.getMonth() !== mesActual || f.getFullYear() !== anioActual) return;
     const semana = Math.min(4, Math.floor((f.getDate() - 1) / 7));
-    semanas[semana] += Number(p.monto) || 0;
+    semanas[semana] += Number(p.monto) || 0; flujoN++;
   });
   const dataSemanas = semanas.map((v,i) => ({ label: 'Semana ' + (i+1), value: v }));
 
@@ -1318,6 +1393,7 @@ function renderDashboard() {
       <div class="kpi warn"><div class="label">Por vencer (7 días)</div><div class="value">${money(totalProximo)}</div></div>
       <div class="kpi ${totalValidar ? 'warn' : ''}"><div class="label">Pagos por validar</div><div class="value">${totalValidar}</div></div>
     </div>
+    ${dashEstaSemanaHtml(pendientes)}
     <div class="chartsGrid">
       <div class="card"><div class="cardTitle">Vencimientos por semana</div>${dashVencimientosSemanaHtml(dataSemanaVenc)}</div>
       <div class="card"><div class="cardTitle">Pendiente por sucursal</div>${svgBarChart(dataSucursal, { fmt: money })}</div>
@@ -1325,7 +1401,7 @@ function renderDashboard() {
         <div class="cardTitle">Proveedores con saldo pendiente (${dataProveedor.length})</div>
         <div class="dashScroll">${dashProveedoresListHtml(dataProveedor)}</div>
       </div>
-      <div class="card"><div class="cardTitle">Flujo de pagos — ${hoy.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</div>${svgBarChart(dataSemanas, { fmt: money, color:'#1baf7a' })}</div>
+      ${dashFlujoCardHtml(dataSemanas, mesActual, anioActual, flujoN)}
     </div>
   `;
 }
@@ -1579,6 +1655,7 @@ function cxpFiltradas() {
         if (fHasta && (!fv || fv > fHasta)) return false;
       }
       if (f.estado === 'vencidas' && c.est !== 'vencida') return false;
+      if (f.estado === 'proximas' && c.est !== 'proxima') return false;
       if (f.estado === 'urgentes' && !(c.est === 'vencida' || c.est === 'proxima')) return false;
       if (f.estado === 'pendientes' && c.saldo <= 0.01) return false;
       if (f.estado === 'liquidadas' && c.est !== 'liquidada') return false;
@@ -1593,7 +1670,7 @@ function cxpFiltradas() {
 }
 
 function renderCxp() {
-  const sucursales = [...new Set(state.cxp.map(c => c.sucursal).filter(Boolean))].sort();
+  const sucursales = nombresSucursalesTodas();
   const lista = cxpFiltradas();
 
   const main = document.getElementById('main');
@@ -1616,6 +1693,7 @@ function renderCxp() {
         <option value="todas" ${state.filtrosCxp.estado==='todas'?'selected':''}>Todas</option>
         <option value="pendientes" ${state.filtrosCxp.estado==='pendientes'?'selected':''}>Con saldo pendiente</option>
         <option value="vencidas" ${state.filtrosCxp.estado==='vencidas'?'selected':''}>Solo vencidas</option>
+        <option value="proximas" ${state.filtrosCxp.estado==='proximas'?'selected':''}>Por vencer (hoy a 7 días)</option>
         <option value="urgentes" ${state.filtrosCxp.estado==='urgentes'?'selected':''}>Urgentes (vencidas + por vencer)</option>
         <option value="liquidadas" ${state.filtrosCxp.estado==='liquidadas'?'selected':''}>Liquidadas</option>
       </select></div>
@@ -1732,7 +1810,7 @@ function renderCxpTable() {
     const claseFilas = `bloqueColapsable bloqueCxp-${clave}${abierto ? ' open' : ''}`;
     return `<tr class="blockHeader" style="cursor:pointer" onclick="toggleBloqueCxp('${clave}')">
         <td colspan="8" style="background:${bg};color:${color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">
-          <span class="bloqueToggle${abierto ? ' open' : ''}"><span class="chev">▶</span>${emoji} ${esc(titulo)} (${items.length}) — clic para mostrar/ocultar</span>
+          <span class="bloqueToggle${abierto ? ' open' : ''}"><span class="chev">▶</span>${emoji} ${esc(titulo)} (${items.length}) · ${money(items.reduce((t, c) => t + (Number(c.saldo) || 0), 0))} — clic para ${abierto ? 'ocultar' : 'mostrar'}</span>
         </td>
       </tr>`
       + ordenar(items, invertirDefault).map(c => renderCxpRow(c, claseFilas)).join('');
@@ -1746,10 +1824,10 @@ function renderCxpTable() {
   const liquidadas = lista.filter(c => c.est === 'liquidada');
 
   let filasHtml = '';
-  filasHtml += bloqueFijo('Vencidas', '🔴', 'var(--critical)', 'var(--critical-bg)', vencidas);
-  filasHtml += bloqueFijo('Vencen hoy', '🟠', 'var(--warning)', 'var(--warning-bg)', vencenHoy);
-  filasHtml += bloqueFijo('Vencen mañana', '🟡', 'var(--warning)', 'var(--warning-bg)', vencenManana);
-  filasHtml += bloqueFijo('Por vencer — próximos 7 días', '⚪', 'var(--ink-2)', '#f0efec', porVencer);
+  filasHtml += bloqueColapsable('vencidas', 'Vencidas', '🔴', 'var(--critical)', 'var(--critical-bg)', vencidas);
+  filasHtml += bloqueColapsable('hoy', 'Vencen hoy', '🟠', 'var(--warning)', 'var(--warning-bg)', vencenHoy);
+  filasHtml += bloqueColapsable('manana', 'Vencen mañana', '🟡', 'var(--warning)', 'var(--warning-bg)', vencenManana);
+  filasHtml += bloqueColapsable('porvencer', 'Por vencer — próximos 7 días', '⚪', 'var(--ink-2)', '#f0efec', porVencer);
   filasHtml += bloqueColapsable('vigentes', 'Vigentes — vencen en más de 7 días', '⚪', 'var(--ink-2)', '#f0efec', vigentes);
   filasHtml += bloqueColapsable('liquidadas', 'Liquidadas', '🟢', 'var(--good)', 'var(--good-bg)', liquidadas, true);
 
@@ -1994,7 +2072,7 @@ function formCxp(id) {
         </div>
         <div class="field full"><label>Concepto</label><input id="cxp_concepto" value="${esc(c?.concepto||'')}" required></div>
         <div class="field"><label>Monto</label><input type="number" step="0.01" id="cxp_monto" value="${c?.monto||''}" required></div>
-        <div class="field"><label>Sucursal</label><input id="cxp_sucursal" value="${esc(c?.sucursal||'')}"></div>
+        <div class="field"><label>Sucursal</label>${campoSucursal('cxp_sucursal', c?.sucursal)}</div>
         <div class="field"><label>Fecha factura</label><input type="date" id="cxp_fecha_factura" value="${esc(c?.fecha_factura||'')}"></div>
         <div class="field"><label>Fecha vencimiento</label><input type="date" id="cxp_fecha_vencimiento" value="${esc(c?.fecha_vencimiento||'')}" required></div>
         <div class="field"><label>Folio</label><input id="cxp_folio" value="${esc(c?.folio||'')}"></div>
@@ -2359,7 +2437,7 @@ function formRecurrente(id) {
         </div>
         <div class="field full"><label>Concepto</label><input id="rec_concepto" value="${esc(r?.concepto||'')}" placeholder="Ej. Renta local Chemuyil" required></div>
         <div class="field"><label>Monto</label><input type="number" step="0.01" id="rec_monto" value="${r?.monto||''}" required></div>
-        <div class="field"><label>Sucursal</label><input id="rec_sucursal" value="${esc(r?.sucursal||'')}"></div>
+        <div class="field"><label>Sucursal</label>${campoSucursal('rec_sucursal', r?.sucursal)}</div>
         <div class="field"><label>Frecuencia</label><select id="rec_frecuencia_meses">${opcionesFrecuencia(r?.frecuencia_meses)}</select></div>
         <div class="field"><label>Próxima fecha de vencimiento</label><input type="date" id="rec_proxima_fecha_vencimiento" value="${esc(r?.proxima_fecha_vencimiento||'')}" required></div>
         <div class="field full"><label>Días de anticipación para generar la CxP</label><input type="number" id="rec_dias_anticipacion" value="${r?.dias_anticipacion ?? 5}" min="0">
@@ -3267,6 +3345,649 @@ function exportarReporteProvCsv() {
     ['tipo','fecha','proveedor','concepto','sucursal','folio','monto_registrado','monto_pagado','saldo_de_la_nota','referencia','pagado_desde','estado','capturo'],
     mov.map(m => m.fila));
 }
+
+/* ================= v8.0 ================= */
+
+/* ---------------- v8.0: catálogo de sucursales / centros de costo ---------------- */
+// El catálogo vive en el servidor (config.sucursales = [{nombre, activo}]). El servidor acepta solo valores
+// activos del catálogo cuando la sucursal de un gasto/recurrente CAMBIA; los registros anteriores no se bloquean.
+const SUC_SIN = '(SIN SUCURSAL)';
+function normSucursal(v) { return String(v == null ? '' : v).trim().replace(/\s+/g, ' ').toUpperCase(); }
+function sucursalesCatalogo() { return Array.isArray(state.config && state.config.sucursales) ? state.config.sucursales : []; }
+
+// Catálogo + cualquier valor que todavía usen gastos/recurrentes (para filtros y reportes).
+function nombresSucursalesTodas() {
+  const s = new Set(sucursalesCatalogo().map(x => normSucursal(x.nombre)));
+  state.cxp.forEach(c => { const n = normSucursal(c.sucursal); if (n) s.add(n); });
+  state.recurrentes.forEach(r => { const n = normSucursal(r.sucursal); if (n) s.add(n); });
+  return [...s].filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+// Desplegable de sucursal para el formulario de gasto y de gasto recurrente. Si el catálogo no llegó (servidor
+// anterior), cae al campo de texto de siempre. Un valor ya guardado que no sea elegible se conserva como opción.
+function campoSucursal(id, actual) {
+  const cat = sucursalesCatalogo();
+  if (!cat.length) return `<input id="${id}" value="${esc(actual || '')}">`;
+  const act = normSucursal(actual);
+  const activas = cat.filter(x => x.activo !== false).map(x => normSucursal(x.nombre));
+  let h = `<select id="${id}"><option value="">— Sin sucursal —</option>`
+    + activas.map(n => `<option value="${esc(n)}" ${n === act ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  if (act && !activas.includes(act)) {
+    h += `<option value="${esc(act)}" selected>${esc(act)} (${cat.some(x => normSucursal(x.nombre) === act) ? 'inactiva' : 'fuera de catálogo'})</option>`;
+  }
+  return h + '</select>';
+}
+
+function usoSucursal(nombre) {
+  const n = normSucursal(nombre);
+  return {
+    gastos: state.cxp.filter(c => normSucursal(c.sucursal) === n).length,
+    rec: state.recurrentes.filter(r => normSucursal(r.sucursal) === n).length
+  };
+}
+
+/* ---------------- v8.0: Administración › Sucursales ---------------- */
+
+function renderSucursales() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Sucursales / Centros de costo</span>
+      <div class="actions"><button class="btn btn-primary btn-sm" onclick="formSucursal()">+ Nueva sucursal</button></div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:-6px">Catálogo que aparece en el campo «Sucursal» de los gastos y de los gastos recurrentes. Al renombrar una sucursal se actualizan también sus gastos y recurrentes. No se eliminan: se desactivan (los gastos que ya la usan se conservan).</p>
+    <div id="sucursalesTableWrap"></div>
+  `;
+  renderSucursalesTable();
+}
+
+function renderSucursalesTable() {
+  const wrap = document.getElementById('sucursalesTableWrap');
+  const base = sucursalesCatalogo().map(s => ({ nombre: normSucursal(s.nombre), activo: s.activo !== false, ...usoSucursal(s.nombre) }));
+  const getters = { nombre: s => s.nombre, gastos: s => s.gastos, rec: s => s.rec, activo: s => (s.activo ? 'activa' : 'inactiva') };
+  const lista = state.sortSucursales.col ? sortRows(base, state.sortSucursales, getters) : base.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Sucursal / centro de costo', 'nombre', 'sortSucursales', 'renderSucursalesTable')}
+      ${sortTh('Gastos', 'gastos', 'sortSucursales', 'renderSucursalesTable')}
+      ${sortTh('Recurrentes', 'rec', 'sortSucursales', 'renderSucursalesTable')}
+      ${sortTh('Estado', 'activo', 'sortSucursales', 'renderSucursalesTable')}
+      <th></th>
+    </tr></thead>
+    <tbody>${lista.map(s => `<tr class="${s.activo ? '' : 'sucEstado-off'}">
+        <td><b>${esc(s.nombre)}</b></td>
+        <td class="num">${s.gastos}</td>
+        <td class="num">${s.rec}</td>
+        <td>${s.activo ? '<span class="badge badge-good">Activa</span>' : '<span class="badge badge-muted">Inactiva</span>'}</td>
+        <td><div class="rowActions">
+          <button class="btn btn-ghost btn-sm" onclick="formSucursal('${esc(s.nombre)}')">Renombrar</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleSucursal('${esc(s.nombre)}')">${s.activo ? 'Desactivar' : 'Activar'}</button>
+        </div></td></tr>`).join('') || `<tr><td colspan="5" class="emptyState">Sin sucursales en el catálogo.</td></tr>`}
+    </tbody>
+  </table></div>`;
+}
+
+function formSucursal(original) {
+  const orig = original ? normSucursal(original) : '';
+  const uso = orig ? usoSucursal(orig) : null;
+  openModal(`
+    <h2>${orig ? 'Renombrar' : 'Nueva'} sucursal</h2>
+    <form onsubmit="return guardarSucursal(event, '${esc(orig)}')">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre</label><input id="suc_nombre" value="${esc(orig)}" maxlength="40" required autocomplete="off"></div>
+      </div>
+      ${uso ? `<p style="font-size:12px;color:var(--muted);margin:0 0 4px">Se actualizarán ${uso.gastos} gasto${uso.gastos === 1 ? '' : 's'} y ${uso.rec} recurrente${uso.rec === 1 ? '' : 's'} que hoy usan «${esc(orig)}».</p>` : ''}
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function enviarCatalogoSucursales(lista, renombres) {
+  const res = await api('saveSucursales', { lista, renombres });
+  await loadData();
+  return res;
+}
+
+async function guardarSucursal(ev, original) {
+  ev.preventDefault();
+  const nombre = normSucursal(document.getElementById('suc_nombre').value);
+  if (!nombre) { toast('Escribe el nombre de la sucursal.', 'error'); return false; }
+  const lista = sucursalesCatalogo().map(s => ({ nombre: normSucursal(s.nombre), activo: s.activo !== false }));
+  let renombres = [];
+  if (original) {
+    if (nombre === original) { closeModal(); return false; }
+    if (lista.some(s => s.nombre === nombre)) { toast('Ya existe una sucursal con ese nombre.', 'error'); return false; }
+    const it = lista.find(s => s.nombre === original);
+    if (!it) { toast('No se encontró esa sucursal.', 'error'); return false; }
+    it.nombre = nombre;
+    renombres = [{ de: original, a: nombre }];
+  } else {
+    if (lista.some(s => s.nombre === nombre)) { toast('Ya existe una sucursal con ese nombre.', 'error'); return false; }
+    lista.push({ nombre, activo: true });
+  }
+  lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
+  try {
+    showLoading(true);
+    const res = await enviarCatalogoSucursales(lista, renombres);
+    closeModal(); showLoading(false);
+    const a = res.actualizados || { cxp: 0, recurrentes: 0 };
+    toast(original ? `Sucursal renombrada (${a.cxp} gastos y ${a.recurrentes} recurrentes actualizados).` : 'Sucursal agregada.', 'ok');
+    renderSucursales();
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+async function toggleSucursal(nombre) {
+  const n = normSucursal(nombre);
+  const lista = sucursalesCatalogo().map(s => ({ nombre: normSucursal(s.nombre), activo: s.activo !== false }));
+  const it = lista.find(s => s.nombre === n);
+  if (!it) return;
+  it.activo = !it.activo;
+  try {
+    showLoading(true);
+    await enviarCatalogoSucursales(lista, []);
+    showLoading(false);
+    toast(it.activo ? 'Sucursal activada.' : 'Sucursal desactivada: ya no aparece al capturar, y sus gastos se conservan.', 'ok');
+    renderSucursales();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- v8.0: Reporte × Sucursal ---------------- */
+// Igual que el reporte por proveedor: sin sucursal elegida = resumen de todas; con una elegida = su desglose
+// por proveedor, sus gastos y sus pagos. El periodo filtra los gastos por FECHA DE FACTURA y los pagos por FECHA
+// DE PAGO; «Pagado» y «Saldo» de cada gasto, y el saldo pendiente, siempre consideran todo el historial.
+
+function sucKey(c) { return normSucursal(c.sucursal) || SUC_SIN; }
+function sucEnRango(fecha) {
+  const f = state.filtrosRepSuc;
+  if (!f.desde && !f.hasta) return true;
+  const x = String(fecha || '').slice(0, 10);
+  if (!x) return false;
+  return (!f.desde || x >= f.desde) && (!f.hasta || x <= f.hasta);
+}
+function sucTextoPeriodo() {
+  const f = state.filtrosRepSuc;
+  if (!f.desde && !f.hasta) return 'todo el historial';
+  if (f.desde && f.hasta) return 'del ' + fmtFecha(f.desde) + ' al ' + fmtFecha(f.hasta);
+  return f.desde ? 'desde el ' + fmtFecha(f.desde) : 'hasta el ' + fmtFecha(f.hasta);
+}
+function repSucSetSucursal(v) { state.filtrosRepSuc.sucursal = v || ''; renderReporteSuc(); window.scrollTo(0, 0); }
+function repSucSetPeriodo(id) {
+  const f = state.filtrosRepSuc;
+  f.periodo = id;
+  if (id !== 'custom') { const r = repRango(id); f.desde = r.desde; f.hasta = r.hasta; }
+  renderReporteSuc();
+}
+function repSucSetFecha(campo, v) {
+  const f = state.filtrosRepSuc;
+  f[campo] = fechaInputValida(v);
+  f.periodo = (f.desde || f.hasta) ? 'custom' : 'todo';
+  renderReporteSuc();
+}
+function repSucLimpiar() {
+  state.filtrosRepSuc = { sucursal: '', periodo: 'todo', desde: '', hasta: '' };
+  state.sortRepSucGastos = { col: null, dir: 'asc' }; state.sortRepSucPagos = { col: null, dir: 'asc' }; state.sortRepSucProv = { col: null, dir: 'asc' };
+  renderReporteSuc(); window.scrollTo(0, 0);
+}
+
+function repSucCalcular() {
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const cxpPorId = new Map(state.cxp.map(c => [String(c.id), c]));
+  const acum = new Map();
+  const get = k => {
+    if (!acum.has(k)) acum.set(k, { nombre: k, nGastos: 0, registrado: 0, nPagos: 0, pagado: 0, pendValidar: 0, saldo: 0, vencido: 0, nAbiertas: 0, ultimoPago: '' });
+    return acum.get(k);
+  };
+  state.cxp.forEach(c => {
+    const r = get(sucKey(c));
+    const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+    if (saldo > 0.01) {
+      r.saldo += saldo; r.nAbiertas++;
+      if (estadoCxp(c, saldo) === 'vencida') r.vencido += saldo;
+    }
+    if (sucEnRango(c.fecha_factura || c.fecha_vencimiento)) { r.nGastos++; r.registrado += Number(c.monto) || 0; }
+  });
+  state.pagos.forEach(p => {
+    const c = cxpPorId.get(String(p.cxp_id));
+    if (!c) return;
+    const r = get(sucKey(c));
+    const fp = String(p.fecha || '').slice(0, 10);
+    if (fp > r.ultimoPago) r.ultimoPago = fp;
+    if (sucEnRango(p.fecha)) {
+      r.nPagos++; r.pagado += Number(p.monto) || 0;
+      if (p.estado === 'pendiente_validacion') r.pendValidar++;
+    }
+  });
+  return { acum, pagosPorCxp, cxpPorId };
+}
+
+function repSucGastosDe(key, pagosPorCxp) {
+  return state.cxp.filter(c => sucKey(c) === key && sucEnRango(c.fecha_factura || c.fecha_vencimiento)).map(c => {
+    const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+    return { c, fecha: String(c.fecha_factura || c.fecha_vencimiento || '').slice(0, 10), proveedor: proveedorNombre(c.proveedor_id),
+             concepto: c.concepto || '(sin concepto)', folio: c.folio || '', monto: Number(c.monto) || 0,
+             pagado: (Number(c.monto) || 0) - saldo, saldo, est: estadoCxp(c, saldo) };
+  });
+}
+
+function repSucPagosDe(key, cxpPorId) {
+  const out = [];
+  state.pagos.forEach(p => {
+    const c = cxpPorId.get(String(p.cxp_id));
+    if (!c || sucKey(c) !== key || !sucEnRango(p.fecha)) return;
+    out.push({ p, c, fecha: String(p.fecha || '').slice(0, 10), proveedor: proveedorNombre(c.proveedor_id), concepto: c.concepto || '(sin concepto)',
+               monto: Number(p.monto) || 0, pagar_desde: p.pagar_desde || p.banco_origen || '', referencia: p.referencia || '',
+               capturado_por: p.capturado_por || '', pendiente: p.estado === 'pendiente_validacion' });
+  });
+  return out;
+}
+
+// Desglose por proveedor dentro de una sucursal: gastos y pagos del periodo + saldo abierto de hoy.
+function repSucPorProveedor(key, pagosPorCxp, cxpPorId) {
+  const m = new Map();
+  const get = id => {
+    const k = String(id);
+    if (!m.has(k)) m.set(k, { id: k, nombre: proveedorNombre(id), nGastos: 0, registrado: 0, pagado: 0, saldo: 0 });
+    return m.get(k);
+  };
+  state.cxp.forEach(c => {
+    if (sucKey(c) !== key) return;
+    const r = get(c.proveedor_id);
+    const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+    if (saldo > 0.01) r.saldo += saldo;
+    if (sucEnRango(c.fecha_factura || c.fecha_vencimiento)) { r.nGastos++; r.registrado += Number(c.monto) || 0; }
+  });
+  state.pagos.forEach(p => {
+    const c = cxpPorId.get(String(p.cxp_id));
+    if (!c || sucKey(c) !== key || !sucEnRango(p.fecha)) return;
+    get(c.proveedor_id).pagado += Number(p.monto) || 0;
+  });
+  return [...m.values()].filter(r => r.nGastos || r.pagado || r.saldo > 0.01);
+}
+
+function renderReporteSuc() {
+  const f = state.filtrosRepSuc;
+  const nombres = nombresSucursalesTodas();
+  const haySin = state.cxp.some(c => !normSucursal(c.sucursal));
+  const opciones = haySin ? [...nombres, SUC_SIN] : nombres;
+  if (f.sucursal && !opciones.includes(f.sucursal)) f.sucursal = '';
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="viewTitle"><span>Reporte × Sucursal</span>
+      <div class="actions repNoPrint">
+        <button class="btn btn-ghost btn-sm" onclick="exportarReporteSucCsv()">Descargar CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </div>
+    <div class="filters repNoPrint">
+      <div class="f fGrow"><label>Sucursal / centro de costo</label><select onchange="repSucSetSucursal(this.value)">
+        <option value="">Todas (resumen)</option>
+        ${opciones.map(n => `<option value="${esc(n)}" ${n === f.sucursal ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Periodo</label><select onchange="repSucSetPeriodo(this.value)">
+        ${REP_PERIODOS.map(o => `<option value="${o.id}" ${o.id === f.periodo ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Desde</label><input type="date" value="${esc(f.desde)}" onchange="repSucSetFecha('desde', this.value)"></div>
+      <div class="f"><label>Hasta</label><input type="date" value="${esc(f.hasta)}" onchange="repSucSetFecha('hasta', this.value)"></div>
+      <div class="f"><button type="button" class="btn btn-ghost btn-sm" style="padding:8px 14px" onclick="repSucLimpiar()" title="Quitar sucursal y periodo">Limpiar</button></div>
+    </div>
+    <div id="repSucWrap"></div>
+  `;
+  renderReporteSucBody();
+}
+
+function renderReporteSucBody() {
+  const f = state.filtrosRepSuc;
+  const wrap = document.getElementById('repSucWrap');
+  const { acum, pagosPorCxp, cxpPorId } = repSucCalcular();
+  const pie = `Generado el ${new Date().toLocaleString('es-MX')} por ${esc(state.nombre || '')}.`;
+  const kpis = (r) => `
+    <div class="kpis">
+      <div class="kpi"><div class="label">Registrado en el periodo</div><div class="value">${money(r.registrado)}</div><div class="label" style="margin:4px 0 0">${r.nGastos} gasto${r.nGastos === 1 ? '' : 's'}</div></div>
+      <div class="kpi"><div class="label">Pagado en el periodo</div><div class="value">${money(r.pagado)}</div><div class="label" style="margin:4px 0 0">${r.nPagos} pago${r.nPagos === 1 ? '' : 's'}${r.pendValidar ? ' · ' + r.pendValidar + ' sin validar' : ''}</div></div>
+      <div class="kpi warn"><div class="label">Saldo pendiente hoy</div><div class="value">${money(r.saldo)}</div>${r.nAbiertas !== undefined ? `<div class="label" style="margin:4px 0 0">${r.nAbiertas} nota${r.nAbiertas === 1 ? '' : 's'} abierta${r.nAbiertas === 1 ? '' : 's'}</div>` : ''}</div>
+      <div class="kpi alert"><div class="label">De ese saldo, vencido</div><div class="value">${money(r.vencido)}</div></div>
+    </div>`;
+
+  /* ---- Resumen de todas las sucursales ---- */
+  if (!f.sucursal) {
+    let filas = [...acum.values()].filter(r => r.nGastos || r.nPagos || r.saldo > 0.01);
+    const getters = { nombre: r => r.nombre, nGastos: r => r.nGastos, registrado: r => r.registrado, nPagos: r => r.nPagos, pagado: r => r.pagado, saldo: r => r.saldo, ultimoPago: r => r.ultimoPago };
+    filas = state.sortRepSucResumen.col
+      ? sortRows(filas, state.sortRepSucResumen, getters)
+      : filas.sort((a, b) => (b.registrado - a.registrado) || (b.pagado - a.pagado) || a.nombre.localeCompare(b.nombre, 'es'));
+    const tot = filas.reduce((t, r) => ({ nGastos: t.nGastos + r.nGastos, registrado: t.registrado + r.registrado, nPagos: t.nPagos + r.nPagos, pagado: t.pagado + r.pagado, saldo: t.saldo + r.saldo, vencido: t.vencido + r.vencido, nAbiertas: t.nAbiertas + r.nAbiertas, pendValidar: t.pendValidar + r.pendValidar }),
+      { nGastos: 0, registrado: 0, nPagos: 0, pagado: 0, saldo: 0, vencido: 0, nAbiertas: 0, pendValidar: 0 });
+    wrap.innerHTML = `
+      <p class="repSub">Resumen de todas las sucursales · Periodo: ${sucTextoPeriodo()} · ${pie}</p>
+      ${kpis(tot)}
+      <div class="tableWrap"><table>
+        <thead><tr>
+          ${sortTh('Sucursal', 'nombre', 'sortRepSucResumen', 'renderReporteSucBody')}
+          ${sortTh('Gastos', 'nGastos', 'sortRepSucResumen', 'renderReporteSucBody')}
+          ${sortTh('Registrado', 'registrado', 'sortRepSucResumen', 'renderReporteSucBody')}
+          ${sortTh('Pagos', 'nPagos', 'sortRepSucResumen', 'renderReporteSucBody')}
+          ${sortTh('Pagado', 'pagado', 'sortRepSucResumen', 'renderReporteSucBody')}
+          ${sortTh('Saldo hoy', 'saldo', 'sortRepSucResumen', 'renderReporteSucBody')}
+          ${sortTh('Último pago', 'ultimoPago', 'sortRepSucResumen', 'renderReporteSucBody')}
+        </tr></thead>
+        <tbody>${filas.map(r => `<tr class="repFilaClick" onclick="repSucSetSucursal('${esc(r.nombre)}')">
+            <td><span class="repProvLink">${esc(r.nombre)}</span></td>
+            <td class="num">${r.nGastos}</td>
+            <td class="num">${money(r.registrado)}</td>
+            <td class="num">${r.nPagos}</td>
+            <td class="num">${money(r.pagado)}</td>
+            <td class="num" style="${r.saldo > 0.01 ? 'font-weight:700' : ''}">${money(r.saldo > 0.01 ? r.saldo : 0)}</td>
+            <td>${r.ultimoPago ? fmtFecha(r.ultimoPago) : '—'}</td>
+          </tr>`).join('') || `<tr><td colspan="7" class="emptyState">Sin movimientos en este periodo.</td></tr>`}
+          ${filas.length ? `<tr class="repTotal"><td>Total</td><td class="num">${tot.nGastos}</td><td class="num">${money(tot.registrado)}</td><td class="num">${tot.nPagos}</td><td class="num">${money(tot.pagado)}</td><td class="num">${money(tot.saldo)}</td><td></td></tr>` : ''}
+        </tbody>
+      </table></div>
+      <p class="repNota repNoPrint">Toca una sucursal para ver su desglose por proveedor, y sus gastos y pagos. «Saldo hoy» considera todo el historial, sin importar el periodo.</p>
+    `;
+    return;
+  }
+
+  /* ---- Detalle de una sucursal ---- */
+  const key = f.sucursal;
+  const r = acum.get(key) || { nGastos: 0, registrado: 0, nPagos: 0, pagado: 0, pendValidar: 0, saldo: 0, vencido: 0, nAbiertas: 0 };
+  let gastos = repSucGastosDe(key, pagosPorCxp);
+  let pagos = repSucPagosDe(key, cxpPorId);
+  let provs = repSucPorProveedor(key, pagosPorCxp, cxpPorId);
+  const gGet = { fecha: g => g.fecha, proveedor: g => g.proveedor, concepto: g => g.concepto, folio: g => g.folio, monto: g => g.monto, pagado: g => g.pagado, saldo: g => g.saldo, est: g => g.est };
+  const pGet = { fecha: x => x.fecha, proveedor: x => x.proveedor, concepto: x => x.concepto, monto: x => x.monto, pagar_desde: x => x.pagar_desde, referencia: x => x.referencia, capturado_por: x => x.capturado_por };
+  const vGet = { nombre: x => x.nombre, nGastos: x => x.nGastos, registrado: x => x.registrado, pagado: x => x.pagado, saldo: x => x.saldo };
+  gastos = state.sortRepSucGastos.col ? sortRows(gastos, state.sortRepSucGastos, gGet) : gastos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+  pagos = state.sortRepSucPagos.col ? sortRows(pagos, state.sortRepSucPagos, pGet) : pagos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+  provs = state.sortRepSucProv.col ? sortRows(provs, state.sortRepSucProv, vGet) : provs.sort((a, b) => (b.registrado - a.registrado) || (b.saldo - a.saldo) || a.nombre.localeCompare(b.nombre, 'es'));
+  const totG = gastos.reduce((t, g) => ({ monto: t.monto + g.monto, pagado: t.pagado + g.pagado, saldo: t.saldo + Math.max(g.saldo, 0) }), { monto: 0, pagado: 0, saldo: 0 });
+  const totP = pagos.reduce((t, x) => t + x.monto, 0);
+  const totV = provs.reduce((t, x) => ({ nGastos: t.nGastos + x.nGastos, registrado: t.registrado + x.registrado, pagado: t.pagado + x.pagado, saldo: t.saldo + x.saldo }), { nGastos: 0, registrado: 0, pagado: 0, saldo: 0 });
+  const cat = sucursalesCatalogo().find(s => normSucursal(s.nombre) === key);
+
+  wrap.innerHTML = `
+    <p class="repSub"><b>${esc(key)}</b>${cat && cat.activo === false ? ' (inactiva)' : ''} · Periodo: ${sucTextoPeriodo()} · ${pie}</p>
+    ${kpis(r)}
+
+    <details class="repDet" ${state.repAbiertosSuc.prov ? 'open' : ''} ontoggle="state.repAbiertosSuc.prov=this.open">
+    <summary><span><span class="chev">▶</span>Por proveedor (${provs.length})</span><span class="repSumTot">Registrado ${money(totV.registrado)} · Saldo ${money(totV.saldo)}</span></summary>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Proveedor', 'nombre', 'sortRepSucProv', 'renderReporteSucBody')}
+        ${sortTh('Gastos', 'nGastos', 'sortRepSucProv', 'renderReporteSucBody')}
+        ${sortTh('Registrado', 'registrado', 'sortRepSucProv', 'renderReporteSucBody')}
+        ${sortTh('Pagado', 'pagado', 'sortRepSucProv', 'renderReporteSucBody')}
+        ${sortTh('Saldo hoy', 'saldo', 'sortRepSucProv', 'renderReporteSucBody')}
+      </tr></thead>
+      <tbody>${provs.map(x => `<tr class="repFilaClick" onclick="repAbrirProveedor('${esc(x.id)}')">
+          <td><span class="repProvLink">${esc(x.nombre)}</span></td>
+          <td class="num">${x.nGastos}</td>
+          <td class="num">${money(x.registrado)}</td>
+          <td class="num">${money(x.pagado)}</td>
+          <td class="num" style="${x.saldo > 0.01 ? 'font-weight:700' : ''}">${money(x.saldo > 0.01 ? x.saldo : 0)}</td>
+        </tr>`).join('') || `<tr><td colspan="5" class="emptyState">Sin movimientos en este periodo.</td></tr>`}
+        ${provs.length ? `<tr class="repTotal"><td>Total</td><td class="num">${totV.nGastos}</td><td class="num">${money(totV.registrado)}</td><td class="num">${money(totV.pagado)}</td><td class="num">${money(totV.saldo)}</td></tr>` : ''}
+      </tbody>
+    </table></div>
+    <p class="repNota repNoPrint">Toca un proveedor para abrir su reporte. «Saldo hoy» considera todo el historial.</p>
+    </details>
+
+    <details class="repDet" ${state.repAbiertosSuc.gastos ? 'open' : ''} ontoggle="state.repAbiertosSuc.gastos=this.open">
+    <summary><span><span class="chev">▶</span>Gastos registrados (${gastos.length})</span><span class="repSumTot">Total ${money(totG.monto)} · Saldo ${money(totG.saldo)}</span></summary>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha factura', 'fecha', 'sortRepSucGastos', 'renderReporteSucBody')}
+        ${sortTh('Proveedor', 'proveedor', 'sortRepSucGastos', 'renderReporteSucBody')}
+        ${sortTh('Concepto', 'concepto', 'sortRepSucGastos', 'renderReporteSucBody')}
+        ${sortTh('Folio', 'folio', 'sortRepSucGastos', 'renderReporteSucBody')}
+        ${sortTh('Monto', 'monto', 'sortRepSucGastos', 'renderReporteSucBody')}
+        ${sortTh('Pagado', 'pagado', 'sortRepSucGastos', 'renderReporteSucBody')}
+        ${sortTh('Saldo', 'saldo', 'sortRepSucGastos', 'renderReporteSucBody')}
+        ${sortTh('Estado', 'est', 'sortRepSucGastos', 'renderReporteSucBody')}
+      </tr></thead>
+      <tbody>${gastos.map(g => `<tr>
+          <td>${fmtFecha(g.fecha)}</td>
+          <td>${esc(g.proveedor)}</td>
+          <td><button type="button" class="repLinkBtn" onclick="verCapturaCxp('${esc(g.c.id)}','${esc(g.c.proveedor_id)}')" title="Ver detalle del gasto">${esc(g.concepto)}</button></td>
+          <td>${esc(g.folio || '—')}</td>
+          <td class="num">${money(g.monto)}</td>
+          <td class="num">${money(g.pagado)}</td>
+          <td class="num" style="${g.saldo > 0.01 ? 'font-weight:700' : ''}">${money(g.saldo > 0.01 ? g.saldo : 0)}</td>
+          <td>${badgeEstadoCxp(g.est)}</td>
+        </tr>`).join('') || `<tr><td colspan="8" class="emptyState">Sin gastos registrados en este periodo.</td></tr>`}
+        ${gastos.length ? `<tr class="repTotal"><td colspan="4">Total</td><td class="num">${money(totG.monto)}</td><td class="num">${money(totG.pagado)}</td><td class="num">${money(totG.saldo)}</td><td></td></tr>` : ''}
+      </tbody>
+    </table></div>
+    <p class="repNota">«Pagado» y «Saldo» de cada gasto consideran todos sus pagos, aunque se hayan hecho fuera del periodo.</p>
+    </details>
+
+    <details class="repDet" ${state.repAbiertosSuc.pagos ? 'open' : ''} ontoggle="state.repAbiertosSuc.pagos=this.open">
+    <summary><span><span class="chev">▶</span>Pagos realizados (${pagos.length})</span><span class="repSumTot">Total ${money(totP)}</span></summary>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha de pago', 'fecha', 'sortRepSucPagos', 'renderReporteSucBody')}
+        ${sortTh('Proveedor', 'proveedor', 'sortRepSucPagos', 'renderReporteSucBody')}
+        ${sortTh('Gasto pagado', 'concepto', 'sortRepSucPagos', 'renderReporteSucBody')}
+        ${sortTh('Monto', 'monto', 'sortRepSucPagos', 'renderReporteSucBody')}
+        ${sortTh('Pagó desde', 'pagar_desde', 'sortRepSucPagos', 'renderReporteSucBody')}
+        ${sortTh('Referencia', 'referencia', 'sortRepSucPagos', 'renderReporteSucBody')}
+        ${sortTh('Capturó', 'capturado_por', 'sortRepSucPagos', 'renderReporteSucBody')}
+        <th>Estado</th><th class="repNoPrint">Comprobante</th>
+      </tr></thead>
+      <tbody>${pagos.map(x => `<tr>
+          <td>${fmtFecha(x.fecha)}</td>
+          <td>${esc(x.proveedor)}</td>
+          <td><button type="button" class="repLinkBtn" onclick="verCapturaCxp('${esc(x.c.id)}','${esc(x.c.proveedor_id)}')" title="Ver detalle del gasto">${esc(x.concepto)}</button></td>
+          <td class="num">${money(x.monto)}</td>
+          <td>${esc(x.pagar_desde || '—')}</td>
+          <td>${esc(x.referencia || '—')}</td>
+          <td>${esc(x.capturado_por || '—')}</td>
+          <td>${badgeEstadoPago(x.p)}</td>
+          <td class="repNoPrint">${x.p.adjunto_comprobante_url ? `<button type="button" class="verComprobanteBtn" onclick="abrirLightbox('${esc(x.p.adjunto_comprobante_url)}')">Ver</button>` : '—'}</td>
+        </tr>`).join('') || `<tr><td colspan="9" class="emptyState">Sin pagos en este periodo.</td></tr>`}
+        ${pagos.length ? `<tr class="repTotal"><td colspan="3">Total</td><td class="num">${money(totP)}</td><td colspan="5"></td></tr>` : ''}
+      </tbody>
+    </table></div>
+    </details>
+  `;
+}
+
+function exportarReporteSucCsv() {
+  const f = state.filtrosRepSuc;
+  const hoy = formatYMD(new Date());
+  const { acum, pagosPorCxp, cxpPorId } = repSucCalcular();
+  if (!f.sucursal) {
+    const filas = [...acum.values()].filter(r => r.nGastos || r.nPagos || r.saldo > 0.01).sort((a, b) => b.registrado - a.registrado);
+    descargarCsv('reporte_sucursales_' + hoy + '.csv',
+      ['sucursal', 'periodo_desde', 'periodo_hasta', 'gastos_en_periodo', 'registrado', 'pagos_en_periodo', 'pagado', 'saldo_pendiente_hoy', 'vencido_hoy', 'ultimo_pago'],
+      filas.map(r => [r.nombre, f.desde, f.hasta, r.nGastos, r.registrado.toFixed(2), r.nPagos, r.pagado.toFixed(2), Math.max(r.saldo, 0).toFixed(2), r.vencido.toFixed(2), r.ultimoPago]));
+    return;
+  }
+  const etiquetaEstado = { liquidada: 'Liquidada', vencida: 'Vencida', proxima: 'Por vencer', vigente: 'Vigente' };
+  const mov = [];
+  repSucGastosDe(f.sucursal, pagosPorCxp).forEach(g => mov.push({ fecha: g.fecha, ord: 0,
+    fila: ['Gasto registrado', g.fecha, f.sucursal, g.proveedor, g.concepto, g.folio, g.monto.toFixed(2), '', Math.max(g.saldo, 0).toFixed(2), '', '', etiquetaEstado[g.est] || g.est, ''] }));
+  repSucPagosDe(f.sucursal, cxpPorId).forEach(x => mov.push({ fecha: x.fecha, ord: 1,
+    fila: ['Pago', x.fecha, f.sucursal, x.proveedor, x.concepto, '', '', x.monto.toFixed(2), '', x.referencia, x.pagar_desde, x.pendiente ? 'Pendiente de validar' : 'Validado', x.capturado_por] }));
+  mov.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.ord - b.ord);
+  const slug = f.sucursal.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'sucursal';
+  descargarCsv('reporte_sucursal_' + slug + '_' + hoy + '.csv',
+    ['tipo', 'fecha', 'sucursal', 'proveedor', 'concepto', 'folio', 'monto_registrado', 'monto_pagado', 'saldo_de_la_nota', 'referencia', 'pagado_desde', 'estado', 'capturo'],
+    mov.map(m => m.fila));
+}
+
+/* ---------------- v8.0: Dashboard — tarjeta "Esta semana" ---------------- */
+
+function irCxpEstado(estado) {
+  state.filtrosCxp = { sucursal: '', proveedor: '', desde: '', hasta: '', estado, texto: '' };
+  setView('cxp');
+}
+function irPagosPendientes() { state.filtrosPagos.estado = 'pendiente_validacion'; setView('pagos'); }
+
+function dashEstaSemanaHtml(pendientes) {
+  const hoyN = new Date(); hoyN.setHours(0, 0, 0, 0);
+  const prox = pendientes.filter(c => c.est === 'proxima' && c.fecha_vencimiento).sort((a, b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento));
+  const venc = pendientes.filter(c => c.est === 'vencida');
+  const suma = arr => arr.reduce((s, c) => s + c.saldo, 0);
+  const lunes = lunesDeSemana(new Date());
+  const domingo = new Date(lunes); domingo.setDate(domingo.getDate() + 6);
+  const pagosSem = state.pagos.filter(p => { const f = parseFechaLocal(p.fecha); return f && f >= lunes && f <= domingo; });
+  const totPagosSem = pagosSem.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  const porValidar = can(['admin']) ? state.pagos.filter(p => p.estado === 'pendiente_validacion') : [];
+  const pl = (n, s, p) => n + ' ' + (n === 1 ? s : p);
+
+  const tile = (cls, label, valor, sub, onclick) =>
+    `<button type="button" class="esTile ${cls}" onclick="${onclick}"><span class="esLbl">${label}</span><span class="esVal">${valor}</span><span class="esSub">${sub}</span></button>`;
+  let tiles = tile('warn', 'Vencen en los próximos 7 días', money(suma(prox)), pl(prox.length, 'cuenta', 'cuentas'), "irCxpEstado('proximas')")
+    + tile(venc.length ? 'alert' : '', 'Vencido', money(suma(venc)), pl(venc.length, 'cuenta', 'cuentas'), "irCxpEstado('vencidas')")
+    + tile('', 'Pagos de esta semana', money(totPagosSem), pl(pagosSem.length, 'pago', 'pagos'), "setView('pagos')");
+  if (can(['admin'])) tiles += tile(porValidar.length ? 'warn' : '', 'Pagos por validar', String(porValidar.length), porValidar.length ? 'Toca para revisarlos' : 'Todo validado', 'irPagosPendientes()');
+
+  const dias = new Map();
+  prox.forEach(c => { const k = String(c.fecha_vencimiento).slice(0, 10); if (!dias.has(k)) dias.set(k, []); dias.get(k).push(c); });
+  const etiquetaDia = k => {
+    const d = parseFechaLocal(k); const dif = Math.round((d - hoyN) / 86400000);
+    if (dif === 0) return 'Hoy'; if (dif === 1) return 'Mañana';
+    return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
+  };
+  const lista = prox.length
+    ? [...dias.entries()].map(([k, items]) => `<div class="esDia">${esc(etiquetaDia(k))}</div>` + items.map(c =>
+        `<button type="button" class="esItem" onclick="verCapturaCxp('${esc(c.id)}','${esc(c.proveedor_id)}')"><span>${esc(proveedorNombre(c.proveedor_id))} — ${esc(c.concepto || '')}<small>${esc(c.sucursal || 'Sin sucursal')}${c.folio ? ' · Folio ' + esc(c.folio) : ''}</small></span><span class="esMonto">${money(c.saldo)}</span></button>`).join('')).join('')
+    : `<div class="chartEmpty" style="padding:10px 0">Sin vencimientos en los próximos 7 días. 🎉</div>`;
+  return `<div class="card esCard"><div class="cardTitle">Esta semana</div><div class="esTiles">${tiles}</div><div class="esLista">${lista}</div></div>`;
+}
+
+/* ---------------- v8.0: Dashboard — flujo de pagos mes a mes ---------------- */
+
+function flujoLimites() {
+  const hoy = new Date();
+  const actual = hoy.getFullYear() * 12 + hoy.getMonth();
+  let min = actual, max = actual;
+  state.pagos.forEach(p => {
+    const f = parseFechaLocal(p.fecha);
+    if (!f) return;
+    const i = f.getFullYear() * 12 + f.getMonth();
+    if (i < min) min = i;
+    if (i > max) max = i;
+  });
+  return { min, max, actual };
+}
+function flujoMesMover(delta) {
+  const hoy = new Date();
+  const fm = state.flujoMes || { y: hoy.getFullYear(), m: hoy.getMonth() };
+  const lim = flujoLimites();
+  let idx = fm.y * 12 + fm.m + delta;
+  idx = Math.max(lim.min, Math.min(lim.max, idx));
+  state.flujoMes = idx === lim.actual ? null : { y: Math.floor(idx / 12), m: idx % 12 };
+  renderDashboard();
+}
+function flujoMesActual() { state.flujoMes = null; renderDashboard(); }
+
+function dashFlujoCardHtml(dataSemanas, mes, anio, nPagos) {
+  const total = dataSemanas.reduce((s, d) => s + d.value, 0);
+  const lim = flujoLimites();
+  const idx = anio * 12 + mes;
+  const nombre = new Date(anio, mes, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  return `<div class="card">
+    <div class="cardTitle flujoHead"><span>Flujo de pagos — ${esc(nombre)}</span>
+      <span class="flujoNav">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="flujoMesMover(-1)" ${idx <= lim.min ? 'disabled' : ''} title="Mes anterior" aria-label="Mes anterior">◀</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="flujoMesMover(1)" ${idx >= lim.max ? 'disabled' : ''} title="Mes siguiente" aria-label="Mes siguiente">▶</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="flujoMesActual()" ${idx === lim.actual ? 'disabled' : ''}>Mes actual</button>
+      </span>
+    </div>
+    <div class="flujoTot">Total pagado: <b>${money(total)}</b> · ${nPagos} pago${nPagos === 1 ? '' : 's'}</div>
+    ${svgBarChart(dataSemanas, { fmt: money, color: '#1baf7a' })}
+  </div>`;
+}
+
+/* ---------------- v8.0: buscador general (lupa + atajo "/") ---------------- */
+// Busca sin acentos ni mayúsculas, todas las palabras a la vez, en gastos (concepto, folio, UUID, proveedor,
+// sucursal, monto, notas), proveedores (nombre, RFC, teléfono) y pagos (referencia, clave de rastreo, monto, banco).
+
+const BG_MAX = 8;
+let __bgTimer = null;
+
+function abrirBuscador() {
+  openModal(`<div class="bgWrap">
+    <input id="bg_q" class="bgInput" type="search" placeholder="Buscar gastos, proveedores o pagos…" autocomplete="off" oninput="buscadorTecleo()">
+    <p class="bgHint">Escribe una o varias palabras: concepto, folio, UUID, proveedor, RFC, sucursal, referencia, clave de rastreo o monto.</p>
+    <div id="bg_res" class="bgRes"></div>
+  </div>`, { wide: true });
+  setTimeout(() => { const i = document.getElementById('bg_q'); if (i) i.focus(); }, 40);
+}
+function buscadorTecleo() { clearTimeout(__bgTimer); __bgTimer = setTimeout(renderBuscador, 150); }
+
+function bgTokens(q) { return normalizarBusqueda(q).split(/\s+/).map(t => t.replace(/[$,]/g, '')).filter(Boolean); }
+function bgMontoTxt(m) { const n = Number(m) || 0; return n.toFixed(2) + ' ' + Math.round(n); }
+
+function buscarGeneral(q) {
+  const tokens = bgTokens(q);
+  const hit = hay => { const h = normalizarBusqueda(hay).replace(/,/g, ''); return tokens.every(t => h.includes(t)); };
+  const provPorId = indexarProveedoresPorId(state.proveedores);
+  const cxpPorId = new Map(state.cxp.map(c => [String(c.id), c]));
+  const pagosPorCxp = indexarPagosPorCxp(state.pagos);
+  const nomProv = id => { const p = provPorId.get(String(id)); return p ? p.nombre : '(sin proveedor)'; };
+
+  const gastos = state.cxp.filter(c => hit([c.concepto, c.folio, c.uuid_cfdi, nomProv(c.proveedor_id), c.sucursal, c.notas, bgMontoTxt(c.monto)].join(' ')))
+    .sort((a, b) => String(b.fecha_factura || b.fecha_vencimiento || '').localeCompare(String(a.fecha_factura || a.fecha_vencimiento || '')));
+  const provs = state.proveedores.filter(p => hit([p.nombre, p.rfc, p.telefono].join(' ')))
+    .sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+  const pagos = state.pagos.filter(p => {
+    const c = cxpPorId.get(String(p.cxp_id));
+    return hit([p.referencia, p.clave_rastreo, p.banco_origen, p.notas, p.pagar_desde, bgMontoTxt(p.monto), c ? c.concepto : '', c ? nomProv(c.proveedor_id) : ''].join(' '));
+  }).sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+  return { gastos, provs, pagos, nomProv, cxpPorId, pagosPorCxp };
+}
+
+function renderBuscador() {
+  const box = document.getElementById('bg_res');
+  const inp = document.getElementById('bg_q');
+  if (!box || !inp) return;
+  const q = inp.value;
+  if (bgTokens(q).join('').length < 2) { box.innerHTML = ''; return; }
+  const r = buscarGeneral(q);
+  const mas = (n) => n > BG_MAX ? `<p class="bgMas">Mostrando ${BG_MAX} de ${n}. Agrega más palabras para afinar.</p>` : '';
+  let h = '';
+  if (r.gastos.length) {
+    h += `<div class="bgGrupo"><h4>Gastos (${r.gastos.length})</h4>` + r.gastos.slice(0, BG_MAX).map(c => {
+      const est = estadoCxp(c, saldoDesdeIndice(c.id, c.monto, r.pagosPorCxp));
+      return `<button type="button" class="bgItem" onclick="bgAbrirGasto('${esc(c.id)}','${esc(c.proveedor_id)}')"><b>${esc(c.concepto || '(sin concepto)')}</b><span>${esc(r.nomProv(c.proveedor_id))} · ${esc(c.sucursal || 'Sin sucursal')}${c.folio ? ' · Folio ' + esc(c.folio) : ''} · ${money(c.monto)} · ${badgeEstadoCxp(est)}</span></button>`;
+    }).join('') + mas(r.gastos.length) + '</div>';
+  }
+  if (r.provs.length) {
+    h += `<div class="bgGrupo"><h4>Proveedores (${r.provs.length})</h4>` + r.provs.slice(0, BG_MAX).map(p =>
+      `<button type="button" class="bgItem" onclick="bgAbrirProveedor('${esc(p.id)}')"><b>${esc(p.nombre)}</b><span>${p.rfc ? 'RFC ' + esc(p.rfc) + ' · ' : ''}Abrir su reporte</span></button>`).join('') + mas(r.provs.length) + '</div>';
+  }
+  if (r.pagos.length) {
+    h += `<div class="bgGrupo"><h4>Pagos (${r.pagos.length})</h4>` + r.pagos.slice(0, BG_MAX).map(p => {
+      const c = r.cxpPorId.get(String(p.cxp_id));
+      return `<button type="button" class="bgItem" onclick="bgAbrirGasto('${esc(p.cxp_id)}','${esc(c ? c.proveedor_id : '')}')"><b>${fmtFecha(p.fecha)} · ${money(p.monto)}</b><span>${esc(c ? r.nomProv(c.proveedor_id) : '(gasto eliminado)')}${p.referencia ? ' · Ref. ' + esc(p.referencia) : ''}${c ? ' · ' + esc(c.concepto || '') : ''}</span></button>`;
+    }).join('') + mas(r.pagos.length) + '</div>';
+  }
+  box.innerHTML = h || `<p class="bgHint" style="margin-top:14px">Sin resultados para «${esc(q.trim())}».</p>`;
+}
+
+function bgAbrirGasto(cxpId, provId) { verCapturaCxp(cxpId, provId); }
+function bgAbrirProveedor(id) { closeModal(); repAbrirProveedor(id); }
+
+// Atajo "/" para abrir el buscador (no se activa mientras se escribe en un campo ni con otro diálogo abierto).
+document.addEventListener('keydown', ev => {
+  if (ev.key !== '/' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const t = ev.target;
+  if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+  const app = document.getElementById('app');
+  if (!app || app.classList.contains('hidden')) return;
+  const ov = document.getElementById('modalOverlay');
+  if (ov && !ov.classList.contains('hidden')) return;
+  const lb = document.getElementById('lightboxOverlay');
+  if (lb && !lb.classList.contains('hidden')) return;
+  ev.preventDefault();
+  abrirBuscador();
+});
 
 /* ---------------- Vista: Exportar ---------------- */
 
