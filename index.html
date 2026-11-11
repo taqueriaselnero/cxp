@@ -280,10 +280,16 @@
      se sale de la pantalla, ni en celular) */
   #lightboxOverlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:70;padding:24px;}
   #lightboxOverlay.hidden{display:none;}
-  .lightboxBox{position:relative;display:inline-block;max-width:calc(100vw - 48px);max-height:70vh;}
-  .lightboxImg{display:block;width:auto;height:auto;max-width:420px;max-height:70vh;object-fit:contain;border-radius:10px;background:#111;}
-  .lightboxClose{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-  .lightboxClose svg{width:16px;height:16px;}
+  .lightboxBox{position:relative;display:flex;flex-direction:column;gap:8px;max-width:calc(100vw - 32px);}
+  .lightboxBar{display:flex;justify-content:flex-end;align-items:center;gap:8px;}
+  .lbBtn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.96);color:#1c1b19;border:none;border-radius:999px;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;}
+  .lbBtn:hover{background:#fff;}
+  .lbBtn svg{width:14px;height:14px;}
+  .lightboxScroll{overflow:hidden;max-width:calc(100vw - 32px);border-radius:10px;}
+  .lightboxImg{display:block;width:auto;height:auto;max-width:min(420px,calc(100vw - 32px));max-height:62vh;object-fit:contain;border-radius:10px;background:#111;margin:0 auto;cursor:zoom-in;}
+  .lightboxBox.zoom{width:calc(100vw - 32px);}
+  .lightboxBox.zoom .lightboxScroll{overflow:auto;max-height:calc(100vh - 120px);-webkit-overflow-scrolling:touch;background:#111;}
+  .lightboxBox.zoom .lightboxImg{max-width:none;max-height:none;margin:0;border-radius:0;cursor:zoom-out;}
 
   /* modal */
   #modalOverlay{position:fixed;inset:0;background:rgba(11,11,11,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
@@ -293,6 +299,17 @@
   .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
   .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .formGrid .full{grid-column:1 / -1;}
+  /* v7.6: lo que se captura se ve en MAYÚSCULAS (y se guarda así). Lista = SEL_MAYUS en el script. */
+  #modalBox :is(#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia){text-transform:uppercase;}
+
+  /* v7.6: aviso de fechas (Editar / Aceptar) encima del formulario abierto */
+  #avisoOverlay{position:fixed;inset:0;background:rgba(11,11,11,.55);display:flex;align-items:center;justify-content:center;z-index:80;padding:16px;}
+  #avisoOverlay.hidden{display:none;}
+  #avisoBox{background:var(--surface);border-radius:14px;padding:20px;width:400px;max-width:100%;max-height:88vh;overflow-y:auto;}
+  #avisoBox h3{margin:0 0 10px;font-size:16px;}
+  #avisoBox ul{margin:0 0 6px;padding-left:18px;font-size:13px;line-height:1.5;}
+  #avisoBox li.err{color:var(--critical);font-weight:600;}
+  #avisoBox p{font-size:12px;color:var(--muted);margin:6px 0 0;}
 
   /* tarjeta de cuenta bancaria (proveedores) — una por cuenta, con espacio suficiente para CLABEs de 18 dígitos */
   .cuentaRow{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fafaf9;}
@@ -340,7 +357,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v7.5 · Datos seguros en Supabase</p>
+      <p class="footNote">v7.6 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -368,9 +385,25 @@
 
   <!-- LIGHTBOX: imagen de un adjunto (evidencia/comprobante) agrandada, tamaño acotado -->
   <div id="lightboxOverlay" class="hidden" onclick="if(event.target.id==='lightboxOverlay') cerrarLightbox()">
-    <div class="lightboxBox">
-      <button class="lightboxClose" onclick="cerrarLightbox()" title="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      <img class="lightboxImg" id="lightboxImg" src="">
+    <div class="lightboxBox" id="lightboxBox">
+      <div class="lightboxBar">
+        <button type="button" class="lbBtn" id="lbZoomBtn" onclick="lbToggleZoom()" title="Agrandar o reducir la imagen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg><span id="lbZoomTxt">Zoom</span></button>
+        <button type="button" class="lbBtn" onclick="cerrarLightbox()" title="Cerrar y volver a la vista previa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Cerrar</button>
+      </div>
+      <div class="lightboxScroll" id="lightboxScroll"><img class="lightboxImg" id="lightboxImg" src="" onclick="lbToggleZoom()"></div>
+    </div>
+  </div>
+
+  <!-- AVISO DE FECHAS: Editar / Aceptar (se muestra encima del formulario sin cerrarlo) -->
+  <div id="avisoOverlay" class="hidden">
+    <div id="avisoBox" role="alertdialog" aria-modal="true" aria-labelledby="avisoTitulo">
+      <h3 id="avisoTitulo"></h3>
+      <ul id="avisoLista"></ul>
+      <p id="avisoPregunta"></p>
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" id="avisoEditar">Editar</button>
+        <button type="button" class="btn btn-primary" id="avisoAceptar">Aceptar</button>
+      </div>
     </div>
   </div>
 
@@ -612,6 +645,83 @@ function fechaInputValida(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
 }
 
+/* ---------------- v7.6: validación de fechas de captura + captura en MAYÚSCULAS ----------------
+   Causa: el 10-nov se capturó una factura con año 2027 y ni el formulario ni el servidor revisaban rangos.
+   Reglas (el servidor aplica los mismos límites duros; el aviso Editar/Aceptar es solo del formulario):
+   - Fecha de factura: no más de 1 día en el futuro (bloquea); aviso si tiene más de 12 meses de antigüedad.
+   - Vencimiento: no anterior a la factura (bloquea); aviso si está a más de 12 meses de hoy (futuro o pasado).
+   - Pago: hasta 7 días en el futuro; 1–7 días = aviso Editar/Aceptar; más de 7 = bloquea; aviso si > 12 meses atrás.
+   - Próxima fecha de un recurrente: entre hoy −1 año y hoy +2 años (bloquea). */
+function ymdDesdeHoy(dias) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + dias); return formatYMD(d); }
+function ymdMasMeses(m) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setMonth(d.getMonth() + m); return formatYMD(d); }
+function fmtDMA(ymd) { return String(ymd).split('-').reverse().join('/'); }
+
+// Devuelve una promesa: true = se puede guardar; false = el usuario eligió "Editar" (o hay un error que corregir).
+function confirmarFechas(items) {
+  const err = [], avi = [];
+  let focoErr = '', focoAvi = '';
+  const hoy = ymdDesdeHoy(0), ok = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+  items.forEach(it => {
+    const v = it.valor;
+    if (!ok(v)) return; // vacío o a medio escribir: lo valida el propio campo
+    const f = fmtDMA(v);
+    const E = txt => { err.push(txt); focoErr = focoErr || it.id; };
+    const A = txt => { avi.push(txt); focoAvi = focoAvi || it.id; };
+    if (it.tipo === 'factura') {
+      if (v > ymdDesdeHoy(1)) E('La fecha de factura (' + f + ') es posterior a mañana. Una factura no puede tener fecha futura.');
+      else if (v < ymdMasMeses(-12)) A('La fecha de factura (' + f + ') tiene más de 12 meses de antigüedad.');
+    } else if (it.tipo === 'venc') {
+      if (ok(it.factura) && v < it.factura) E('El vencimiento (' + f + ') es anterior a la fecha de factura (' + fmtDMA(it.factura) + ').');
+      else if (v > ymdMasMeses(12)) A('El vencimiento (' + f + ') está a más de 12 meses de hoy.');
+      else if (v < ymdMasMeses(-12)) A('El vencimiento (' + f + ') tiene más de 12 meses de antigüedad.');
+    } else if (it.tipo === 'pago') {
+      if (v > ymdDesdeHoy(7)) E('La fecha del pago (' + f + ') está a más de 7 días de hoy. Solo se admiten pagos con fecha futura de hasta 7 días.');
+      else if (v > hoy) A('La fecha del pago (' + f + ') es posterior a hoy.');
+      else if (v < ymdMasMeses(-12)) A('La fecha del pago (' + f + ') tiene más de 12 meses de antigüedad.');
+    } else if (it.tipo === 'proxima') {
+      if (v < ymdMasMeses(-12) || v > ymdMasMeses(24)) E('La próxima fecha de vencimiento (' + f + ') debe estar entre hace 1 año y dentro de 2 años.');
+    }
+  });
+  if (!err.length && !avi.length) return Promise.resolve(true);
+  const foco = focoErr || focoAvi;
+  return new Promise(resolve => {
+    const ov = document.getElementById('avisoOverlay'), bEd = document.getElementById('avisoEditar'), bAc = document.getElementById('avisoAceptar');
+    document.getElementById('avisoTitulo').textContent = err.length ? 'Corrige estas fechas' : 'Confirma las fechas';
+    document.getElementById('avisoLista').innerHTML = err.map(t => '<li class="err">' + esc(t) + '</li>').join('') + avi.map(t => '<li>' + esc(t) + '</li>').join('');
+    document.getElementById('avisoPregunta').textContent = err.length
+      ? 'No se puede guardar con estas fechas. Elige “Editar” para corregirlas.'
+      : '¿Son correctas? Elige “Editar” para corregirlas o “Aceptar” para guardar tal cual.';
+    bAc.style.display = err.length ? 'none' : '';
+    const cerrar = acepto => {
+      ov.classList.add('hidden');
+      document.removeEventListener('keydown', onKey, true);
+      bEd.onclick = bAc.onclick = null;
+      if (!acepto && foco) { const el = document.getElementById(foco); if (el) { try { el.focus(); } catch (e) {} } }
+      resolve(acepto);
+    };
+    const onKey = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); cerrar(false); } };
+    document.addEventListener('keydown', onKey, true);
+    bEd.onclick = () => cerrar(false);
+    bAc.onclick = () => cerrar(true);
+    ov.classList.remove('hidden');
+    (err.length ? bEd : bAc).focus();
+  });
+}
+
+// Campos de texto que se capturan y se guardan en MAYÚSCULAS. Quedan fuera (a propósito): correos, contraseñas,
+// usuario de acceso, URLs, ids/UUID del CFDI, clave de rastreo y los nombres de "Mis Cuentas" (se enlazan por nombre).
+const SEL_MAYUS = '#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia';
+function aMayus(v) { return String(v == null ? '' : v).toUpperCase(); }
+document.addEventListener('input', ev => {
+  const t = ev.target;
+  if (!t || ev.isComposing || !t.matches || !t.matches(SEL_MAYUS)) return;
+  const v = t.value, u = v.toUpperCase();
+  if (v === u) return;
+  const a = t.selectionStart, b = t.selectionEnd;
+  t.value = u;
+  try { t.setSelectionRange(a, b); } catch (e) {}
+});
+
 // Compara dos fechas "sólo-día" (vía parseFechaLocal) para ordenar — robusto aunque el backend
 // mande "AAAA-MM-DD" o un datetime ISO completo (ver nota en cxpFiltradas). Vacías al final.
 function cmpFecha(a, b) {
@@ -806,13 +916,27 @@ function openModal(html, opts) {
 }
 function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
 
+// v7.6: el lightbox tiene "Zoom" (imagen a tamaño grande, se desliza para moverse; tocar la imagen también
+// alterna) y "Cerrar" (regresa a la vista previa del gasto, que sigue abierta debajo).
+function lbSetZoom(on) {
+  const box = document.getElementById('lightboxBox'), img = document.getElementById('lightboxImg'), sc = document.getElementById('lightboxScroll');
+  const ajuste = img.getBoundingClientRect().width; // ancho actual (tamaño normal) antes de cambiar
+  box.classList.toggle('zoom', on);
+  document.getElementById('lbZoomTxt').textContent = on ? 'Reducir' : 'Zoom';
+  img.style.width = on ? Math.round(Math.min(1800, Math.max(800, ajuste * 2.2))) + 'px' : '';
+  sc.scrollTop = 0;
+  sc.scrollLeft = on ? Math.max(0, (sc.scrollWidth - sc.clientWidth) / 2) : 0;
+}
+function lbToggleZoom() { lbSetZoom(!document.getElementById('lightboxBox').classList.contains('zoom')); }
 function abrirLightbox(url) {
   if (!url) return;
+  lbSetZoom(false);
   document.getElementById('lightboxImg').src = url;
   document.getElementById('lightboxOverlay').classList.remove('hidden');
 }
 function cerrarLightbox() {
   document.getElementById('lightboxOverlay').classList.add('hidden');
+  lbSetZoom(false);
   document.getElementById('lightboxImg').src = '';
 }
 document.addEventListener('keydown', ev => {
@@ -1903,21 +2027,26 @@ async function guardarCxp(ev, id) {
   // que el navegador no puede marcar como inválido de forma visible — se valida aquí a mano.
   const proveedorIdCxp = document.getElementById('cxp_proveedor_id').value;
   if (!proveedorIdCxp) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
+  const fFactura = document.getElementById('cxp_fecha_factura').value;
+  if (!await confirmarFechas([
+    { tipo: 'factura', id: 'cxp_fecha_factura', valor: fFactura },
+    { tipo: 'venc', id: 'cxp_fecha_vencimiento', valor: document.getElementById('cxp_fecha_vencimiento').value, factura: fFactura }
+  ])) return false;
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id, // ya viene fijo desde formCxp (ver nota ahí) — seguro reintentar con el mismo id.
     proveedor_id: proveedorIdCxp,
-    concepto: document.getElementById('cxp_concepto').value,
+    concepto: aMayus(document.getElementById('cxp_concepto').value),
     monto: document.getElementById('cxp_monto').value,
-    sucursal: document.getElementById('cxp_sucursal').value,
+    sucursal: aMayus(document.getElementById('cxp_sucursal').value),
     fecha_factura: document.getElementById('cxp_fecha_factura').value,
     fecha_vencimiento: document.getElementById('cxp_fecha_vencimiento').value,
-    folio: document.getElementById('cxp_folio').value,
+    folio: aMayus(document.getElementById('cxp_folio').value),
     uuid_cfdi: document.getElementById('cxp_uuid_cfdi').value,
-    notas: document.getElementById('cxp_notas').value,
+    notas: aMayus(document.getElementById('cxp_notas').value),
     instrucciones_pago: {
       cuenta_destino_id: document.getElementById('cxp_cuenta_destino_id').value,
-      referencia_sugerida: document.getElementById('cxp_referencia_sugerida').value,
+      referencia_sugerida: aMayus(document.getElementById('cxp_referencia_sugerida').value),
       pagar_desde: document.getElementById('cxp_pagar_desde').value
     },
     ...datosAdjuntoParaGuardar('cxpEvidencia', 'evidencia_b64', 'evidencia_mime', 'evidencia_clear')
@@ -1975,7 +2104,7 @@ function formPago(cxpId, pagoId) {
     <form onsubmit="return guardarPago(event, '${cxpId}', '${pagoIdEstable}', ${pago ? 'true' : 'false'})">
       <div class="formGrid">
         <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${pago ? pago.monto : saldo}" required></div>
-        <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${pago ? esc(pago.fecha) : formatYMD(new Date())}" max="${formatYMD(new Date())}" required></div>
+        <div class="field"><label>Fecha</label><input type="date" id="pg_fecha" value="${pago ? esc(pago.fecha) : formatYMD(new Date())}" max="${ymdDesdeHoy(7)}" required></div>
         <div class="field full"><label>Pagado desde</label><select id="pg_pagar_desde">${opcionesPagarDesde(pago ? pago.pagar_desde : ip.pagar_desde)}</select></div>
         <div class="field full"><label>Cuenta destino (del proveedor)</label>
           <select id="pg_cuenta_destino_id" onchange="sugerirReferenciaPago('${c.proveedor_id}')">${opcionesCuentasDestino(c.proveedor_id, pago ? pago.cuenta_destino_id : ip.cuenta_destino_id)}</select>
@@ -2000,10 +2129,7 @@ function formPago(cxpId, pagoId) {
 async function guardarPago(ev, cxpId, pagoId, esEdicion) {
   ev.preventDefault();
   const fechaPago = document.getElementById('pg_fecha').value;
-  if (fechaPago > formatYMD(new Date())) {
-    toast('La fecha de pago no puede ser posterior a hoy.', 'error');
-    return false;
-  }
+  if (!await confirmarFechas([{ tipo: 'pago', id: 'pg_fecha', valor: fechaPago }])) return false;
   const desbloquear = bloquearFormulario(ev.target, esEdicion ? 'Guardando…' : 'Registrando…');
   const record = {
     id: pagoId, // ya viene fijo desde formPago — seguro reintentar con el mismo id.
@@ -2012,10 +2138,10 @@ async function guardarPago(ev, cxpId, pagoId, esEdicion) {
     cuenta_destino_id: document.getElementById('pg_cuenta_destino_id').value,
     monto: document.getElementById('pg_monto').value,
     fecha: fechaPago,
-    referencia: document.getElementById('pg_referencia').value,
+    referencia: aMayus(document.getElementById('pg_referencia').value),
     clave_rastreo: document.getElementById('pg_clave_rastreo').value,
-    banco_origen: document.getElementById('pg_banco_origen').value,
-    notas: document.getElementById('pg_notas').value,
+    banco_origen: aMayus(document.getElementById('pg_banco_origen').value),
+    notas: aMayus(document.getElementById('pg_notas').value),
     ...datosAdjuntoParaGuardar('pagoComprobante', 'comprobante_b64', 'comprobante_mime', 'comprobante_clear')
   };
   try {
@@ -2267,19 +2393,20 @@ async function guardarRecurrente(ev, id) {
   // ver nota equivalente en guardarCxp: el combobox de búsqueda ya no valida "requerido" solo
   const proveedorIdRec = document.getElementById('rec_proveedor_id').value;
   if (!proveedorIdRec) { toast('Elige un proveedor de la lista antes de guardar.', 'error'); return false; }
+  if (!await confirmarFechas([{ tipo: 'proxima', id: 'rec_proxima_fecha_vencimiento', valor: document.getElementById('rec_proxima_fecha_vencimiento').value }])) return false;
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id, // ya viene fijo desde formRecurrente — seguro reintentar con el mismo id.
     proveedor_id: proveedorIdRec,
-    concepto: document.getElementById('rec_concepto').value,
+    concepto: aMayus(document.getElementById('rec_concepto').value),
     monto: document.getElementById('rec_monto').value,
-    sucursal: document.getElementById('rec_sucursal').value,
+    sucursal: aMayus(document.getElementById('rec_sucursal').value),
     frecuencia_meses: document.getElementById('rec_frecuencia_meses').value,
     proxima_fecha_vencimiento: document.getElementById('rec_proxima_fecha_vencimiento').value,
     dias_anticipacion: document.getElementById('rec_dias_anticipacion').value,
     cuenta_destino_id: document.getElementById('rec_cuenta_destino_id').value,
     pagar_desde: document.getElementById('rec_pagar_desde').value,
-    notas: document.getElementById('rec_notas').value,
+    notas: aMayus(document.getElementById('rec_notas').value),
     activo: document.getElementById('rec_activo').checked
   };
   try {
@@ -2526,11 +2653,11 @@ function leerCuentasProveedorDesdeDOM() {
   rows.forEach(row => {
     out.push({
       id: row.dataset.id || ('cta_' + Date.now() + '_' + Math.random().toString(36).slice(2,6)),
-      referencia: row.querySelector('.cta_referencia').value.trim(),
-      banco: row.querySelector('.cta_banco').value.trim(),
+      referencia: aMayus(row.querySelector('.cta_referencia').value.trim()),
+      banco: aMayus(row.querySelector('.cta_banco').value.trim()),
       clabe: row.querySelector('.cta_clabe').value.trim(),
-      titular: row.querySelector('.cta_titular').value.trim(),
-      cliente: row.querySelector('.cta_cliente').value.trim()
+      titular: aMayus(row.querySelector('.cta_titular').value.trim()),
+      cliente: aMayus(row.querySelector('.cta_cliente').value.trim())
     });
   });
   __pvCuentasTmp = out;
@@ -2556,11 +2683,11 @@ async function guardarProveedor(ev, id) {
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id, // ya viene fijo desde formProveedor — seguro reintentar con el mismo id.
-    nombre: document.getElementById('pv_nombre').value,
-    rfc: document.getElementById('pv_rfc').value,
+    nombre: aMayus(document.getElementById('pv_nombre').value),
+    rfc: aMayus(document.getElementById('pv_rfc').value),
     email: document.getElementById('pv_email').value,
-    telefono: document.getElementById('pv_telefono').value,
-    notas: document.getElementById('pv_notas').value,
+    telefono: aMayus(document.getElementById('pv_telefono').value),
+    notas: aMayus(document.getElementById('pv_notas').value),
     cuentas
   };
   try {
