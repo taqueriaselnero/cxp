@@ -365,12 +365,15 @@
   .esTile .esSub{font-size:11.5px;color:var(--ink-2);}
   .esTile.alert .esVal{color:var(--critical);}
   .esTile.warn .esVal{color:var(--warning);}
-  .esLista{max-height:260px;overflow-y:auto;border-top:1px solid var(--border);}
-  .esDia{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);padding:8px 2px 4px;}
-  .esItem{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid #f0efec;padding:6px 2px;font-size:13px;color:var(--ink);}
-  .esItem:hover{background:var(--brand-light);}
-  .esItem small{display:block;color:var(--muted);font-size:11.5px;}
-  .esItem .esMonto{font-weight:700;white-space:nowrap;}
+  .kpi.click{cursor:pointer;}
+  .kpi.click:hover{border-color:var(--brand);background:var(--brand-light);}
+  .kpi .sub{font-size:11.5px;color:var(--ink-2);margin-top:4px;}
+  .esCard{margin-bottom:16px;}
+  .esCard .esTiles{margin-bottom:0;}
+  .esRango{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0;}
+  tr.bloquePagoFila{display:none;}
+  tr.bloquePagoFila.open{display:table-row;}
+  .tagValidar{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--warning-bg);color:var(--warning);font-size:10.5px;}
   .flujoHead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
   .flujoNav{display:inline-flex;gap:6px;}
   .flujoTot{font-size:12.5px;color:var(--ink-2);margin:0 0 10px;}
@@ -394,7 +397,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v8.0 · Datos seguros en Supabase</p>
+      <p class="footNote">v8.1 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -501,6 +504,7 @@ const state = {
   repAbiertosSuc:    { prov: true, gastos: false, pagos: false },
   sortSucursales:    { col: null, dir: 'asc' },
   flujoMes: null, // null = mes actual; {y, m} = otro mes (no sobrevive un F5)
+  pagosBloquesAbiertos: {}, // Pagos Realizados: 'semana' y meses anteriores abiertos/cerrados (solo en memoria; no sobrevive un F5)
   sortRecurrentes: { col: null, dir: 'asc' },
   // Qué bloques colapsables de Cuentas × Pagar quedan desplegados — colapsados (false) por
   // default; se recuerda mientras la pestaña siga abierta (no sobrevive un F5, igual que los
@@ -1315,8 +1319,16 @@ function renderDashboard() {
 
   const totalPendiente = pendientes.reduce((s, c) => s + c.saldo, 0);
   const totalVencido = pendientes.filter(c => c.est === 'vencida').reduce((s, c) => s + c.saldo, 0);
-  const totalProximo = pendientes.filter(c => c.est === 'proxima').reduce((s, c) => s + c.saldo, 0);
   const totalValidar = state.pagos.filter(p => p.estado === 'pendiente_validacion').length;
+  const nVencido = pendientes.filter(c => c.est === 'vencida').length;
+
+  // v8.1: la semana va de lunes a domingo. "Vence esta semana" = de hoy al domingo (lo ya vencido se cuenta aparte).
+  const hoySem = new Date(); hoySem.setHours(0, 0, 0, 0);
+  const lunesSem = lunesDeSemana(hoySem);
+  const domingoSem = new Date(lunesSem); domingoSem.setDate(domingoSem.getDate() + 6);
+  const semDesdeIso = isoFecha(hoySem), semHastaIso = isoFecha(domingoSem);
+  const venceSemana = pendientes.filter(c => { const f = String(c.fecha_vencimiento || '').slice(0, 10); return f && f >= semDesdeIso && f <= semHastaIso; });
+  const pagosSemana = state.pagos.filter(p => { const f = parseFechaLocal(p.fecha); return f && f >= lunesSem && f <= domingoSem; });
 
   // Por sucursal
   const porSucursal = {};
@@ -1373,27 +1385,32 @@ function renderDashboard() {
   const hoy = new Date();
   const fm = state.flujoMes || { y: hoy.getFullYear(), m: hoy.getMonth() };
   const mesActual = fm.m, anioActual = fm.y;
-  const semanas = [0,0,0,0,0];
+  // v8.1: las semanas del mes van de lunes a domingo (la primera y la última pueden quedar cortas).
+  const primerDow = (new Date(anioActual, mesActual, 1).getDay() + 6) % 7; // 0 = lunes
+  const diasMes = new Date(anioActual, mesActual + 1, 0).getDate();
+  const semanas = new Array(Math.floor((diasMes - 1 + primerDow) / 7) + 1).fill(0);
   let flujoN = 0;
   state.pagos.forEach(p => {
     if (!p.fecha) return;
     const f = parseFechaLocal(p.fecha);
     if (!f || f.getMonth() !== mesActual || f.getFullYear() !== anioActual) return;
-    const semana = Math.min(4, Math.floor((f.getDate() - 1) / 7));
+    const semana = Math.floor((f.getDate() - 1 + primerDow) / 7);
     semanas[semana] += Number(p.monto) || 0; flujoN++;
   });
-  const dataSemanas = semanas.map((v,i) => ({ label: 'Semana ' + (i+1), value: v }));
+  const dataSemanas = semanas.map((v, i) => {
+    const ini = Math.max(1, i * 7 - primerDow + 1), fin = Math.min(diasMes, i * 7 - primerDow + 7);
+    return { label: 'Sem ' + (i + 1) + ' · ' + (ini === fin ? ini : ini + '–' + fin), value: v };
+  });
 
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="viewTitle"><span>Dashboard</span></div>
     <div class="kpis">
-      <div class="kpi"><div class="label">Total pendiente</div><div class="value">${money(totalPendiente)}</div></div>
-      <div class="kpi alert"><div class="label">Vencido</div><div class="value">${money(totalVencido)}</div></div>
-      <div class="kpi warn"><div class="label">Por vencer (7 días)</div><div class="value">${money(totalProximo)}</div></div>
-      <div class="kpi ${totalValidar ? 'warn' : ''}"><div class="label">Pagos por validar</div><div class="value">${totalValidar}</div></div>
+      <div class="kpi"><div class="label">Total pendiente</div><div class="value">${money(totalPendiente)}</div><div class="sub">${nPlural(pendientes.length, 'cuenta', 'cuentas')}</div></div>
+      <div class="kpi alert click" role="button" tabindex="0" onclick="irCxpEstado('vencidas')" title="Ver las cuentas vencidas"><div class="label">Vencido</div><div class="value">${money(totalVencido)}</div><div class="sub">${nPlural(nVencido, 'cuenta', 'cuentas')}</div></div>
+      <div class="kpi ${totalValidar ? 'warn' : ''}${totalValidar && can(['admin']) ? ' click' : ''}" ${totalValidar && can(['admin']) ? 'role="button" tabindex="0" onclick="irPagosPendientes()" title="Revisar los pagos por validar"' : ''}><div class="label">Pagos por validar</div><div class="value">${totalValidar}</div></div>
     </div>
-    ${dashEstaSemanaHtml(pendientes)}
+    ${dashEstaSemanaHtml(venceSemana, pagosSemana, lunesSem, domingoSem)}
     <div class="chartsGrid">
       <div class="card"><div class="cardTitle">Vencimientos por semana</div>${dashVencimientosSemanaHtml(dataSemanaVenc)}</div>
       <div class="card"><div class="cardTitle">Pendiente por sucursal</div>${svgBarChart(dataSucursal, { fmt: money })}</div>
@@ -2276,6 +2293,14 @@ function renderPagos() {
   renderPagosTable();
 }
 
+// v8.1: Pagos Realizados se agrupa en "Esta semana" (de lunes en adelante; abierta) y "Anteriores", por mes (cerradas).
+// Un bloque que contenga pagos por validar se abre solo para que no pasen desapercibidos. Lo abierto/cerrado vive
+// en state.pagosBloquesAbiertos (solo mientras la pestaña siga abierta; un F5 lo reinicia).
+function toggleBloquePagos(clave, abiertoAhora) {
+  state.pagosBloquesAbiertos[clave] = !abiertoAhora;
+  renderPagosTable();
+}
+
 function renderPagosTable() {
   let lista = state.pagos.map(p => {
     const c = state.cxp.find(x => String(x.id) === String(p.cxp_id));
@@ -2297,20 +2322,19 @@ function renderPagosTable() {
   };
   lista = state.sortPagos.col ? sortRows(lista, state.sortPagos, getters) : [...lista].sort((a,b) => cmpFecha(b.fecha, a.fecha));
 
-  wrap.innerHTML = `<div class="tableWrap"><table>
-    <thead><tr>
-      ${sortTh('Fecha','fecha','sortPagos','renderPagosTable')}
-      ${sortTh('Proveedor','provNombre','sortPagos','renderPagosTable')}
-      ${sortTh('Concepto','concepto','sortPagos','renderPagosTable')}
-      ${sortTh('Monto','monto','sortPagos','renderPagosTable')}
-      ${sortTh('Pagó desde','pagar_desde','sortPagos','renderPagosTable')}
-      ${sortTh('Referencia','referencia','sortPagos','renderPagosTable')}
-      ${sortTh('Clave Rastreo','clave_rastreo','sortPagos','renderPagosTable')}
-      ${sortTh('Capturó','capturado_por','sortPagos','renderPagosTable')}
-      <th>Estado</th><th></th>
-    </tr></thead>
-    <tbody>${lista.map(p => {
-      return `<tr>
+  const ordenar = arr => state.sortPagos.col ? sortRows(arr, state.sortPagos, getters) : [...arr].sort((a, b) => cmpFecha(b.fecha, a.fecha));
+  const lunesIso = isoFecha(lunesDeSemana(new Date()));
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const grupos = new Map(); // clave -> { titulo, items }
+  const semana = [];
+  lista.forEach(p => {
+    const f = String(p.fecha || '').slice(0, 10);
+    if (f && f >= lunesIso) { semana.push(p); return; }
+    const k = f ? 'm-' + f.slice(0, 7) : 'm-sinfecha';
+    if (!grupos.has(k)) grupos.set(k, { titulo: f ? 'Anteriores · ' + MESES[Number(f.slice(5, 7)) - 1] + ' ' + f.slice(0, 4) : 'Anteriores · sin fecha', items: [] });
+    grupos.get(k).items.push(p);
+  });
+  const renderPagoRow = (p, clase) => `<tr class="${clase}">
         <td>${fmtFecha(p.fecha)}</td>
         <td>${esc(p.provNombre)}</td>
         <td>${esc(p.concepto)}</td>
@@ -2326,7 +2350,35 @@ function renderPagosTable() {
           ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('pagos','${p.id}','este pago')">Eliminar</button>` : ''}
         </div></td>
       </tr>`;
-    }).join('')}</tbody>
+  const bloquePagos = (clave, titulo, color, bg, items) => {
+    if (!items.length) return '';
+    const nVal = items.filter(p => p.estado === 'pendiente_validacion').length;
+    const guardado = state.pagosBloquesAbiertos[clave];
+    const abierto = guardado !== undefined ? guardado : (clave === 'semana' || nVal > 0);
+    const total = items.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+    return `<tr class="blockHeader" style="cursor:pointer" onclick="toggleBloquePagos('${clave}', ${abierto})">
+        <td colspan="10" style="background:${bg};color:${color};font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:7px 10px">
+          <span class="bloqueToggle${abierto ? ' open' : ''}"><span class="chev">▶</span>${esc(titulo)} (${items.length}) · ${money(total)}${nVal ? `<span class="tagValidar">${nVal} por validar</span>` : ''} — clic para ${abierto ? 'ocultar' : 'mostrar'}</span>
+        </td>
+      </tr>` + ordenar(items).map(p => renderPagoRow(p, 'bloquePagoFila' + (abierto ? ' open' : ''))).join('');
+  };
+  const mesesOrden = [...grupos.keys()].sort((a, b) => b.localeCompare(a)); // más reciente primero; "sin fecha" al final
+  const filasPagos = bloquePagos('semana', 'Esta semana', 'var(--good)', 'var(--good-bg)', semana)
+    + mesesOrden.map(k => bloquePagos(k, grupos.get(k).titulo, 'var(--ink-2)', '#f0efec', grupos.get(k).items)).join('');
+
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Fecha','fecha','sortPagos','renderPagosTable')}
+      ${sortTh('Proveedor','provNombre','sortPagos','renderPagosTable')}
+      ${sortTh('Concepto','concepto','sortPagos','renderPagosTable')}
+      ${sortTh('Monto','monto','sortPagos','renderPagosTable')}
+      ${sortTh('Pagó desde','pagar_desde','sortPagos','renderPagosTable')}
+      ${sortTh('Referencia','referencia','sortPagos','renderPagosTable')}
+      ${sortTh('Clave Rastreo','clave_rastreo','sortPagos','renderPagosTable')}
+      ${sortTh('Capturó','capturado_por','sortPagos','renderPagosTable')}
+      <th>Estado</th><th></th>
+    </tr></thead>
+    <tbody>${filasPagos}</tbody>
   </table></div>`;
 }
 
@@ -3819,45 +3871,30 @@ function exportarReporteSucCsv() {
     mov.map(m => m.fila));
 }
 
-/* ---------------- v8.0: Dashboard — tarjeta "Esta semana" ---------------- */
+/* ---------------- v8.0/v8.1: Dashboard — tarjeta "Esta semana" (solo cifras; el detalle vive en Cuentas × Pagar) ---------------- */
 
+function nPlural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
 function irCxpEstado(estado) {
   state.filtrosCxp = { sucursal: '', proveedor: '', desde: '', hasta: '', estado, texto: '' };
   setView('cxp');
 }
+function irCxpRango(desdeIso, hastaIso) {
+  state.filtrosCxp = { sucursal: '', proveedor: '', desde: desdeIso, hasta: hastaIso, estado: 'pendientes', texto: '' };
+  setView('cxp');
+}
 function irPagosPendientes() { state.filtrosPagos.estado = 'pendiente_validacion'; setView('pagos'); }
 
-function dashEstaSemanaHtml(pendientes) {
-  const hoyN = new Date(); hoyN.setHours(0, 0, 0, 0);
-  const prox = pendientes.filter(c => c.est === 'proxima' && c.fecha_vencimiento).sort((a, b) => cmpFecha(a.fecha_vencimiento, b.fecha_vencimiento));
-  const venc = pendientes.filter(c => c.est === 'vencida');
+function dashEstaSemanaHtml(venceSemana, pagosSemana, lunes, domingo) {
   const suma = arr => arr.reduce((s, c) => s + c.saldo, 0);
-  const lunes = lunesDeSemana(new Date());
-  const domingo = new Date(lunes); domingo.setDate(domingo.getDate() + 6);
-  const pagosSem = state.pagos.filter(p => { const f = parseFechaLocal(p.fecha); return f && f >= lunes && f <= domingo; });
-  const totPagosSem = pagosSem.reduce((s, p) => s + (Number(p.monto) || 0), 0);
-  const porValidar = can(['admin']) ? state.pagos.filter(p => p.estado === 'pendiente_validacion') : [];
-  const pl = (n, s, p) => n + ' ' + (n === 1 ? s : p);
-
+  const totPagos = pagosSemana.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  const dm = d => d.getDate() + ' ' + d.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '');
+  const hoyEsDomingo = new Date().getDay() === 0;
   const tile = (cls, label, valor, sub, onclick) =>
     `<button type="button" class="esTile ${cls}" onclick="${onclick}"><span class="esLbl">${label}</span><span class="esVal">${valor}</span><span class="esSub">${sub}</span></button>`;
-  let tiles = tile('warn', 'Vencen en los próximos 7 días', money(suma(prox)), pl(prox.length, 'cuenta', 'cuentas'), "irCxpEstado('proximas')")
-    + tile(venc.length ? 'alert' : '', 'Vencido', money(suma(venc)), pl(venc.length, 'cuenta', 'cuentas'), "irCxpEstado('vencidas')")
-    + tile('', 'Pagos de esta semana', money(totPagosSem), pl(pagosSem.length, 'pago', 'pagos'), "setView('pagos')");
-  if (can(['admin'])) tiles += tile(porValidar.length ? 'warn' : '', 'Pagos por validar', String(porValidar.length), porValidar.length ? 'Toca para revisarlos' : 'Todo validado', 'irPagosPendientes()');
-
-  const dias = new Map();
-  prox.forEach(c => { const k = String(c.fecha_vencimiento).slice(0, 10); if (!dias.has(k)) dias.set(k, []); dias.get(k).push(c); });
-  const etiquetaDia = k => {
-    const d = parseFechaLocal(k); const dif = Math.round((d - hoyN) / 86400000);
-    if (dif === 0) return 'Hoy'; if (dif === 1) return 'Mañana';
-    return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
-  };
-  const lista = prox.length
-    ? [...dias.entries()].map(([k, items]) => `<div class="esDia">${esc(etiquetaDia(k))}</div>` + items.map(c =>
-        `<button type="button" class="esItem" onclick="verCapturaCxp('${esc(c.id)}','${esc(c.proveedor_id)}')"><span>${esc(proveedorNombre(c.proveedor_id))} — ${esc(c.concepto || '')}<small>${esc(c.sucursal || 'Sin sucursal')}${c.folio ? ' · Folio ' + esc(c.folio) : ''}</small></span><span class="esMonto">${money(c.saldo)}</span></button>`).join('')).join('')
-    : `<div class="chartEmpty" style="padding:10px 0">Sin vencimientos en los próximos 7 días. 🎉</div>`;
-  return `<div class="card esCard"><div class="cardTitle">Esta semana</div><div class="esTiles">${tiles}</div><div class="esLista">${lista}</div></div>`;
+  const tiles = tile('warn', 'Vence esta semana', money(suma(venceSemana)), nPlural(venceSemana.length, 'cuenta', 'cuentas') + (hoyEsDomingo ? ' · hoy' : ' · de hoy al domingo'),
+      "irCxpRango('" + isoFecha(new Date(new Date().setHours(0, 0, 0, 0))) + "','" + isoFecha(domingo) + "')")
+    + tile('', 'Pagado esta semana', money(totPagos), nPlural(pagosSemana.length, 'pago', 'pagos'), "setView('pagos')");
+  return `<div class="card esCard"><div class="cardTitle">Esta semana <span class="esRango">· lun ${esc(dm(lunes))} – dom ${esc(dm(domingo))}</span></div><div class="esTiles">${tiles}</div></div>`;
 }
 
 /* ---------------- v8.0: Dashboard — flujo de pagos mes a mes ---------------- */
