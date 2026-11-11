@@ -357,20 +357,28 @@
   .bgItem b{display:block;font-size:13.5px;}
   .bgItem > span{display:block;font-size:12px;color:var(--ink-2);margin-top:2px;}
   .bgMas{font-size:12px;color:var(--muted);margin:0 0 6px;}
-  .esCard .esTiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;}
-  .esTile{display:flex;flex-direction:column;gap:2px;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
-  .esTile:hover{border-color:var(--brand);background:var(--brand-light);}
-  .esTile .esLbl{font-size:12px;color:var(--muted);}
-  .esTile .esVal{font-size:20px;font-weight:700;}
-  .esTile .esSub{font-size:11.5px;color:var(--ink-2);}
-  .esTile.alert .esVal{color:var(--critical);}
-  .esTile.warn .esVal{color:var(--warning);}
-  .kpi.click{cursor:pointer;}
-  .kpi.click:hover{border-color:var(--brand);background:var(--brand-light);}
-  .kpi .sub{font-size:11.5px;color:var(--ink-2);margin-top:4px;}
-  .esCard{margin-bottom:16px;}
-  .esCard .esTiles{margin-bottom:0;}
-  .esRango{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0;}
+  .kpis.dCards{grid-template-columns:repeat(3,minmax(0,1fr));}
+  @media (max-width:860px){.kpis.dCards{grid-template-columns:1fr;}}
+  .kpi.dCard{display:flex;flex-direction:column;gap:8px;padding:12px 14px;}
+  .dCard .dTitle{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-2);}
+  .dTitle .esRango{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0;}
+  .dRow{display:flex;flex-direction:column;gap:1px;text-align:left;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:inherit;font:inherit;}
+  button.dRow{cursor:pointer;}
+  button.dRow:hover{border-color:var(--brand);background:var(--brand-light);}
+  .dRow .dLbl{font-size:12px;color:var(--muted);}
+  .dRow .dVal{font-size:22px;font-weight:700;}
+  .dRow .dSub{font-size:11.5px;color:var(--ink-2);}
+  .dRow.alert .dVal{color:var(--critical);}
+  .dRow.warn .dVal{color:var(--warning);}
+  .dFoot{display:block;font-size:12px;color:var(--ink-2);text-align:left;background:none;border:0;padding:2px 2px 0;font-family:inherit;}
+  button.dFoot{cursor:pointer;}
+  button.dFoot:hover{color:var(--brand);text-decoration:underline;}
+  .badge-validar{background:var(--brand-light);color:var(--brand);border:1px dashed var(--brand);}
+  .filtroBanner{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--brand-light);border:1px solid var(--brand);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px;}
+  .filtroBanner .fbAcc{display:flex;gap:8px;flex-wrap:wrap;}
+  .bgTop{display:flex;gap:8px;align-items:center;}
+  .bgTop .bgInput{flex:1;min-width:0;}
+  .bgTop .bgCancel{flex:none;}
   tr.bloquePagoFila{display:none;}
   tr.bloquePagoFila.open{display:table-row;}
   .tagValidar{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--warning-bg);color:var(--warning);font-size:10.5px;}
@@ -397,7 +405,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v8.1 · Datos seguros en Supabase</p>
+      <p class="footNote">v8.2 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -611,11 +619,16 @@ async function logout(motivo) {
 
 /* ---------------- Carga de datos ---------------- */
 
+let __ultimaCarga = Date.now(); // v8.2: para refrescar solo al volver a la pestaña si ya pasó más de un minuto
 async function loadData() {
   const r = await api('getData', {});
   state.proveedores = r.proveedores; state.cxp = r.cxp; state.pagos = r.pagos;
   state.recurrentes = r.recurrentes || []; state.config = r.config;
+  __ultimaCarga = Date.now();
 }
+
+// v8.2: un gasto queda "por validar" cuando lo captura un usuario sin permiso de validar (el servidor decide el estado).
+function gastoPorValidar(c) { return !!c && c.estado === 'pendiente_validacion'; }
 
 async function loadUsuarios() {
   const r = await api('getUsuarios', {});
@@ -1320,6 +1333,7 @@ function renderDashboard() {
   const totalPendiente = pendientes.reduce((s, c) => s + c.saldo, 0);
   const totalVencido = pendientes.filter(c => c.est === 'vencida').reduce((s, c) => s + c.saldo, 0);
   const totalValidar = state.pagos.filter(p => p.estado === 'pendiente_validacion').length;
+  const totalGastosValidar = state.cxp.filter(gastoPorValidar).length;
   const nVencido = pendientes.filter(c => c.est === 'vencida').length;
 
   // v8.1: la semana va de lunes a domingo. "Vence esta semana" = de hoy al domingo (lo ya vencido se cuenta aparte).
@@ -1329,6 +1343,10 @@ function renderDashboard() {
   const semDesdeIso = isoFecha(hoySem), semHastaIso = isoFecha(domingoSem);
   const venceSemana = pendientes.filter(c => { const f = String(c.fecha_vencimiento || '').slice(0, 10); return f && f >= semDesdeIso && f <= semHastaIso; });
   const pagosSemana = state.pagos.filter(p => { const f = parseFechaLocal(p.fecha); return f && f >= lunesSem && f <= domingoSem; });
+  // v8.2: "vencido esta semana" = lo que venció de lunes a ayer y sigue sin pagarse
+  const ayerSem = new Date(hoySem); ayerSem.setDate(ayerSem.getDate() - 1);
+  const lunesIsoSem = isoFecha(lunesSem), ayerIsoSem = isoFecha(ayerSem);
+  const vencidoSemana = pendientes.filter(c => { const f = String(c.fecha_vencimiento || '').slice(0, 10); return f && f >= lunesIsoSem && f <= ayerIsoSem; });
 
   // Por sucursal
   const porSucursal = {};
@@ -1405,12 +1423,7 @@ function renderDashboard() {
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="viewTitle"><span>Dashboard</span></div>
-    <div class="kpis">
-      <div class="kpi"><div class="label">Total pendiente</div><div class="value">${money(totalPendiente)}</div><div class="sub">${nPlural(pendientes.length, 'cuenta', 'cuentas')}</div></div>
-      <div class="kpi alert click" role="button" tabindex="0" onclick="irCxpEstado('vencidas')" title="Ver las cuentas vencidas"><div class="label">Vencido</div><div class="value">${money(totalVencido)}</div><div class="sub">${nPlural(nVencido, 'cuenta', 'cuentas')}</div></div>
-      <div class="kpi ${totalValidar ? 'warn' : ''}${totalValidar && can(['admin']) ? ' click' : ''}" ${totalValidar && can(['admin']) ? 'role="button" tabindex="0" onclick="irPagosPendientes()" title="Revisar los pagos por validar"' : ''}><div class="label">Pagos por validar</div><div class="value">${totalValidar}</div></div>
-    </div>
-    ${dashEstaSemanaHtml(venceSemana, pagosSemana, lunesSem, domingoSem)}
+    ${dashTarjetasHtml({ totalPendiente, nPend: pendientes.length, totalVencido, nVencido, venceSemana, vencidoSemana, pagosSemana, lunes: lunesSem, domingo: domingoSem, nPagosVal: totalValidar, nGastosVal: totalGastosValidar })}
     <div class="chartsGrid">
       <div class="card"><div class="cardTitle">Vencimientos por semana</div>${dashVencimientosSemanaHtml(dataSemanaVenc)}</div>
       <div class="card"><div class="cardTitle">Pendiente por sucursal</div>${svgBarChart(dataSucursal, { fmt: money })}</div>
@@ -1574,7 +1587,8 @@ function renderCapturaCxp(c, provId, logError) {
         <div class="item"><div class="lbl">Concepto</div><div class="val concepto">${esc(c.concepto || '—')}</div></div>
         ${c.folio ? `<div class="item"><div class="lbl">Folio</div><div class="val">${esc(c.folio)}</div></div>` : ''}
         <div class="item"><div class="lbl">Saldo pendiente</div><div class="val saldo">${money(saldo)}</div></div>
-        <div class="item"><div class="lbl">Estado</div><div class="val">${badgeEstadoCxp(estadoCxp(c, saldo))}${estadoTxt ? `<span class="estadoVenceTxt">${esc(estadoTxt)}</span>` : ''}</div></div>
+        <div class="item"><div class="lbl">Estado</div><div class="val">${badgeEstadoCxp(estadoCxp(c, saldo))}${gastoPorValidar(c) ? ' <span class="badge badge-validar">Por validar</span>' : ''}${estadoTxt ? `<span class="estadoVenceTxt">${esc(estadoTxt)}</span>` : ''}</div></div>
+        ${gastoPorValidar(c) && can(['admin']) ? `<div class="item"><button type="button" class="btn btn-ok btn-sm" onclick="confirmarValidarGasto('${esc(c.id)}')">✓ Validar gasto</button></div>` : ''}
         <button type="button" class="masDetalleToggle" onclick="toggleMasDetalleCxp(this)"><span class="chev">▸</span> Ver proveedor, fechas, UUID CFDI y notas</button>
         <div class="masDetalleBody hidden">
           <div class="captInfo">
@@ -1676,6 +1690,7 @@ function cxpFiltradas() {
       if (f.estado === 'urgentes' && !(c.est === 'vencida' || c.est === 'proxima')) return false;
       if (f.estado === 'pendientes' && c.saldo <= 0.01) return false;
       if (f.estado === 'liquidadas' && c.est !== 'liquidada') return false;
+      if (f.estado === 'porvalidar' && !gastoPorValidar(c)) return false;
       if (f.texto) {
         const t = f.texto.toLowerCase();
         const hay = (c.concepto || '') + ' ' + c.provNombre + ' ' + (c.folio || '') + ' ' + (c.sucursal || '');
@@ -1713,6 +1728,7 @@ function renderCxp() {
         <option value="proximas" ${state.filtrosCxp.estado==='proximas'?'selected':''}>Por vencer (hoy a 7 días)</option>
         <option value="urgentes" ${state.filtrosCxp.estado==='urgentes'?'selected':''}>Urgentes (vencidas + por vencer)</option>
         <option value="liquidadas" ${state.filtrosCxp.estado==='liquidadas'?'selected':''}>Liquidadas</option>
+        <option value="porvalidar" ${state.filtrosCxp.estado==='porvalidar'?'selected':''}>Gastos por validar</option>
       </select></div>
       <div class="f"><button class="btn btn-primary btn-sm" onclick="renderCxpTable()">Buscar</button></div>
       <div class="f"><button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosCxp()">Limpiar</button></div>
@@ -1727,11 +1743,69 @@ function limpiarFiltrosCxp() {
   renderCxp();
 }
 
+// v8.2: franja que deja a la vista QUÉ filtros están puestos (por ejemplo al llegar desde una tarjeta del dashboard),
+// cuántas cuentas y qué saldo suman, y un botón para quitarlos todos.
+const ETIQ_ESTADO_CXP = { pendientes: 'con saldo pendiente', vencidas: 'vencidas', proximas: 'por vencer (hoy a 7 días)', urgentes: 'urgentes (vencidas + por vencer)', liquidadas: 'liquidadas', porvalidar: 'gastos por validar' };
+function bannerFiltrosCxp(lista) {
+  const f = state.filtrosCxp, p = [];
+  if (f.estado && f.estado !== 'todas' && ETIQ_ESTADO_CXP[f.estado]) p.push(ETIQ_ESTADO_CXP[f.estado]);
+  if (f.desde && f.hasta) p.push(f.desde === f.hasta ? 'vence el ' + fmtFecha(f.desde) : 'vence del ' + fmtFecha(f.desde) + ' al ' + fmtFecha(f.hasta));
+  else if (f.desde) p.push('vence desde el ' + fmtFecha(f.desde));
+  else if (f.hasta) p.push('vence hasta el ' + fmtFecha(f.hasta));
+  if (f.sucursal) p.push('sucursal ' + f.sucursal);
+  if (f.proveedor) p.push(proveedorNombre(f.proveedor));
+  if (f.texto) p.push('«' + f.texto + '»');
+  if (!p.length) return '';
+  const saldo = lista.reduce((s, c) => s + (Number(c.saldo) || 0), 0);
+  const nVal = lista.filter(gastoPorValidar).length;
+  const lote = can(['admin']) && f.estado === 'porvalidar' && nVal ? `<button type="button" class="btn btn-ok btn-sm" onclick="confirmarValidarLote()">✓ Validar todos (${nVal})</button>` : '';
+  return `<div class="filtroBanner" id="filtroBannerCxp"><span>Mostrando: <b>${esc(p.join(' · '))}</b> — ${nPlural(lista.length, 'cuenta', 'cuentas')} · saldo ${money(saldo)}</span><span class="fbAcc">${lote}<button type="button" class="btn btn-ghost btn-sm" onclick="limpiarFiltrosCxp()">Ver todas ✕</button></span></div>`;
+}
+
+// v8.2: validación de gastos (solo administrador; el servidor lo vuelve a comprobar).
+let __lotePorValidar = [];
+function confirmarValidarGasto(id) {
+  const c = state.cxp.find(x => String(x.id) === String(id));
+  if (!c) { toast('No se encontró ese gasto.', 'error'); return; }
+  openModal(`
+    <h2>Validar gasto</h2>
+    <p>¿Confirmas que este gasto fue capturado correctamente y debe marcarse como <b>validado</b>?</p>
+    <p class="muted" style="font-size:13px">${esc(proveedorNombre(c.proveedor_id))} · ${esc(c.concepto || '(sin concepto)')} · ${money(c.monto)}</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-ok" onclick="validarGastos(['${esc(c.id)}'])">Confirmar</button>
+    </div>
+  `);
+}
+function confirmarValidarLote() {
+  __lotePorValidar = cxpFiltradas().filter(gastoPorValidar).map(c => String(c.id));
+  if (!__lotePorValidar.length) return;
+  openModal(`
+    <h2>Validar gastos</h2>
+    <p>¿Confirmas que estos <b>${__lotePorValidar.length}</b> gastos fueron capturados correctamente y deben marcarse como <b>validados</b>?</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-ok" onclick="validarGastos(__lotePorValidar)">Confirmar</button>
+    </div>
+  `);
+}
+async function validarGastos(ids) {
+  try {
+    showLoading(true);
+    for (let i = 0; i < ids.length; i += 100) await api('validarGasto', { ids: ids.slice(i, i + 100) });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast(ids.length === 1 ? 'Gasto validado.' : ids.length + ' gastos validados.', 'ok');
+    setView(state.view);
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
 // Menú "Opciones" (⋮) de cada fila de Cuentas × Pagar — agrupa Registrar pago / Editar / Eliminar
 // (antes botones sueltos) respetando los mismos permisos por rol de siempre. Un solo listener
 // global (ver el final del script) cierra cualquier menú abierto al hacer clic fuera.
 function opcionesCxpMenu(c) {
   const items = [];
+  if (can(['admin']) && gastoPorValidar(c)) items.push(`<button onclick="cerrarMenusCxp(); confirmarValidarGasto('${c.id}')">✓ Validar gasto</button>`);
   if (can(['admin','capturista','tesorero']) && c.saldo > 0.01) items.push(`<button onclick="cerrarMenusCxp(); formPago('${c.id}')">💰 Registrar pago</button>`);
   if (can(['admin','capturista'])) items.push(`<button onclick="cerrarMenusCxp(); formCxp('${c.id}')">✏️ Editar</button>`);
   if (can(['admin'])) items.push(`<button class="danger" onclick="cerrarMenusCxp(); confirmarEliminar('cxp','${c.id}','esta CxP')">🗑️ Eliminar</button>`);
@@ -1760,7 +1834,7 @@ function renderCxpRow(c, extraClass) {
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
         <td>${fmtFecha(c.fecha_vencimiento)}</td>
-        <td>${badgeEstadoCxpTabla(c, dias)}</td>
+        <td>${badgeEstadoCxpTabla(c, dias)}${gastoPorValidar(c) ? ' <span class="badge badge-validar" title="Lo capturó un usuario sin permiso de validar: falta que el administrador lo apruebe">Por validar</span>' : ''}</td>
         <td>${textoDiasCxp(c, dias)}</td>
         <td>${opcionesCxpMenu(c)}</td>
       </tr>`;
@@ -1789,7 +1863,7 @@ function toggleBloqueCxp(clave) {
 function renderCxpTable() {
   const lista = cxpFiltradas().map(c => ({ ...c, dias: diasVencimiento(c) }));
   const wrap = document.getElementById('cxpTableWrap');
-  if (!lista.length) { wrap.innerHTML = `<div class="tableWrap"><div class="emptyState">Sin resultados con los filtros actuales.</div></div>`; return; }
+  if (!lista.length) { wrap.innerHTML = `${bannerFiltrosCxp(lista)}<div class="tableWrap"><div class="emptyState">Sin resultados con los filtros actuales.</div></div>`; return; }
 
   const getters = {
     provNombre: c => c.provNombre,
@@ -1848,7 +1922,7 @@ function renderCxpTable() {
   filasHtml += bloqueColapsable('vigentes', 'Vigentes — vencen en más de 7 días', '⚪', 'var(--ink-2)', '#f0efec', vigentes);
   filasHtml += bloqueColapsable('liquidadas', 'Liquidadas', '🟢', 'var(--good)', 'var(--good-bg)', liquidadas, true);
 
-  wrap.innerHTML = `<div class="tableWrap"><table>
+  wrap.innerHTML = `${bannerFiltrosCxp(lista)}<div class="tableWrap"><table>
     <thead><tr>
       ${sortTh('Proveedor','provNombre','sortCxp','renderCxpTable')}
       ${sortTh('Concepto','concepto','sortCxp','renderCxpTable')}
@@ -2153,7 +2227,8 @@ async function guardarCxp(ev, id) {
     const res = await api('save', { entity: 'cxp', record }, record.evidencia_b64 ? { timeoutMs: API_TIMEOUT_MS_ADJUNTO } : undefined);
     await loadData();
     closeModal(); showLoading(false);
-    toast('CxP guardada correctamente.', 'ok');
+    const guardadaCxp = state.cxp.find(x => String(x.id) === String(id));
+    toast('CxP guardada correctamente.' + (gastoPorValidar(guardadaCxp) ? ' Queda por validar por el administrador.' : ''), 'ok');
     if (res.warning) toast(res.warning, 'warning');
     renderCxp();
   } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
@@ -3871,7 +3946,7 @@ function exportarReporteSucCsv() {
     mov.map(m => m.fila));
 }
 
-/* ---------------- v8.0/v8.1: Dashboard — tarjeta "Esta semana" (solo cifras; el detalle vive en Cuentas × Pagar) ---------------- */
+/* ---------------- v8.2: Dashboard — 3 tarjetas (Total · Esta semana · Por validar). Solo cifras; el detalle vive en Cuentas × Pagar ---------------- */
 
 function nPlural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
 function irCxpEstado(estado) {
@@ -3883,18 +3958,37 @@ function irCxpRango(desdeIso, hastaIso) {
   setView('cxp');
 }
 function irPagosPendientes() { state.filtrosPagos.estado = 'pendiente_validacion'; setView('pagos'); }
+function irGastosPorValidar() { irCxpEstado('porvalidar'); }
 
-function dashEstaSemanaHtml(venceSemana, pagosSemana, lunes, domingo) {
+function dashTarjetasHtml(d) {
   const suma = arr => arr.reduce((s, c) => s + c.saldo, 0);
-  const totPagos = pagosSemana.reduce((s, p) => s + (Number(p.monto) || 0), 0);
-  const dm = d => d.getDate() + ' ' + d.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '');
-  const hoyEsDomingo = new Date().getDay() === 0;
-  const tile = (cls, label, valor, sub, onclick) =>
-    `<button type="button" class="esTile ${cls}" onclick="${onclick}"><span class="esLbl">${label}</span><span class="esVal">${valor}</span><span class="esSub">${sub}</span></button>`;
-  const tiles = tile('warn', 'Vence esta semana', money(suma(venceSemana)), nPlural(venceSemana.length, 'cuenta', 'cuentas') + (hoyEsDomingo ? ' · hoy' : ' · de hoy al domingo'),
-      "irCxpRango('" + isoFecha(new Date(new Date().setHours(0, 0, 0, 0))) + "','" + isoFecha(domingo) + "')")
-    + tile('', 'Pagado esta semana', money(totPagos), nPlural(pagosSemana.length, 'pago', 'pagos'), "setView('pagos')");
-  return `<div class="card esCard"><div class="cardTitle">Esta semana <span class="esRango">· lun ${esc(dm(lunes))} – dom ${esc(dm(domingo))}</span></div><div class="esTiles">${tiles}</div></div>`;
+  const dm = x => x.getDate() + ' ' + x.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '');
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const ayer = new Date(hoy); ayer.setDate(ayer.getDate() - 1);
+  const hoyEsDomingo = hoy.getDay() === 0, hoyEsLunes = hoy.getDay() === 1;
+  const totPagos = d.pagosSemana.reduce((s, p) => s + (Number(p.monto) || 0), 0);
+  // Una fila es botón (lleva a su lista) solo si tiene algo que mostrar; con cero queda como texto.
+  const fila = (cls, lbl, valor, sub, onclick) => {
+    const cuerpo = '<span class="dLbl">' + lbl + '</span><span class="dVal">' + valor + '</span><span class="dSub">' + sub + '</span>';
+    return onclick ? '<button type="button" class="dRow ' + cls + '" onclick="' + onclick + '">' + cuerpo + '</button>'
+                   : '<div class="dRow ' + cls + '">' + cuerpo + '</div>';
+  };
+  const total = '<div class="kpi dCard"><div class="dTitle">Total</div>'
+    + fila('', 'Pendiente', money(d.totalPendiente), nPlural(d.nPend, 'cuenta', 'cuentas'), d.nPend ? "irCxpEstado('pendientes')" : '')
+    + fila('alert', 'Vencido', money(d.totalVencido), nPlural(d.nVencido, 'cuenta', 'cuentas') + ' · incluido en el pendiente', d.nVencido ? "irCxpEstado('vencidas')" : '')
+    + '</div>';
+  const semana = '<div class="kpi dCard"><div class="dTitle">Esta semana <span class="esRango">· lun ' + esc(dm(d.lunes)) + ' – dom ' + esc(dm(d.domingo)) + '</span></div>'
+    + fila('warn', 'Pendiente', money(suma(d.venceSemana)), nPlural(d.venceSemana.length, 'cuenta', 'cuentas') + (hoyEsDomingo ? ' · hoy' : ' · de hoy al domingo'),
+        d.venceSemana.length ? "irCxpRango('" + isoFecha(hoy) + "','" + isoFecha(d.domingo) + "')" : '')
+    + fila('alert', 'Vencido', money(suma(d.vencidoSemana)), nPlural(d.vencidoSemana.length, 'cuenta', 'cuentas') + (hoyEsLunes ? ' · hoy es lunes' : ' · de lunes a ayer'),
+        d.vencidoSemana.length ? "irCxpRango('" + isoFecha(d.lunes) + "','" + isoFecha(ayer) + "')" : '')
+    + '<button type="button" class="dFoot" onclick="setView(\'pagos\')">Pagado esta semana: <b>' + money(totPagos) + '</b> · ' + nPlural(d.pagosSemana.length, 'pago', 'pagos') + '</button>'
+    + '</div>';
+  const validar = '<div class="kpi dCard"><div class="dTitle">Por validar</div>'
+    + fila(d.nPagosVal ? 'warn' : '', 'Pagos', d.nPagosVal, 'por validar', d.nPagosVal ? 'irPagosPendientes()' : '')
+    + fila(d.nGastosVal ? 'warn' : '', 'Gastos', d.nGastosVal, 'por validar', d.nGastosVal ? 'irGastosPorValidar()' : '')
+    + '</div>';
+  return '<div class="kpis dCards">' + total + semana + validar + '</div>';
 }
 
 /* ---------------- v8.0: Dashboard — flujo de pagos mes a mes ---------------- */
@@ -3948,13 +4042,36 @@ function dashFlujoCardHtml(dataSemanas, mes, anio, nPagos) {
 const BG_MAX = 8;
 let __bgTimer = null;
 
+let __bgQuitarSalidas = null;
 function abrirBuscador() {
   openModal(`<div class="bgWrap">
-    <input id="bg_q" class="bgInput" type="search" placeholder="Buscar gastos, proveedores o pagos…" autocomplete="off" oninput="buscadorTecleo()">
-    <p class="bgHint">Escribe una o varias palabras: concepto, folio, UUID, proveedor, RFC, sucursal, referencia, clave de rastreo o monto.</p>
+    <div class="bgTop">
+      <input id="bg_q" class="bgInput" type="search" placeholder="Buscar gastos, proveedores o pagos…" autocomplete="off" oninput="buscadorTecleo()">
+      <button type="button" class="btn btn-ghost bgCancel" onclick="cerrarBuscador()">Cancelar</button>
+    </div>
+    <p class="bgHint">Escribe una o varias palabras: concepto, folio, UUID, proveedor, RFC, sucursal, referencia, clave de rastreo o monto. Esc o clic fuera para cerrar.</p>
     <div id="bg_res" class="bgRes"></div>
   </div>`, { wide: true });
+  bgEngancharSalidas();
   setTimeout(() => { const i = document.getElementById('bg_q'); if (i) i.focus(); }, 40);
+}
+function cerrarBuscador() { if (__bgQuitarSalidas) __bgQuitarSalidas(); closeModal(); }
+// Salidas del buscador: Esc, clic fuera del recuadro y botón Cancelar. Los escuchas se quitan solos en cuanto el
+// recuadro deja de ser el buscador (por ejemplo al abrir un gasto desde un resultado), para no cerrar otros diálogos.
+function bgEngancharSalidas() {
+  if (__bgQuitarSalidas) __bgQuitarSalidas();
+  const ov = document.getElementById('modalOverlay');
+  let bajoDown = null;
+  const vivo = () => !!document.getElementById('bg_q') && !ov.classList.contains('hidden');
+  const quitar = () => { document.removeEventListener('keydown', onKey, true); ov.removeEventListener('mousedown', onDown); ov.removeEventListener('click', onClick); if (__bgQuitarSalidas === quitar) __bgQuitarSalidas = null; };
+  const onKey = ev => { if (!vivo()) { quitar(); return; } if (ev.key === 'Escape') { ev.preventDefault(); quitar(); closeModal(); } };
+  const onDown = ev => { bajoDown = ev.target; };
+  // Se cierra solo si el clic empezó Y terminó en el fondo oscuro (arrastrar para seleccionar texto no debe cerrarlo).
+  const onClick = ev => { if (!vivo()) { quitar(); return; } if (ev.target === ov && bajoDown === ov) { quitar(); closeModal(); } };
+  document.addEventListener('keydown', onKey, true);
+  ov.addEventListener('mousedown', onDown);
+  ov.addEventListener('click', onClick);
+  __bgQuitarSalidas = quitar;
 }
 function buscadorTecleo() { clearTimeout(__bgTimer); __bgTimer = setTimeout(renderBuscador, 150); }
 
@@ -3992,7 +4109,7 @@ function renderBuscador() {
   if (r.gastos.length) {
     h += `<div class="bgGrupo"><h4>Gastos (${r.gastos.length})</h4>` + r.gastos.slice(0, BG_MAX).map(c => {
       const est = estadoCxp(c, saldoDesdeIndice(c.id, c.monto, r.pagosPorCxp));
-      return `<button type="button" class="bgItem" onclick="bgAbrirGasto('${esc(c.id)}','${esc(c.proveedor_id)}')"><b>${esc(c.concepto || '(sin concepto)')}</b><span>${esc(r.nomProv(c.proveedor_id))} · ${esc(c.sucursal || 'Sin sucursal')}${c.folio ? ' · Folio ' + esc(c.folio) : ''} · ${money(c.monto)} · ${badgeEstadoCxp(est)}</span></button>`;
+      return `<button type="button" class="bgItem" onclick="bgAbrirGasto('${esc(c.id)}','${esc(c.proveedor_id)}')"><b>${esc(c.concepto || '(sin concepto)')}</b><span>${esc(r.nomProv(c.proveedor_id))} · ${esc(c.sucursal || 'Sin sucursal')}${c.folio ? ' · Folio ' + esc(c.folio) : ''} · ${money(c.monto)} · ${badgeEstadoCxp(est)}${gastoPorValidar(c) ? ' <span class="badge badge-validar">Por validar</span>' : ''}</span></button>`;
     }).join('') + mas(r.gastos.length) + '</div>';
   }
   if (r.provs.length) {
@@ -4055,8 +4172,8 @@ function descargarCsv(filename, headers, rows) {
 }
 
 function exportarCxpCsv() {
-  const rows = state.cxp.map(c => [c.id, proveedorNombre(c.proveedor_id), c.concepto, c.sucursal, c.fecha_factura, c.fecha_vencimiento, c.monto, saldoCxp(c.id, c.monto), c.folio, c.uuid_cfdi]);
-  descargarCsv('cxp_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','fecha_factura','fecha_vencimiento','monto','saldo','folio','uuid_cfdi'], rows);
+  const rows = state.cxp.map(c => [c.id, proveedorNombre(c.proveedor_id), c.concepto, c.sucursal, c.fecha_factura, c.fecha_vencimiento, c.monto, saldoCxp(c.id, c.monto), c.folio, c.uuid_cfdi, c.estado, c.validado_por, c.fecha_validacion]);
+  descargarCsv('cxp_' + new Date().toISOString().slice(0,10) + '.csv', ['id','proveedor','concepto','sucursal','fecha_factura','fecha_vencimiento','monto','saldo','folio','uuid_cfdi','estado','validado_por','fecha_validacion'], rows);
 }
 function exportarPagosCsv() {
   const rows = state.pagos.map(p => {
@@ -4098,6 +4215,56 @@ async function eliminarRegistro(entity, id) {
     setView(state.view);
   } catch (err) { showLoading(false); toast(err.message, 'error'); }
 }
+
+/* ---------------- v8.2: al volver a la pestaña o ventana, refrescar los datos ---------------- */
+// Cada ventana/dispositivo carga los datos al entrar y después de guardar; no hay polling. Para no trabajar con datos
+// viejos (p. ej. algo pagado desde el iPhone), al volver a esta pestaña se recarga si pasó más de un minuto desde la última
+// carga y no hay un formulario abierto. Si hubo cambios, se redibuja la vista y se avisa con un mensaje.
+const REFRESCO_MIN_MS = 60 * 1000;
+let __refrescando = false;
+function resumenDatos() {
+  const m = new Map();
+  state.cxp.forEach(c => m.set('c' + c.id, [c.monto, c.estado, c.fecha_vencimiento, c.concepto, c.proveedor_id].join('|')));
+  state.pagos.forEach(p => m.set('p' + p.id, [p.monto, p.estado, p.fecha, p.cxp_id].join('|')));
+  state.proveedores.forEach(v => m.set('v' + v.id, [v.nombre, v.rfc].join('|')));
+  state.recurrentes.forEach(r => m.set('r' + r.id, [r.monto, r.activo, r.proxima_fecha_vencimiento].join('|')));
+  return m;
+}
+function textoCambiosDatos(antes, despues) {
+  let gN = 0, pN = 0, otros = 0;
+  despues.forEach((sig, k) => {
+    if (!antes.has(k)) { if (k[0] === 'c') gN++; else if (k[0] === 'p') pN++; else otros++; }
+    else if (antes.get(k) !== sig) otros++;
+  });
+  antes.forEach((sig, k) => { if (!despues.has(k)) otros++; });
+  const partes = [];
+  if (gN) partes.push(nPlural(gN, 'gasto nuevo', 'gastos nuevos'));
+  if (pN) partes.push(nPlural(pN, 'pago nuevo', 'pagos nuevos'));
+  if (otros) partes.push(nPlural(otros, 'registro con cambios', 'registros con cambios'));
+  return partes.join(', ');
+}
+async function refrescarAlVolver() {
+  if (document.hidden || __refrescando || !state.token) return;
+  const app = document.getElementById('app');
+  if (!app || app.classList.contains('hidden')) return;
+  if (Date.now() - __ultimaCarga < REFRESCO_MIN_MS) return;
+  const ov = document.getElementById('modalOverlay'), lb = document.getElementById('lightboxOverlay');
+  if ((ov && !ov.classList.contains('hidden')) || (lb && !lb.classList.contains('hidden'))) return; // formulario o diálogo abierto: no se toca
+  __refrescando = true;
+  try {
+    const antes = resumenDatos();
+    await loadData();
+    const texto = textoCambiosDatos(antes, resumenDatos());
+    if (!texto) return;
+    const el = document.activeElement;
+    const escribiendo = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && !el.closest('.filters');
+    if (!escribiendo && ['dashboard', 'cxp', 'pagos', 'proveedores', 'recurrentes', 'aging', 'repprov', 'repsuc'].includes(state.view)) setView(state.view);
+    toast('Datos actualizados: ' + texto + '.', 'ok');
+  } catch (e) { /* sin conexión o sesión vencida: se ignora; la siguiente acción lo avisará */ }
+  finally { __refrescando = false; }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refrescarAlVolver(); });
+window.addEventListener('focus', refrescarAlVolver);
 
 /* ---------------- Boot ---------------- */
 
