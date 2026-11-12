@@ -405,7 +405,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v8.2 · Datos seguros en Supabase</p>
+      <p class="footNote">v8.3 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -2379,7 +2379,7 @@ function toggleBloquePagos(clave, abiertoAhora) {
 function renderPagosTable() {
   let lista = state.pagos.map(p => {
     const c = state.cxp.find(x => String(x.id) === String(p.cxp_id));
-    return { ...p, provNombre: c ? proveedorNombre(c.proveedor_id) : '—', concepto: c ? c.concepto : '—' };
+    return { ...p, provNombre: c ? proveedorNombre(c.proveedor_id) : '—', concepto: c ? c.concepto : '—', tieneCxp: !!c };
   });
   if (state.filtrosPagos.estado !== 'todos') lista = lista.filter(p => (p.estado || 'validado') === state.filtrosPagos.estado);
   const wrap = document.getElementById('pagosTableWrap');
@@ -2412,7 +2412,7 @@ function renderPagosTable() {
   const renderPagoRow = (p, clase) => `<tr class="${clase}">
         <td>${fmtFecha(p.fecha)}</td>
         <td>${esc(p.provNombre)}</td>
-        <td>${esc(p.concepto)}</td>
+        <td><div class="conceptoCelda">${p.tieneCxp ? `<button class="verGastoBtn" onclick="verCapturaCxp('${esc(p.cxp_id)}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button>` : ''}<span>${esc(p.concepto)}</span></div></td>
         <td class="num">${money(p.monto)}</td>
         <td>${esc(p.pagar_desde || '—')}</td>
         <td>${esc(p.referencia || '—')}</td>
