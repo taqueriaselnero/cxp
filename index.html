@@ -169,12 +169,11 @@
   .badge-critical{background:var(--critical-bg);color:var(--critical);}
   .badge-muted{background:#f0efec;color:var(--ink-2);}
 
-  /* ---- Adjuntos (v6.8): evidencia del gasto en CxP, comprobante de pago opcional en Pagos ----
+  /* ---- Adjuntos (v6.8): evidencia del gasto en CxP y comprobante de pago en Pagos ----
      Campo de subir (pegar/arrastrar/elegir archivo) + miniatura en tabla + detalle en dos columnas
      + lightbox de la imagen con tamaño acotado. Ver htmlCampoAdjunto/comprimirImagen/abrirLightbox. */
   .tagAdjunto{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;}
   .tag-brand{background:var(--brand-light);color:var(--brand);}
-  .tag-muted-adj{background:#f0efec;color:var(--ink-2);}
   .subidaBox{border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;outline:none;transition:border-color .12s,background .12s;}
   .subidaBox.principal{border:1.5px solid var(--brand);background:var(--brand-light);}
   .subidaBox.principal:hover,.subidaBox.principal:focus{background:#e3e6fb;}
@@ -200,7 +199,7 @@
 
 
   /* v7.2: subida de adjuntos en celular/tablet (pantalla táctil o <=640px). En PC sigue la caja
-     de "Clic y pega con Ctrl+V". En táctil el recuadro vacío muestra botones: Pegar imagen
+     de "Copia la imagen y pega con Ctrl+V" (v8.5: sin abrir el explorador). En táctil el recuadro vacío muestra botones: Pegar imagen
      (clipboard.read), Fotos/cámara (selector de archivo) y un campo editable de respaldo donde
      se mantiene presionado y se elige "Pegar". */
   .subidaBox.movil{flex-direction:column;align-items:stretch;gap:10px;cursor:default;}
@@ -300,7 +299,7 @@
   .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .formGrid .full{grid-column:1 / -1;}
   /* v7.6: lo que se captura se ve en MAYÚSCULAS (y se guarda así). Lista = SEL_MAYUS en el script. */
-  #modalBox :is(#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia){text-transform:uppercase;}
+  #modalBox :is(#cxp_concepto,#cxp_sucursal,#cxp_folio,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia){text-transform:uppercase;}
 
   /* v7.6: aviso de fechas (Editar / Aceptar) encima del formulario abierto */
   #avisoOverlay{position:fixed;inset:0;background:rgba(11,11,11,.55);display:flex;align-items:center;justify-content:center;z-index:80;padding:16px;}
@@ -310,6 +309,10 @@
   #avisoBox ul{margin:0 0 6px;padding-left:18px;font-size:13px;line-height:1.5;}
   #avisoBox li.err{color:var(--critical);font-weight:600;}
   #avisoBox p{font-size:12px;color:var(--muted);margin:6px 0 0;}
+  #avisoBox .modalActions .btn{flex:1 1 0;width:auto;justify-content:center;}
+  #avisoBox li.avisoDato{list-style:none;display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);margin-left:-18px;}
+  #avisoBox li.avisoDato span{color:var(--muted);}
+  #avisoBox li.avisoAdv{list-style:none;margin-left:-18px;padding:10px 12px;background:var(--critical-bg,#fbe7e7);border-radius:8px;}
 
   /* tarjeta de cuenta bancaria (proveedores) — una por cuenta, con espacio suficiente para CLABEs de 18 dígitos */
   .cuentaRow{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fafaf9;}
@@ -405,7 +408,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v8.4 · Datos seguros en Supabase</p>
+      <p class="footNote">v8.5 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -443,15 +446,15 @@
     </div>
   </div>
 
-  <!-- AVISO DE FECHAS: Editar / Aceptar (se muestra encima del formulario sin cerrarlo) -->
+  <!-- AVISO: Aceptar/Continuar/Confirmar (izquierda, sin relleno) / Editar (derecha, azul), mismo tamaño (se muestra encima del formulario sin cerrarlo) -->
   <div id="avisoOverlay" class="hidden">
     <div id="avisoBox" role="alertdialog" aria-modal="true" aria-labelledby="avisoTitulo">
       <h3 id="avisoTitulo"></h3>
       <ul id="avisoLista"></ul>
       <p id="avisoPregunta"></p>
       <div class="modalActions">
-        <button type="button" class="btn btn-ghost" id="avisoEditar">Editar</button>
-        <button type="button" class="btn btn-primary" id="avisoAceptar">Aceptar</button>
+        <button type="button" class="btn btn-ghost" id="avisoAceptar">Aceptar</button>
+        <button type="button" class="btn btn-primary" id="avisoEditar">Editar</button>
       </div>
     </div>
   </div>
@@ -721,6 +724,34 @@ function ymdMasMeses(m) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setMon
 function fmtDMA(ymd) { return String(ymd).split('-').reverse().join('/'); }
 
 // Devuelve una promesa: true = se puede guardar; false = el usuario eligió "Editar" (o hay un error que corregir).
+// v8.5: aviso con botones personalizados (Continuar/Confirmar a la izquierda sin relleno, Editar a la derecha en azul). o = { titulo, datos:[[etiqueta, valor]], aviso, pregunta, okTxt, foco }.
+// Devuelve true si elige el botón principal (Confirmar/Continuar) y false si elige Editar (o Esc); en ese caso enfoca o.foco.
+function avisoAccion(o) {
+  return new Promise(resolve => {
+    const ov = document.getElementById('avisoOverlay'), bEd = document.getElementById('avisoEditar'), bAc = document.getElementById('avisoAceptar');
+    document.getElementById('avisoTitulo').textContent = o.titulo;
+    document.getElementById('avisoLista').innerHTML =
+      (o.aviso ? '<li class="err avisoAdv">' + esc(o.aviso) + '</li>' : '') +
+      (o.datos || []).map(d => '<li class="avisoDato"><span>' + esc(d[0]) + '</span><b>' + esc(d[1]) + '</b></li>').join('');
+    document.getElementById('avisoPregunta').textContent = o.pregunta || '';
+    bAc.textContent = o.okTxt || 'Aceptar'; bAc.style.display = '';
+    const cerrar = ok => {
+      ov.classList.add('hidden');
+      document.removeEventListener('keydown', onKey, true);
+      bEd.onclick = bAc.onclick = null; bAc.textContent = 'Aceptar';
+      if (!ok && o.foco) { const el = document.getElementById(o.foco); if (el) { try { el.focus(); } catch (e) {} } }
+      resolve(ok);
+    };
+    const onKey = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); cerrar(false); } };
+    document.addEventListener('keydown', onKey, true);
+    bEd.onclick = () => cerrar(false);
+    bAc.onclick = () => cerrar(true);
+    ov.classList.remove('hidden');
+    bEd.focus();
+  });
+}
+function adjuntoPresente(fieldKey) { const a = state.adjuntos[fieldKey] || {}; return !!(a.b64 || (a.existente && !a.clear)); }
+
 function confirmarFechas(items) {
   const err = [], avi = [];
   let focoErr = '', focoAvi = '';
@@ -768,13 +799,13 @@ function confirmarFechas(items) {
     bEd.onclick = () => cerrar(false);
     bAc.onclick = () => cerrar(true);
     ov.classList.remove('hidden');
-    (err.length ? bEd : bAc).focus();
+    bEd.focus();
   });
 }
 
 // Campos de texto que se capturan y se guardan en MAYÚSCULAS. Quedan fuera (a propósito): correos, contraseñas,
 // usuario de acceso, URLs, ids/UUID del CFDI, clave de rastreo y los nombres de "Mis Cuentas" (se enlazan por nombre).
-const SEL_MAYUS = '#cxp_concepto,#cxp_sucursal,#cxp_folio,#cxp_notas,#cxp_referencia_sugerida,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia';
+const SEL_MAYUS = '#cxp_concepto,#cxp_sucursal,#cxp_folio,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia';
 function aMayus(v) { return String(v == null ? '' : v).toUpperCase(); }
 document.addEventListener('input', ev => {
   const t = ev.target;
@@ -1081,7 +1112,7 @@ function htmlVacioAdjunto(fieldKey, placeholder) {
              data-ph="…o mantén presionado aquí y elige Pegar" oninput="this.innerHTML=''"></div>
       </div>`;
   }
-  return `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Clic y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
+  return `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Copia la imagen y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
 }
 
 // Arma el campo de "Adjuntar" para insertar en un formGrid — reinicia state.adjuntos[fieldKey].
@@ -1090,10 +1121,10 @@ function htmlCampoAdjunto(fieldKey, opts) {
   const { titulo, esPrincipal, placeholder, urlExistente } = opts;
   state.adjuntos[fieldKey] = { b64: null, mime: null, clear: false, existente: !!urlExistente };
   const claseBox = esPrincipal ? 'principal' : 'secundario';
-  const tag = esPrincipal ? `<span class="tagAdjunto tag-brand">Principal</span>` : `<span class="tagAdjunto tag-muted-adj">Opcional</span>`;
+  const tag = esPrincipal ? `<span class="tagAdjunto tag-brand">Principal</span>` : '';
   const contenidoInicial = urlExistente
     ? `<img class="thumbChico" src="${esc(urlExistente)}">
-       <div class="infoArchivo"><div class="nombre">Ya hay uno adjunto</div><div class="meta">Clic para reemplazar</div></div>
+       <div class="infoArchivo"><div class="nombre">Ya hay uno adjunto</div><div class="meta">${esModoTactilAdjunto() ? 'Toca para reemplazar' : 'Pega otra imagen (Ctrl+V) para reemplazar'}</div></div>
        <button type="button" class="quitarBtn" onclick="quitarAdjunto(event,'${fieldKey}')">Quitar</button>`
     : htmlVacioAdjunto(fieldKey, placeholder);
   const claseMovil = (!urlExistente && esModoTactilAdjunto()) ? ' movil' : '';
@@ -1115,7 +1146,21 @@ function htmlCampoAdjunto(fieldKey, opts) {
 function clicAdjunto(ev, fieldKey) {
   if (ev.target.closest('.quitarBtn')) return; // el botón "Quitar" maneja su propio click
   if (ev.target.closest('.movilAcciones')) return; // v7.2: los botones y el campo de pegado táctil manejan lo suyo
+  if (!esModoTactilAdjunto()) { const dz = document.getElementById('dz_' + fieldKey); if (dz) dz.focus(); return; } // PC: solo pegar (Ctrl+V), no abre el explorador
   document.getElementById('fi_' + fieldKey).click();
+}
+
+// v8.5: en PC la imagen se pega con Ctrl+V estando en CUALQUIER campo del formulario abierto (no hace falta enfocar el
+// recuadro). Solo actúa si lo copiado es una imagen; el texto se pega normal. El escucha se quita solo al cerrar el formulario.
+function activarPegadoAdjunto(fieldKey) {
+  if (window.__pegadoAdjunto) document.removeEventListener('paste', window.__pegadoAdjunto);
+  const quitar = () => { document.removeEventListener('paste', window.__pegadoAdjunto); window.__pegadoAdjunto = null; };
+  window.__pegadoAdjunto = ev => {
+    // closeModal() solo oculta el formulario (no lo borra del DOM): sin esta revisión el escucha seguiría vivo y un Ctrl+V cualquiera adjuntaría imágenes a un formulario cerrado.
+    if (!document.getElementById('dz_' + fieldKey) || document.getElementById('modalOverlay').classList.contains('hidden')) { quitar(); return; }
+    pegarAdjunto(ev, fieldKey);
+  };
+  document.addEventListener('paste', window.__pegadoAdjunto);
 }
 
 // v7.2: botón "Fotos / cámara" — abre el selector de archivo (en iOS ofrece Fototeca, Tomar foto o Archivos).
@@ -1161,6 +1206,7 @@ async function archivoElegidoAdjunto(fieldKey) {
 }
 
 async function pegarAdjunto(ev, fieldKey) {
+  if (ev.defaultPrevented) return;
   const items = (ev.clipboardData || window.clipboardData)?.items;
   if (!items) return;
   for (const item of items) {
@@ -1972,10 +2018,9 @@ function labelCuentaDestino(provId, cuentaId) {
 
 // v6.10: cada cuenta bancaria del proveedor ya trae su propia "referencia" (lo que hay que anotar
 // al pagar — depende de con cuál de tus sucursales/razones sociales te facturó ese proveedor, no
-// de la cuenta en sí, pero vive junto con la cuenta para no duplicar catálogos). Al elegir la
-// cuenta destino en una CxP/pago, se sugiere automáticamente esa referencia (ver
-// sugerirReferenciaCxp/sugerirReferenciaPago) — el campo se queda editable por si hace falta un
-// ajuste puntual.
+// de la cuenta en sí, pero vive junto con la cuenta para no duplicar catálogos). La CxP la toma sola
+// de la cuenta destino elegida (ver guardarCxp) y el formulario de pago la sugiere en su campo
+// "Referencia Pago" (ver sugerirReferenciaPago), donde se puede ajustar.
 function referenciaDeCuenta(provId, cuentaId) {
   if (!cuentaId) return '';
   const prov = state.proveedores.find(p => String(p.id) === String(provId));
@@ -2125,13 +2170,11 @@ function actualizarCuentasDestinoCxp() {
   if (sel) sel.innerHTML = opcionesCuentasDestino(provId, '');
 }
 
-// v6.10: al elegir una cuenta destino, sugiere la referencia guardada en esa cuenta (si tiene) —
-// no borra lo que ya esté escrito si la cuenta elegida no trae referencia guardada.
+// Al elegir una cuenta destino, muestra el "Cliente" guardado en esa cuenta. La referencia de pago ya no se captura en
+// la CxP (v8.5): se toma sola de la cuenta elegida al guardar (ver guardarCxp) y se puede ajustar al pagar.
 function sugerirReferenciaCxp() {
   const provId = document.getElementById('cxp_proveedor_id').value;
   const cuentaId = document.getElementById('cxp_cuenta_destino_id').value;
-  const ref = referenciaDeCuenta(provId, cuentaId);
-  if (ref) document.getElementById('cxp_referencia_sugerida').value = ref;
   actualizarClienteHint('cxp_cliente_hint', clienteDeCuenta(provId, cuentaId));
 }
 
@@ -2167,18 +2210,15 @@ function formCxp(id) {
         <div class="field"><label>Fecha factura</label><input type="date" id="cxp_fecha_factura" value="${esc(c?.fecha_factura||'')}"></div>
         <div class="field"><label>Fecha vencimiento</label><input type="date" id="cxp_fecha_vencimiento" value="${esc(c?.fecha_vencimiento||'')}" required></div>
         <div class="field"><label>Folio</label><input id="cxp_folio" value="${esc(c?.folio||'')}"></div>
-        <div class="field"><label>UUID CFDI</label><input id="cxp_uuid_cfdi" value="${esc(c?.uuid_cfdi||'')}"></div>
-        <div class="field full"><label>Notas</label><input id="cxp_notas" value="${esc(c?.notas||'')}"></div>
         ${htmlCampoAdjunto('cxpEvidencia', { titulo:'Evidencia del gasto', esPrincipal:true, placeholder:'foto o captura de la factura/ticket (JPG, PNG)', urlExistente: c?.adjunto_evidencia_url })}
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Datos sugeridos para cuando se registre el pago de esta factura — la referencia puede variar según la sucursal o razón social a la que viene facturado; se puede ajustar también al momento de pagar.</p>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Datos sugeridos para cuando se registre el pago de esta factura; se pueden ajustar también al momento de pagar.</p>
         <div class="formGrid">
           <div class="field full"><label>Cuenta del proveedor a pagar</label>
             <select id="cxp_cuenta_destino_id" onchange="sugerirReferenciaCxp()">${opcionesCuentasDestino(provIdInicial, ip.cuenta_destino_id)}</select>
             <p id="cxp_cliente_hint" class="${clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) ? '' : 'hidden'}" style="font-size:11px;color:var(--muted);margin:4px 0 0">${esc(clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) ? 'Cliente: ' + clienteDeCuenta(provIdInicial, ip.cuenta_destino_id) : '')}</p>
           </div>
-          <div class="field full"><label>Referencia sugerida</label><input id="cxp_referencia_sugerida" value="${esc(ip.referencia_sugerida||'')}" placeholder="Ej. nombre/sucursal que factura"></div>
           <div class="field full"><label>Pagar desde</label><select id="cxp_pagar_desde">${opcionesPagarDesde(ip.pagar_desde)}</select></div>
         </div>
       </div>
@@ -2188,6 +2228,7 @@ function formCxp(id) {
       </div>
     </form>
   `);
+  activarPegadoAdjunto('cxpEvidencia');
 }
 
 async function guardarCxp(ev, id) {
@@ -2201,6 +2242,17 @@ async function guardarCxp(ev, id) {
     { tipo: 'factura', id: 'cxp_fecha_factura', valor: fFactura },
     { tipo: 'venc', id: 'cxp_fecha_vencimiento', valor: document.getElementById('cxp_fecha_vencimiento').value, factura: fFactura }
   ])) return false;
+  const previo = state.cxp.find(x => String(x.id) === String(id)) || {};
+  // Las CxP generadas por Gastos Recurrentes nacen sin evidencia: al editarlas no se avisa de su falta.
+  if (!previo.recurrente_id && !adjuntoPresente('cxpEvidencia') && !await avisoAccion({
+    titulo: 'Falta la evidencia', aviso: 'No estás adjuntando la evidencia de este gasto.',
+    pregunta: 'Elige “Editar” para agregarla o “Continuar” para guardar sin evidencia.', okTxt: 'Continuar', foco: 'dz_cxpEvidencia' })) return false;
+  const provNom = (state.proveedores.find(p => String(p.id) === String(proveedorIdCxp)) || {}).nombre || '';
+  const montoTxt = Number(document.getElementById('cxp_monto').value);
+  if (!await avisoAccion({
+    titulo: '¿Estás seguro de que deseas grabar este gasto?',
+    datos: [['Proveedor', provNom], ['Monto', isNaN(montoTxt) ? '' : '$' + montoTxt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })], ['Folio', document.getElementById('cxp_folio').value.trim().toUpperCase() || '— sin folio —']],
+    pregunta: 'Elige “Editar” para corregir o “Confirmar” para grabarlo.', okTxt: 'Confirmar', foco: 'cxp_concepto' })) return false;
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id, // ya viene fijo desde formCxp (ver nota ahí) — seguro reintentar con el mismo id.
@@ -2211,11 +2263,11 @@ async function guardarCxp(ev, id) {
     fecha_factura: document.getElementById('cxp_fecha_factura').value,
     fecha_vencimiento: document.getElementById('cxp_fecha_vencimiento').value,
     folio: aMayus(document.getElementById('cxp_folio').value),
-    uuid_cfdi: document.getElementById('cxp_uuid_cfdi').value,
-    notas: aMayus(document.getElementById('cxp_notas').value),
+    uuid_cfdi: previo.uuid_cfdi || '', // el formulario ya no captura UUID ni notas; se conserva lo que ya traiga el gasto
+    notas: previo.notas || '',
     instrucciones_pago: {
       cuenta_destino_id: document.getElementById('cxp_cuenta_destino_id').value,
-      referencia_sugerida: aMayus(document.getElementById('cxp_referencia_sugerida').value),
+      referencia_sugerida: referenciaDeCuenta(proveedorIdCxp, document.getElementById('cxp_cuenta_destino_id').value) || (previo.instrucciones_pago || {}).referencia_sugerida || '',
       pagar_desde: document.getElementById('cxp_pagar_desde').value
     },
     ...datosAdjuntoParaGuardar('cxpEvidencia', 'evidencia_b64', 'evidencia_mime', 'evidencia_clear')
@@ -2285,7 +2337,7 @@ function formPago(cxpId, pagoId) {
         <div class="field full"><label>Clave Rastreo Pago</label><input id="pg_clave_rastreo" value="${esc(pago?.clave_rastreo||'')}" placeholder="Clave de rastreo SPEI (si aplica)"></div>
         <div class="field full"><label>Banco origen</label><input id="pg_banco_origen" value="${esc(pago?.banco_origen||'')}"></div>
         <div class="field full"><label>Notas</label><input id="pg_notas" value="${esc(pago?.notas||'')}"></div>
-        ${htmlCampoAdjunto('pagoComprobante', { titulo:'Comprobante de pago', esPrincipal:false, placeholder:'captura de la transferencia, si quieres respaldarlo', urlExistente: pago?.adjunto_comprobante_url })}
+        ${htmlCampoAdjunto('pagoComprobante', { titulo:'Comprobante de pago', esPrincipal:false, placeholder:'captura de la transferencia (JPG, PNG)', urlExistente: pago?.adjunto_comprobante_url })}
       </div>
       <p style="font-size:12px;color:var(--muted)">${avisoEstado}</p>
       <div class="modalActions">
@@ -2294,12 +2346,16 @@ function formPago(cxpId, pagoId) {
       </div>
     </form>
   `);
+  activarPegadoAdjunto('pagoComprobante');
 }
 
 async function guardarPago(ev, cxpId, pagoId, esEdicion) {
   ev.preventDefault();
   const fechaPago = document.getElementById('pg_fecha').value;
   if (!await confirmarFechas([{ tipo: 'pago', id: 'pg_fecha', valor: fechaPago }])) return false;
+  if (!adjuntoPresente('pagoComprobante') && !await avisoAccion({
+    titulo: 'Falta la evidencia del pago', aviso: 'No estás adjuntando el comprobante de este pago.',
+    pregunta: 'Elige “Editar” para agregarlo o “Continuar” para registrar el pago sin comprobante.', okTxt: 'Continuar', foco: 'dz_pagoComprobante' })) return false;
   const desbloquear = bloquearFormulario(ev.target, esEdicion ? 'Guardando…' : 'Registrando…');
   const record = {
     id: pagoId, // ya viene fijo desde formPago — seguro reintentar con el mismo id.
