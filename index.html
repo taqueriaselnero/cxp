@@ -408,7 +408,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v8.5 · Datos seguros en Supabase</p>
+      <p class="footNote">v8.6 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -1112,7 +1112,7 @@ function htmlVacioAdjunto(fieldKey, placeholder) {
              data-ph="…o mantén presionado aquí y elige Pegar" oninput="this.innerHTML=''"></div>
       </div>`;
   }
-  return `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Copia la imagen y pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
+  return `<div class="icono">${ICONO_SUBIR}</div><div class="subidaTxt"><div class="t1">Copia la imagen y haz clic aquí o pega con <kbd>Ctrl+V</kbd></div><div class="t2">${esc(placeholder)}</div></div>`;
 }
 
 // Arma el campo de "Adjuntar" para insertar en un formGrid — reinicia state.adjuntos[fieldKey].
@@ -1124,7 +1124,7 @@ function htmlCampoAdjunto(fieldKey, opts) {
   const tag = esPrincipal ? `<span class="tagAdjunto tag-brand">Principal</span>` : '';
   const contenidoInicial = urlExistente
     ? `<img class="thumbChico" src="${esc(urlExistente)}">
-       <div class="infoArchivo"><div class="nombre">Ya hay uno adjunto</div><div class="meta">${esModoTactilAdjunto() ? 'Toca para reemplazar' : 'Pega otra imagen (Ctrl+V) para reemplazar'}</div></div>
+       <div class="infoArchivo"><div class="nombre">Ya hay uno adjunto</div><div class="meta">${esModoTactilAdjunto() ? 'Toca para reemplazar' : 'Haz clic o pega otra imagen (Ctrl+V) para reemplazar'}</div></div>
        <button type="button" class="quitarBtn" onclick="quitarAdjunto(event,'${fieldKey}')">Quitar</button>`
     : htmlVacioAdjunto(fieldKey, placeholder);
   const claseMovil = (!urlExistente && esModoTactilAdjunto()) ? ' movil' : '';
@@ -1146,7 +1146,7 @@ function htmlCampoAdjunto(fieldKey, opts) {
 function clicAdjunto(ev, fieldKey) {
   if (ev.target.closest('.quitarBtn')) return; // el botón "Quitar" maneja su propio click
   if (ev.target.closest('.movilAcciones')) return; // v7.2: los botones y el campo de pegado táctil manejan lo suyo
-  if (!esModoTactilAdjunto()) { const dz = document.getElementById('dz_' + fieldKey); if (dz) dz.focus(); return; } // PC: solo pegar (Ctrl+V), no abre el explorador
+  if (!esModoTactilAdjunto()) { pegarPorClic(fieldKey); return; } // PC: el clic pega lo copiado (o Ctrl+V); no abre el explorador
   document.getElementById('fi_' + fieldKey).click();
 }
 
@@ -1161,6 +1161,31 @@ function activarPegadoAdjunto(fieldKey) {
     pegarAdjunto(ev, fieldKey);
   };
   document.addEventListener('paste', window.__pegadoAdjunto);
+}
+
+// v8.6: en PC, un clic en el recuadro pega la imagen copiada (navigator.clipboard.read; el navegador pide permiso la primera vez).
+// Si no hay imagen copiada o el navegador no deja leer el portapapeles, avisa y queda el Ctrl+V de siempre. Un doble clic no pega dos veces.
+async function pegarPorClic(fieldKey) {
+  const dz = document.getElementById('dz_' + fieldKey);
+  if (dz) dz.focus();
+  if (window.__pegandoPorClic) return;
+  if (!navigator.clipboard || !navigator.clipboard.read) { toast('Copia la imagen y presiona Ctrl+V para pegarla.', 'warning'); return; }
+  window.__pegandoPorClic = true;
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const tipo = item.types.find(t => t.indexOf('image/') === 0);
+      if (tipo) {
+        const blob = await item.getType(tipo);
+        const ext = (tipo.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        await procesarArchivoAdjunto(fieldKey, new File([blob], 'imagen-pegada.' + ext, { type: tipo }), 'Pegada con clic');
+        return;
+      }
+    }
+    toast('No hay una imagen copiada. Cópiala primero y vuelve a hacer clic (o presiona Ctrl+V).', 'warning');
+  } catch (err) {
+    toast('El navegador no dejó leer el portapapeles. Presiona Ctrl+V para pegar la imagen.', 'warning');
+  } finally { window.__pegandoPorClic = false; }
 }
 
 // v7.2: botón "Fotos / cámara" — abre el selector de archivo (en iOS ofrece Fototeca, Tomar foto o Archivos).
