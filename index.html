@@ -591,6 +591,7 @@ const MOTIVO_KEY  = 'cxp_motivo_logout'; // mensaje a mostrar en el login tras u
 // quedar compartido entre roles. No afecta la expiración de 8h que ya controla el backend
 // (esa sigue siendo el tope absoluto; esta es por INACTIVIDAD, se reinicia con cualquier uso).
 const INACTIVIDAD_LIMITE_MS = 20 * 60 * 1000; // 20 minutos
+const INACTIVIDAD_AVISO_MS = 60 * 1000; // v8.9: aviso con cuenta regresiva durante el último minuto antes del cierre
 let ultimaActividad = Date.now();
 
 function guardarSesionLocal() {
@@ -4530,17 +4531,48 @@ document.getElementById('loginForm').addEventListener('submit', async (ev) => {
 })();
 
 // Cierre automático por inactividad (20 min sin click/tecleo/touch/scroll) — ver
-// INACTIVIDAD_LIMITE_MS arriba. Cualquier interacción reinicia el contador; el chequeo corre
-// cada 30s, que sobra de margen para una ventana de 20 minutos.
+// INACTIVIDAD_LIMITE_MS arriba. Cualquier interacción reinicia el contador. v8.9: el chequeo corre
+// cada segundo y, durante el último minuto (INACTIVIDAD_AVISO_MS), muestra un aviso con cuenta
+// regresiva y cambia el título de la pestaña; un clic (o usar el portal) reinicia los 20 minutos.
 ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(ev =>
   document.addEventListener(ev, () => { ultimaActividad = Date.now(); }, { passive: true })
 );
-setInterval(() => {
-  if (!state.token) return; // no hay sesión activa, nada que cerrar
-  if (Date.now() - ultimaActividad >= INACTIVIDAD_LIMITE_MS) {
-    logout('Tu sesión se cerró por inactividad (20 min). Vuelve a iniciar sesión.');
+const __tituloOriginal = document.title;
+function avisoInactividad(segundos) {
+  let el = document.getElementById('avisoInactividad');
+  if (segundos === null) {
+    if (el) el.remove();
+    if (document.title !== __tituloOriginal) document.title = __tituloOriginal;
+    return;
   }
-}, 30000);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'avisoInactividad';
+    el.setAttribute('role', 'alert');
+    el.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;max-width:calc(100vw - 24px);' +
+      'background:var(--warning-bg);color:var(--ink);border:2px solid var(--warning);border-radius:12px;padding:12px 18px;' +
+      'box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:14px;font-weight:600;display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center;';
+    el.innerHTML = '<span>Tu sesión se cerrará en <b id="avisoInactividadSeg"></b> segundos.</span>' +
+      '<button type="button" id="avisoInactividadBtn" style="background:var(--brand);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;">Haz clic aquí para continuar</button>';
+    el.querySelector('#avisoInactividadBtn').addEventListener('click', () => { ultimaActividad = Date.now(); avisoInactividad(null); });
+    document.body.appendChild(el);
+  }
+  el.querySelector('#avisoInactividadSeg').textContent = segundos;
+  document.title = '⚠ Sesión por cerrar (' + segundos + ' s)';
+}
+setInterval(() => {
+  if (!state.token) { avisoInactividad(null); return; } // no hay sesión activa, nada que cerrar
+  const inactivo = Date.now() - ultimaActividad;
+  if (inactivo >= INACTIVIDAD_LIMITE_MS) {
+    if (window.__cerrandoPorInactividad) return; // el chequeo es cada 1 s: evita lanzar varios logout mientras responde el primero
+    window.__cerrandoPorInactividad = true;
+    logout('Tu sesión se cerró por inactividad (20 min). Vuelve a iniciar sesión.');
+  } else if (inactivo >= INACTIVIDAD_LIMITE_MS - INACTIVIDAD_AVISO_MS) {
+    avisoInactividad(Math.ceil((INACTIVIDAD_LIMITE_MS - inactivo) / 1000));
+  } else {
+    avisoInactividad(null);
+  }
+}, 1000);
 
 // Cierra cualquier menú "Opciones" abierto de Cuentas × Pagar al hacer clic en cualquier otra
 // parte de la página (el propio botón ⋮ detiene la propagación, ver toggleMenuCxp).
