@@ -408,7 +408,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v8.7 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.0 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -735,11 +735,11 @@ function avisoAccion(o) {
       (o.aviso ? '<li class="err avisoAdv">' + esc(o.aviso) + '</li>' : '') +
       (o.datos || []).map(d => '<li class="avisoDato"><span>' + esc(d[0]) + '</span><b>' + esc(d[1]) + '</b></li>').join('');
     document.getElementById('avisoPregunta').textContent = o.pregunta || '';
-    bAc.textContent = o.okTxt || 'Aceptar'; bAc.style.display = '';
+    bAc.textContent = o.okTxt || 'Aceptar'; bAc.style.display = o.sinContinuar ? 'none' : ''; // v9.0: sinContinuar = solo "Editar" (bloqueo)
     const cerrar = ok => {
       ov.classList.add('hidden');
       document.removeEventListener('keydown', onKey, true);
-      bEd.onclick = bAc.onclick = null; bAc.textContent = 'Aceptar';
+      bEd.onclick = bAc.onclick = null; bAc.textContent = 'Aceptar'; bAc.style.display = '';
       if (!ok && o.foco) { const el = document.getElementById(o.foco); if (el) { try { el.focus(); } catch (e) {} } }
       resolve(ok);
     };
@@ -2213,6 +2213,59 @@ function actualizarClienteHint(elId, cliente) {
   el.classList.toggle('hidden', !cliente);
 }
 
+// v9.0: control de gastos duplicados. Se compara contra los datos MÁS RECIENTES del servidor (loadData justo
+// antes de grabar) para ver también lo que capturó otra persona después de que este usuario abrió el portal.
+// - Coincidencia FUERTE: mismo proveedor + mismo folio (sin importar mayúsculas, espacios, guiones ni ceros a la
+//   izquierda) → se bloquea; el administrador puede continuar si de verdad es un gasto distinto.
+// - Coincidencia PROBABLE: mismo proveedor + mismo monto + misma fecha de factura → advertencia (Editar/Continuar).
+function normFolio(v) { return aMayus(v).replace(/[^A-Z0-9]/g, '').replace(/^0+(?=.)/, ''); }
+function claveGastoDup(r) {
+  return [String(r.proveedor_id || ''), normFolio(r.folio), (Number(r.monto) || 0).toFixed(2), String(r.fecha_factura || '').slice(0, 10)].join('|');
+}
+function buscarDuplicadosCxp(rec, idActual) {
+  const nf = normFolio(rec.folio), monto = Number(rec.monto), ff = String(rec.fecha_factura || '').slice(0, 10);
+  const fuertes = [], probables = [];
+  state.cxp.forEach(c => {
+    if (String(c.id) === String(idActual)) return;
+    if (String(c.proveedor_id) !== String(rec.proveedor_id)) return;
+    if (nf && normFolio(c.folio) === nf) { fuertes.push(c); return; }
+    if (!isNaN(monto) && ff && String(c.fecha_factura || '').slice(0, 10) === ff && Math.abs((Number(c.monto) || 0) - monto) < 0.005) probables.push(c);
+  });
+  return { fuertes, probables };
+}
+function datosGastoDup(c) {
+  const saldo = saldoCxp(c.id, c.monto);
+  const estado = gastoPorValidar(c) ? 'Por validar' : (saldo <= 0.005 ? 'Liquidado' : 'Con saldo pendiente');
+  return [['Proveedor', proveedorNombre(c.proveedor_id)], ['Concepto', c.concepto || '—'], ['Folio', c.folio || '— sin folio —'],
+    ['Monto', '$' + (Number(c.monto) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['Fecha factura', c.fecha_factura ? fmtDMA(String(c.fecha_factura).slice(0, 10)) : '—'], ['Sucursal', c.sucursal || '—'], ['Estado', estado]];
+}
+// Devuelve true si se puede continuar con el guardado, false si el usuario decidió corregir (o está bloqueado).
+async function confirmarSinDuplicados(rec, id, previo) {
+  if (previo && previo.id && claveGastoDup(previo) === claveGastoDup(rec)) return true; // edición sin tocar proveedor/folio/monto/fecha
+  try { showLoading(true); await loadData(); } catch (e) { /* sin red: se revisa con lo que ya está cargado */ } finally { showLoading(false); }
+  const d = buscarDuplicadosCxp(rec, id);
+  if (d.fuertes.length) {
+    const n = d.fuertes.length, admin = state.rol === 'admin';
+    return await avisoAccion({
+      titulo: 'Este gasto ya está registrado',
+      aviso: 'Ya existe ' + (n === 1 ? 'un gasto' : n + ' gastos') + ' de este proveedor con el folio ' + (rec.folio || '').trim().toUpperCase() + '.',
+      datos: datosGastoDup(d.fuertes[0]),
+      pregunta: admin ? 'Elige “Editar” para corregirlo o “Continuar” solo si es un gasto distinto.' : 'No se puede grabar dos veces el mismo gasto. Elige “Editar” para corregir el folio o revisa el gasto ya registrado.',
+      okTxt: 'Continuar', sinContinuar: !admin, foco: 'cxp_folio' });
+  }
+  if (d.probables.length) {
+    const n = d.probables.length;
+    return await avisoAccion({
+      titulo: 'Posible gasto duplicado',
+      aviso: 'Ya existe ' + (n === 1 ? 'un gasto' : n + ' gastos') + ' de este proveedor con el mismo monto y la misma fecha de factura.',
+      datos: datosGastoDup(d.probables[0]),
+      pregunta: 'Elige “Editar” para revisarlo o “Continuar” si es un gasto distinto.',
+      okTxt: 'Continuar', foco: 'cxp_folio' });
+  }
+  return true;
+}
+
 function formCxp(id) {
   const c = id ? state.cxp.find(x => String(x.id) === String(id)) : null;
   const ip = c?.instrucciones_pago || {};
@@ -2269,6 +2322,7 @@ async function guardarCxp(ev, id) {
     { tipo: 'venc', id: 'cxp_fecha_vencimiento', valor: document.getElementById('cxp_fecha_vencimiento').value, factura: fFactura }
   ])) return false;
   const previo = state.cxp.find(x => String(x.id) === String(id)) || {};
+  if (!await confirmarSinDuplicados({ proveedor_id: proveedorIdCxp, folio: document.getElementById('cxp_folio').value, monto: document.getElementById('cxp_monto').value, fecha_factura: fFactura }, id, previo)) return false;
   // Las CxP generadas por Gastos Recurrentes nacen sin evidencia: al editarlas no se avisa de su falta.
   if (!previo.recurrente_id && !adjuntoPresente('cxpEvidencia') && !await avisoAccion({
     titulo: 'Falta la evidencia', aviso: 'No estás adjuntando la evidencia de este gasto.',
@@ -2277,7 +2331,7 @@ async function guardarCxp(ev, id) {
   const montoTxt = Number(document.getElementById('cxp_monto').value);
   if (!await avisoAccion({
     titulo: '¿Estás seguro de que deseas grabar este gasto?',
-    datos: [['Proveedor', provNom], ['Monto', isNaN(montoTxt) ? '' : '$' + montoTxt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })], ['Folio', document.getElementById('cxp_folio').value.trim().toUpperCase() || '— sin folio —']],
+    datos: [['Proveedor', provNom], ['Monto', isNaN(montoTxt) ? '' : '$' + montoTxt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })], ['Folio', document.getElementById('cxp_folio').value.trim().toUpperCase() || '— sin folio —'], ['Vencimiento', fmtDMA(document.getElementById('cxp_fecha_vencimiento').value)]],
     pregunta: 'Elige “Editar” para corregir o “Confirmar” para grabarlo.', okTxt: 'Confirmar', foco: 'cxp_concepto' })) return false;
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
