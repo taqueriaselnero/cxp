@@ -245,6 +245,8 @@
     .kpi{break-inside:avoid;}
     .repFilaClick{cursor:default;}
     .sortArrow{display:none !important;}
+    .repLinkBtn{color:#000 !important;text-decoration:none !important;}
+    .badge{border:1px solid #999 !important;}
   }
 
   /* v7.3: Auditoría — bloque colapsable de movimientos anteriores */
@@ -408,7 +410,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v9.0 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.1 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -505,6 +507,8 @@ const state = {
   sortRepResumen: { col: null, dir: 'asc' },
   sortRepGastos:  { col: null, dir: 'asc' },
   sortRepPagos:   { col: null, dir: 'asc' },
+  sortRepPend:    { col: null, dir: 'asc' },
+  sortRepPagadas: { col: null, dir: 'asc' },
   repAbiertos:    { gastos: false, pagos: false },
   // v8.0: Reporte por sucursal, catálogo de sucursales y flujo de pagos por mes
   filtrosRepSuc: { sucursal:'', periodo:'todo', desde:'', hasta:'' },
@@ -3362,7 +3366,7 @@ function repTituloTipo(t) { return ({ todo:'Reporte × Proveedor', pendientes:'E
 function repAbrirProveedor(id) { state.filtrosRepProv.proveedor = String(id); setView('repprov'); }
 function repLimpiar() {
   state.filtrosRepProv = { proveedor:'', periodo:'todo', desde:'', hasta:'', tipo:'todo' };
-  state.sortRepGastos = { col: null, dir: 'asc' }; state.sortRepPagos = { col: null, dir: 'asc' };
+  state.sortRepGastos = { col: null, dir: 'asc' }; state.sortRepPagos = { col: null, dir: 'asc' }; state.sortRepPend = { col: null, dir: 'asc' }; state.sortRepPagadas = { col: null, dir: 'asc' };
   renderReporteProv(); window.scrollTo(0, 0);
 }
 function repSetPeriodo(id) {
@@ -3537,6 +3541,7 @@ function renderReporteProvBody() {
   const prov = state.proveedores.find(p => String(p.id) === String(f.proveedor)) || {};
   if (f.tipo === 'pendientes') { wrap.innerHTML = repAdeudoHtml(prov, pagosPorCxp, pie); return; }
   const r = acum.get(String(f.proveedor)) || { nGastos:0, registrado:0, nPagos:0, pagado:0, pendValidar:0, saldo:0, vencido:0, nAbiertas:0 };
+  if (f.tipo === 'todo') { wrap.innerHTML = repDivisionesHtml(prov, r, pagosPorCxp, cxpPorId, pie); return; }
   let gastos = repGastosDe(f.proveedor, pagosPorCxp);
   let pagos = repPagosDe(f.proveedor, cxpPorId);
   if (f.tipo === 'pagadas') gastos = gastos.filter(g => g.est === 'liquidada');
@@ -3677,6 +3682,131 @@ function repAdeudoHtml(prov, pagosPorCxp, pie) {
   `;
 }
 
+/* ---------------- v9.1: reporte completo del proveedor en dos divisiones ---------------- */
+// División 1 «Pendientes de pago»: notas con saldo, con los días que faltan para su vencimiento (no depende del periodo:
+// es lo que se debe hoy). División 2 «Pagadas»: notas liquidadas con su fecha de pago (se filtran por el periodo según
+// la fecha de pago).
+function repDivisionesDatos(provId, pagosPorCxp) {
+  const pend = [], pagadas = [];
+  state.cxp.forEach(c => {
+    if (String(c.proveedor_id) !== String(provId)) return;
+    const monto = Number(c.monto) || 0, saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
+    const fecha = String(c.fecha_factura || c.fecha_vencimiento || '').slice(0, 10);
+    const pagos = (pagosPorCxp.get(String(c.id)) || []).slice().sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
+    if (saldo > 0.01) {
+      const dias = diasVencimiento(c);
+      pend.push({ c, fecha, monto, saldo, abonado: monto - saldo, dias, vence: String(c.fecha_vencimiento || '').slice(0, 10), nPagos: pagos.length });
+    } else {
+      const ult = pagos.length ? pagos[pagos.length - 1] : null;
+      const fechaPago = ult ? String(ult.fecha || '').slice(0, 10) : '';
+      if (!repEnRango(fechaPago || fecha)) return;
+      pagadas.push({ c, fecha, monto, fechaPago, nPagos: pagos.length, ult, porValidar: pagos.some(q => q.estado === 'pendiente_validacion') });
+    }
+  });
+  pend.sort((a, b) => (a.vence || '9999').localeCompare(b.vence || '9999') || a.fecha.localeCompare(b.fecha));
+  pagadas.sort((a, b) => (b.fechaPago || b.fecha).localeCompare(a.fechaPago || a.fecha));
+  return { pend, pagadas };
+}
+
+function repDiasParaVencer(x) {
+  const dias = x.dias;
+  if (dias === null) return '<span class="badge badge-muted">Sin fecha</span>';
+  if (dias > 0) return `<span class="badge badge-critical">Vencida hace ${dias} día${dias === 1 ? '' : 's'}</span>`;
+  if (dias === 0) return '<span class="badge badge-warning">Vence hoy</span>';
+  const faltan = -dias;
+  return `<span class="badge ${faltan <= 7 ? 'badge-warning' : 'badge-muted'}">Faltan ${faltan} día${faltan === 1 ? '' : 's'}</span>`;
+}
+
+function repDivisionesHtml(prov, r, pagosPorCxp, cxpPorId, pie) {
+  const f = state.filtrosRepProv;
+  const dv = repDivisionesDatos(prov.id, pagosPorCxp);
+  const rfc = prov.rfc ? ' · RFC ' + esc(prov.rfc) : '';
+  const totPend = dv.pend.reduce((t, x) => t + x.saldo, 0), totPag = dv.pagadas.reduce((t, x) => t + x.monto, 0);
+  const rd = 'renderReporteProvBody';
+  const btn = c => `<button type="button" class="repLinkBtn" onclick="verCapturaCxp('${esc(c.id)}','${esc(c.proveedor_id)}')" title="Ver detalle del gasto">${esc(c.concepto || '(sin concepto)')}</button>`;
+  // Cada bloque conserva su orden por defecto; si la persona da clic en un encabezado, manda ese orden.
+  const pend = state.sortRepPend.col ? sortRows(dv.pend, state.sortRepPend, {
+    fecha: x => x.fecha, folio: x => x.c.folio || '', concepto: x => x.c.concepto || '', sucursal: x => x.c.sucursal || '',
+    vence: x => x.vence || '9999', monto: x => x.monto, abonado: x => x.abonado, saldo: x => x.saldo }) : dv.pend;
+  const pagadas = state.sortRepPagadas.col ? sortRows(dv.pagadas, state.sortRepPagadas, {
+    fecha: x => x.fecha, folio: x => x.c.folio || '', concepto: x => x.c.concepto || '', monto: x => x.monto,
+    fechaPago: x => x.fechaPago, referencia: x => (x.ult && x.ult.referencia) || '' }) : dv.pagadas;
+  let pagos = repPagosDe(prov.id, cxpPorId);
+  pagos = state.sortRepPagos.col ? sortRows(pagos, state.sortRepPagos, {
+    fecha: x => x.fecha, concepto: x => x.concepto, monto: x => x.monto, pagar_desde: x => x.pagar_desde, referencia: x => x.referencia,
+    capturado_por: x => x.capturado_por, estado: x => x.pendiente ? 1 : 0 }) : pagos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const totP = pagos.reduce((t, x) => t + x.monto, 0);
+  return `
+    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · ${repTituloTipo(f.tipo)} · Periodo: ${repTextoPeriodo()} · ${pie}</p>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Registrado en el periodo</div><div class="value">${money(r.registrado)}</div><div class="label" style="margin:4px 0 0">${r.nGastos} gasto${r.nGastos === 1 ? '' : 's'}</div></div>
+      <div class="kpi"><div class="label">Pagado en el periodo</div><div class="value">${money(r.pagado)}</div><div class="label" style="margin:4px 0 0">${r.nPagos} pago${r.nPagos === 1 ? '' : 's'}${r.pendValidar ? ' · ' + r.pendValidar + ' sin validar' : ''}</div></div>
+      <div class="kpi warn"><div class="label">Saldo pendiente hoy</div><div class="value">${money(r.saldo)}</div><div class="label" style="margin:4px 0 0">${r.nAbiertas} nota${r.nAbiertas === 1 ? '' : 's'} abierta${r.nAbiertas === 1 ? '' : 's'}</div></div>
+      <div class="kpi alert"><div class="label">De ese saldo, vencido</div><div class="value">${money(r.vencido)}</div></div>
+    </div>
+    <p class="repNota">«Registrado» cuenta por fecha de factura; «Pagado», «Pagadas» y «Pagos realizados» cuentan por fecha de pago; «Saldo pendiente hoy» y «Pendientes de pago» son de todo el historial.</p>
+
+    <details class="repDet" open>
+    <summary><span style="color:var(--warning)"><span class="chev">▶</span>Pendientes de pago (${pend.length})</span><span class="repSumTot">Saldo ${money(totPend)}</span></summary>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha factura','fecha','sortRepPend',rd)}${sortTh('Folio','folio','sortRepPend',rd)}${sortTh('Concepto','concepto','sortRepPend',rd)}${sortTh('Sucursal','sucursal','sortRepPend',rd)}${sortTh('Vencimiento','vence','sortRepPend',rd)}<th>Días para vencer</th>${sortTh('Monto','monto','sortRepPend',rd)}${sortTh('Abonado','abonado','sortRepPend',rd)}${sortTh('Saldo','saldo','sortRepPend',rd)}
+      </tr></thead>
+      <tbody>${pend.map(x => `<tr>
+          <td>${x.fecha ? fmtFecha(x.fecha) : '—'}</td>
+          <td>${esc(x.c.folio || '—')}</td>
+          <td>${btn(x.c)}</td>
+          <td>${esc(x.c.sucursal || '—')}</td>
+          <td>${x.vence ? fmtFecha(x.vence) : '—'}</td>
+          <td>${repDiasParaVencer(x)}</td>
+          <td class="num">${money(x.monto)}</td>
+          <td class="num">${x.abonado > 0.01 ? money(x.abonado) : '—'}</td>
+          <td class="num" style="font-weight:700">${money(x.saldo)}</td>
+        </tr>`).join('') || `<tr><td colspan="9" class="emptyState">Sin notas pendientes de pago.</td></tr>`}
+        ${pend.length ? `<tr class="repTotal"><td colspan="8">Total pendiente de pago</td><td class="num">${money(totPend)}</td></tr>` : ''}
+      </tbody>
+    </table></div>
+    <p class="repNota">Por defecto, ordenadas por fecha de vencimiento (lo más urgente primero). No dependen del periodo: es lo que se debe a hoy.</p>
+    </details>
+
+    <details class="repDet" open>
+    <summary><span style="color:var(--good)"><span class="chev">▶</span>Pagadas (${pagadas.length})</span><span class="repSumTot">Total ${money(totPag)}</span></summary>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha factura','fecha','sortRepPagadas',rd)}${sortTh('Folio','folio','sortRepPagadas',rd)}${sortTh('Concepto','concepto','sortRepPagadas',rd)}${sortTh('Monto','monto','sortRepPagadas',rd)}${sortTh('Fecha de pago','fechaPago','sortRepPagadas',rd)}${sortTh('Referencia','referencia','sortRepPagadas',rd)}
+      </tr></thead>
+      <tbody>${pagadas.map(x => `<tr>
+          <td>${x.fecha ? fmtFecha(x.fecha) : '—'}</td>
+          <td>${esc(x.c.folio || '—')}</td>
+          <td>${btn(x.c)}</td>
+          <td class="num">${money(x.monto)}</td>
+          <td style="font-weight:700">${x.fechaPago ? fmtFecha(x.fechaPago) : '—'}${x.porValidar ? ' <span class="badge badge-warning">por validar</span>' : ''}</td>
+          <td>${esc((x.ult && x.ult.referencia) || '—')}${x.nPagos > 1 ? ` <span class="badge badge-muted">${x.nPagos} pagos</span>` : ''}</td>
+        </tr>`).join('') || `<tr><td colspan="6" class="emptyState">Sin notas pagadas en este periodo.</td></tr>`}
+        ${pagadas.length ? `<tr class="repTotal"><td colspan="3">Total pagado</td><td class="num">${money(totPag)}</td><td colspan="2"></td></tr>` : ''}
+      </tbody>
+    </table></div>
+    <p class="repNota">La fecha de pago es la del último pago que liquidó la nota. Por defecto, de la más reciente a la más antigua.${pagadas.some(x => x.porValidar) ? ' «Por validar»: algún pago de esa nota aún no está validado.' : ''}</p>
+    </details>
+
+    <details class="repDet" open style="break-inside:avoid">
+    <summary><span><span class="chev">▶</span>Pagos realizados (${pagos.length})</span><span class="repSumTot">Total ${money(totP)}</span></summary>
+    <div class="tableWrap"><table>
+      <thead><tr>
+        ${sortTh('Fecha de pago','fecha','sortRepPagos',rd)}${sortTh('Gasto pagado','concepto','sortRepPagos',rd)}${sortTh('Monto','monto','sortRepPagos',rd)}${sortTh('Pagó desde','pagar_desde','sortRepPagos',rd)}${sortTh('Referencia','referencia','sortRepPagos',rd)}${sortTh('Capturó','capturado_por','sortRepPagos',rd)}${sortTh('Estado','estado','sortRepPagos',rd)}<th class="repNoPrint">Comprobante</th>
+      </tr></thead>
+      <tbody>${pagos.map(x => `<tr>
+          <td style="font-weight:700">${fmtFecha(x.fecha)}</td><td>${btn(x.c)}</td><td class="num">${money(x.monto)}</td><td>${esc(x.pagar_desde || '—')}</td><td>${esc(x.referencia || '—')}</td><td>${esc(x.capturado_por || '—')}</td><td>${badgeEstadoPago(x.p)}</td>
+          <td class="repNoPrint">${x.p.adjunto_comprobante_url ? `<button type="button" class="verComprobanteBtn" onclick="abrirLightbox('${esc(x.p.adjunto_comprobante_url)}')">Ver</button>` : '—'}</td>
+        </tr>`).join('') || `<tr><td colspan="8" class="emptyState">Sin pagos en este periodo.</td></tr>`}
+        ${pagos.length ? `<tr class="repTotal"><td colspan="2">Total pagos del periodo</td><td class="num">${money(totP)}</td><td colspan="5"></td></tr>` : ''}
+      </tbody>
+    </table></div>
+    <p class="repNota">Cada pago individual, incluidos los abonos parciales. Respeta el periodo elegido.</p>
+    </details>
+  `;
+}
+
 // Al imprimir / guardar PDF se abren todos los bloques y luego se regresan a como estaban.
 window.addEventListener('beforeprint', () => { document.querySelectorAll('details.repDet').forEach(d => { d.dataset.antes = d.open ? '1' : '0'; d.open = true; }); });
 window.addEventListener('afterprint', () => { document.querySelectorAll('details.repDet').forEach(d => { d.open = d.dataset.antes === '1'; }); });
@@ -3701,6 +3831,22 @@ function exportarReporteProvCsv() {
     descargarCsv('estado_adeudo_' + slug0 + '_' + hoy + '.csv',
       ['grupo','proveedor','concepto','sucursal','fecha_factura','folio','vencimiento','situacion','monto','abonos','saldo'],
       d.vencidas.map(x => fila('Vencida', x)).concat(d.porVencer.map(x => fila('Por vencer', x)), [['TOTAL ADEUDADO', prov, '', '', '', '', '', '', '', '', d.total.toFixed(2)]]));
+    return;
+  }
+  if (f.tipo === 'todo') {
+    const dv = repDivisionesDatos(f.proveedor, pagosPorCxp);
+    const sit = x => x.dias === null ? '' : x.dias > 0 ? 'Vencida hace ' + x.dias + ' día' + (x.dias === 1 ? '' : 's') : x.dias === 0 ? 'Vence hoy' : 'Faltan ' + (-x.dias) + ' día' + (x.dias === -1 ? '' : 's');
+    const sumP = dv.pend.reduce((t, x) => t + x.saldo, 0), sumG = dv.pagadas.reduce((t, x) => t + x.monto, 0);
+    const pagosRep = repPagosDe(f.proveedor, cxpPorId).sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const sumPag = pagosRep.reduce((t, x) => t + x.monto, 0);
+    const vacio = n => Array(n).fill('');
+    const filasP = dv.pend.map(x => ['Pendiente de pago', prov, x.c.concepto || '', x.c.sucursal || '', x.fecha, x.c.folio || '', x.vence, x.dias === null ? '' : String(-x.dias), sit(x), x.monto.toFixed(2), Math.max(x.abonado, 0).toFixed(2), x.saldo.toFixed(2), '', '', '', '', '']);
+    const filasG = dv.pagadas.map(x => ['Pagada', prov, x.c.concepto || '', x.c.sucursal || '', x.fecha, x.c.folio || '', '', '', '', x.monto.toFixed(2), x.monto.toFixed(2), '0.00', x.fechaPago, (x.ult && (x.ult.pagar_desde || x.ult.banco_origen)) || '', (x.ult && x.ult.referencia) || '', x.porValidar ? 'Por validar' : '', (x.ult && x.ult.capturado_por) || '']);
+    const filasA = pagosRep.map(x => ['Pago realizado', prov, x.concepto, x.c.sucursal || '', String(x.c.fecha_factura || '').slice(0, 10), x.c.folio || '', '', '', '', x.monto.toFixed(2), '', '', x.fecha, x.pagar_desde, x.referencia, x.pendiente ? 'Pendiente de validar' : 'Validado', x.capturado_por]);
+    descargarCsv('reporte_' + slug0 + '_' + hoy + '.csv',
+      ['grupo','proveedor','concepto','sucursal','fecha_factura','folio','vencimiento','dias_para_vencer','situacion','monto','abonado','saldo','fecha_pago','pagado_desde','referencia','estado_pago','capturo'],
+      filasP.concat([['TOTAL PENDIENTE', prov].concat(vacio(9), [sumP.toFixed(2)], vacio(5))], filasG, [['TOTAL PAGADO', prov].concat(vacio(7), [sumG.toFixed(2)], vacio(7))],
+        filasA, [['TOTAL PAGOS DEL PERIODO', prov].concat(vacio(7), [sumPag.toFixed(2)], vacio(7))]));
     return;
   }
   const mov = [];
