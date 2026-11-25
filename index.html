@@ -410,7 +410,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v9.1 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.2 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -503,7 +503,7 @@ const state = {
   sortAuditoria:   { col: null, dir: 'asc' },
   auditoriaAbierto: false,
   // v7.4: Reporte por proveedor
-  filtrosRepProv: { proveedor:'', periodo:'todo', desde:'', hasta:'', tipo:'todo' },
+  filtrosRepProv: { proveedor:'', sucursal:'', periodo:'todo', desde:'', hasta:'', tipo:'todo' },
   sortRepResumen: { col: null, dir: 'asc' },
   sortRepGastos:  { col: null, dir: 'asc' },
   sortRepPagos:   { col: null, dir: 'asc' },
@@ -3352,6 +3352,16 @@ function repRango(id) {
   return { desde: '', hasta: '' };
 }
 
+// v9.2: filtro de sucursal del reporte. Vacío = todas. Se compara contra la sucursal del gasto (los pagos heredan la de su gasto).
+function repSucDe(c) { return normSucursal(c && c.sucursal) || SUC_SIN; }
+function repSucOk(c) { const s = state.filtrosRepProv.sucursal; return !s || repSucDe(c) === s; }
+function repTextoSuc() { const s = state.filtrosRepProv.sucursal; return s ? ' · Sucursal: <b>' + esc(s) + '</b>' : ''; }
+function repOpcionesSuc() {
+  const s = new Set(nombresSucursalesTodas());
+  if (state.cxp.some(c => !normSucursal(c.sucursal))) s.add(SUC_SIN);
+  return [...s].sort((a, b) => a === SUC_SIN ? 1 : b === SUC_SIN ? -1 : a.localeCompare(b, 'es'));
+}
+function repSetSucursal(v) { state.filtrosRepProv.sucursal = v || ''; renderReporteProv(); }
 function repSetProveedor(id) { state.filtrosRepProv.proveedor = id || ''; if (!id) state.filtrosRepProv.tipo = 'todo'; renderReporteProv(); window.scrollTo(0, 0); }
 // v8.4: tipos de reporte de un proveedor. "pendientes" es el estado de adeudo (solo notas con saldo: vencidas y por vencer).
 const REP_TIPOS = [
@@ -3365,7 +3375,7 @@ function repSetTipo(t) { state.filtrosRepProv.tipo = REP_TIPOS.some(o => o.id ==
 function repTituloTipo(t) { return ({ todo:'Reporte × Proveedor', pendientes:'Estado de adeudo', pagadas:'Facturas pagadas', facturas:'Facturas registradas', pagos:'Pagos realizados' })[t] || 'Reporte × Proveedor'; }
 function repAbrirProveedor(id) { state.filtrosRepProv.proveedor = String(id); setView('repprov'); }
 function repLimpiar() {
-  state.filtrosRepProv = { proveedor:'', periodo:'todo', desde:'', hasta:'', tipo:'todo' };
+  state.filtrosRepProv = { proveedor:'', sucursal:'', periodo:'todo', desde:'', hasta:'', tipo:'todo' };
   state.sortRepGastos = { col: null, dir: 'asc' }; state.sortRepPagos = { col: null, dir: 'asc' }; state.sortRepPend = { col: null, dir: 'asc' }; state.sortRepPagadas = { col: null, dir: 'asc' };
   renderReporteProv(); window.scrollTo(0, 0);
 }
@@ -3408,6 +3418,7 @@ function repCalcular() {
     return acum.get(k);
   };
   state.cxp.forEach(c => {
+    if (!repSucOk(c)) return;
     const r = get(c.proveedor_id);
     const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
     if (saldo > 0.01) {
@@ -3418,7 +3429,7 @@ function repCalcular() {
   });
   state.pagos.forEach(p => {
     const c = cxpPorId.get(String(p.cxp_id));
-    if (!c) return;
+    if (!c || !repSucOk(c)) return;
     const r = get(c.proveedor_id);
     const fp = String(p.fecha || '').slice(0, 10);
     if (fp > r.ultimoPago) r.ultimoPago = fp;
@@ -3431,7 +3442,7 @@ function repCalcular() {
 }
 
 function repGastosDe(provId, pagosPorCxp) {
-  return state.cxp.filter(c => String(c.proveedor_id) === String(provId) && repEnRango(c.fecha_factura || c.fecha_vencimiento)).map(c => {
+  return state.cxp.filter(c => String(c.proveedor_id) === String(provId) && repSucOk(c) && repEnRango(c.fecha_factura || c.fecha_vencimiento)).map(c => {
     const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
     return { c, fecha: String(c.fecha_factura || c.fecha_vencimiento || '').slice(0, 10), concepto: c.concepto || '(sin concepto)',
              sucursal: c.sucursal || '', folio: c.folio || '', monto: Number(c.monto) || 0,
@@ -3443,7 +3454,7 @@ function repPagosDe(provId, cxpPorId) {
   const out = [];
   state.pagos.forEach(p => {
     const c = cxpPorId.get(String(p.cxp_id));
-    if (!c || String(c.proveedor_id) !== String(provId) || !repEnRango(p.fecha)) return;
+    if (!c || String(c.proveedor_id) !== String(provId) || !repSucOk(c) || !repEnRango(p.fecha)) return;
     out.push({ p, c, fecha: String(p.fecha || '').slice(0, 10), concepto: c.concepto || '(sin concepto)', monto: Number(p.monto) || 0,
                pagar_desde: p.pagar_desde || p.banco_origen || '', referencia: p.referencia || '', capturado_por: p.capturado_por || '',
                pendiente: p.estado === 'pendiente_validacion' });
@@ -3454,6 +3465,8 @@ function repPagosDe(provId, cxpPorId) {
 function renderReporteProv() {
   const f = state.filtrosRepProv;
   if (f.proveedor && !state.proveedores.some(p => String(p.id) === String(f.proveedor))) f.proveedor = '';
+  const sucs = repOpcionesSuc();
+  if (f.sucursal && !sucs.includes(f.sucursal)) f.sucursal = '';
   const provs = [...state.proveedores].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
   const main = document.getElementById('main');
   main.innerHTML = `
@@ -3468,6 +3481,10 @@ function renderReporteProv() {
         <option value="">Todos (resumen)</option>
         ${provs.map(p => `<option value="${esc(p.id)}" ${String(p.id) === String(f.proveedor) ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}
       </select></div>
+      <div class="f"><label>Sucursal</label><select onchange="repSetSucursal(this.value)">
+        <option value="">Todas las sucursales</option>
+        ${sucs.map(n => `<option value="${esc(n)}" ${n === f.sucursal ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+      </select></div>
       ${f.proveedor ? `<div class="f"><label>Tipo de reporte</label><select onchange="repSetTipo(this.value)">
         ${REP_TIPOS.map(o => `<option value="${o.id}" ${o.id === f.tipo ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select></div>` : ''}
@@ -3476,7 +3493,7 @@ function renderReporteProv() {
       </select></div>
       <div class="f"><label>Desde</label><input type="date" value="${esc(f.desde)}" onchange="repSetFecha('desde', this.value)"></div>
       <div class="f"><label>Hasta</label><input type="date" value="${esc(f.hasta)}" onchange="repSetFecha('hasta', this.value)"></div>`}
-      <div class="f"><button type="button" class="btn btn-ghost btn-sm" style="padding:8px 14px" onclick="repLimpiar()" title="Quitar proveedor y periodo">Limpiar</button></div>
+      <div class="f"><button type="button" class="btn btn-ghost btn-sm" style="padding:8px 14px" onclick="repLimpiar()" title="Quitar proveedor, sucursal y periodo">Limpiar</button></div>
     </div>
     <div id="repProvWrap"></div>
   `;
@@ -3503,7 +3520,7 @@ function renderReporteProvBody() {
     const tot = filas.reduce((t, r) => ({ nGastos: t.nGastos + r.nGastos, registrado: t.registrado + r.registrado, nPagos: t.nPagos + r.nPagos, pagado: t.pagado + r.pagado, saldo: t.saldo + r.saldo, vencido: t.vencido + r.vencido }),
       { nGastos:0, registrado:0, nPagos:0, pagado:0, saldo:0, vencido:0 });
     wrap.innerHTML = `
-      <p class="repSub">Resumen de todos los proveedores · Periodo: ${repTextoPeriodo()} · ${pie}</p>
+      <p class="repSub">Resumen de todos los proveedores${repTextoSuc()} · Periodo: ${repTextoPeriodo()} · ${pie}</p>
       <div class="kpis">
         <div class="kpi"><div class="label">Registrado en el periodo</div><div class="value">${money(tot.registrado)}</div><div class="label" style="margin:4px 0 0">${tot.nGastos} gasto${tot.nGastos === 1 ? '' : 's'}</div></div>
         <div class="kpi"><div class="label">Pagado en el periodo</div><div class="value">${money(tot.pagado)}</div><div class="label" style="margin:4px 0 0">${tot.nPagos} pago${tot.nPagos === 1 ? '' : 's'}</div></div>
@@ -3555,7 +3572,7 @@ function renderReporteProvBody() {
   const rfc = prov.rfc ? ' · RFC ' + esc(prov.rfc) : '';
 
   wrap.innerHTML = `
-    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · ${repTituloTipo(f.tipo)} · Periodo: ${repTextoPeriodo()} · ${pie}</p>
+    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · ${repTituloTipo(f.tipo)}${repTextoSuc()} · Periodo: ${repTextoPeriodo()} · ${pie}</p>
     <div class="kpis">
       <div class="kpi"><div class="label">Registrado en el periodo</div><div class="value">${money(r.registrado)}</div><div class="label" style="margin:4px 0 0">${r.nGastos} gasto${r.nGastos === 1 ? '' : 's'}</div></div>
       <div class="kpi"><div class="label">Pagado en el periodo</div><div class="value">${money(r.pagado)}</div><div class="label" style="margin:4px 0 0">${r.nPagos} pago${r.nPagos === 1 ? '' : 's'}${r.pendValidar ? ' · ' + r.pendValidar + ' sin validar' : ''}</div></div>
@@ -3628,7 +3645,7 @@ function repAdeudoDatos(provId) {
   const pagosPorCxp = indexarPagosPorCxp(state.pagos);
   const filas = [];
   state.cxp.forEach(c => {
-    if (String(c.proveedor_id) !== String(provId)) return;
+    if (String(c.proveedor_id) !== String(provId) || !repSucOk(c)) return;
     const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
     if (saldo <= 0.01) return;
     const dias = diasVencimiento(c);
@@ -3668,7 +3685,7 @@ function repAdeudoHtml(prov, pagosPorCxp, pie) {
     </table></div>
     </details>`;
   return `
-    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · Estado de adeudo al ${hoyTxt} · ${pie}</p>
+    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · Estado de adeudo al ${hoyTxt}${repTextoSuc()} · ${pie}</p>
     <div class="kpis">
       <div class="kpi warn"><div class="label">Total adeudado</div><div class="value">${money(d.total)}</div><div class="label" style="margin:4px 0 0">${nPlural(d.n, 'nota', 'notas')}</div></div>
       <div class="kpi alert"><div class="label">Vencido</div><div class="value">${money(d.totVencido)}</div><div class="label" style="margin:4px 0 0">${nPlural(d.vencidas.length, 'nota', 'notas')}</div></div>
@@ -3689,7 +3706,7 @@ function repAdeudoHtml(prov, pagosPorCxp, pie) {
 function repDivisionesDatos(provId, pagosPorCxp) {
   const pend = [], pagadas = [];
   state.cxp.forEach(c => {
-    if (String(c.proveedor_id) !== String(provId)) return;
+    if (String(c.proveedor_id) !== String(provId) || !repSucOk(c)) return;
     const monto = Number(c.monto) || 0, saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
     const fecha = String(c.fecha_factura || c.fecha_vencimiento || '').slice(0, 10);
     const pagos = (pagosPorCxp.get(String(c.id)) || []).slice().sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
@@ -3737,7 +3754,7 @@ function repDivisionesHtml(prov, r, pagosPorCxp, cxpPorId, pie) {
     capturado_por: x => x.capturado_por, estado: x => x.pendiente ? 1 : 0 }) : pagos.sort((a, b) => b.fecha.localeCompare(a.fecha));
   const totP = pagos.reduce((t, x) => t + x.monto, 0);
   return `
-    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · ${repTituloTipo(f.tipo)} · Periodo: ${repTextoPeriodo()} · ${pie}</p>
+    <p class="repSub"><b>${esc(prov.nombre || '')}</b>${rfc} · ${repTituloTipo(f.tipo)}${repTextoSuc()} · Periodo: ${repTextoPeriodo()} · ${pie}</p>
     <div class="kpis">
       <div class="kpi"><div class="label">Registrado en el periodo</div><div class="value">${money(r.registrado)}</div><div class="label" style="margin:4px 0 0">${r.nGastos} gasto${r.nGastos === 1 ? '' : 's'}</div></div>
       <div class="kpi"><div class="label">Pagado en el periodo</div><div class="value">${money(r.pagado)}</div><div class="label" style="margin:4px 0 0">${r.nPagos} pago${r.nPagos === 1 ? '' : 's'}${r.pendValidar ? ' · ' + r.pendValidar + ' sin validar' : ''}</div></div>
@@ -3815,20 +3832,22 @@ function exportarReporteProvCsv() {
   const f = state.filtrosRepProv;
   const hoy = formatYMD(new Date());
   const { acum, pagosPorCxp, cxpPorId } = repCalcular();
+  const sufSuc = f.sucursal ? '_' + f.sucursal.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) : '';
   if (!f.proveedor) {
     const filas = [...acum.values()].filter(r => r.nGastos || r.nPagos || r.saldo > 0.01).sort((a, b) => b.registrado - a.registrado);
-    descargarCsv('reporte_proveedores_' + hoy + '.csv',
-      ['proveedor','periodo_desde','periodo_hasta','gastos_en_periodo','registrado','pagos_en_periodo','pagado','saldo_pendiente_hoy','vencido_hoy','ultimo_pago'],
-      filas.map(r => [r.nombre, f.desde, f.hasta, r.nGastos, r.registrado.toFixed(2), r.nPagos, r.pagado.toFixed(2), Math.max(r.saldo, 0).toFixed(2), r.vencido.toFixed(2), r.ultimoPago]));
+    descargarCsv('reporte_proveedores' + sufSuc + '_' + hoy + '.csv',
+      ['proveedor','sucursal','periodo_desde','periodo_hasta','gastos_en_periodo','registrado','pagos_en_periodo','pagado','saldo_pendiente_hoy','vencido_hoy','ultimo_pago'],
+      filas.map(r => [r.nombre, f.sucursal || 'TODAS', f.desde, f.hasta, r.nGastos, r.registrado.toFixed(2), r.nPagos, r.pagado.toFixed(2), Math.max(r.saldo, 0).toFixed(2), r.vencido.toFixed(2), r.ultimoPago]));
     return;
   }
   const prov = proveedorNombre(f.proveedor);
   const etiquetaEstado = { liquidada:'Liquidada', vencida:'Vencida', proxima:'Por vencer', vigente:'Vigente' };
   const slug0 = prov.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'proveedor';
+  const slugArch = slug0 + sufSuc;
   if (f.tipo === 'pendientes') {
     const d = repAdeudoDatos(f.proveedor);
     const fila = (grupo, x) => [grupo, prov, x.c.concepto || '', x.c.sucursal || '', x.fecha, x.c.folio || '', x.vence, x.texto, x.monto.toFixed(2), Math.max(x.abonos, 0).toFixed(2), x.saldo.toFixed(2)];
-    descargarCsv('estado_adeudo_' + slug0 + '_' + hoy + '.csv',
+    descargarCsv('estado_adeudo_' + slugArch + '_' + hoy + '.csv',
       ['grupo','proveedor','concepto','sucursal','fecha_factura','folio','vencimiento','situacion','monto','abonos','saldo'],
       d.vencidas.map(x => fila('Vencida', x)).concat(d.porVencer.map(x => fila('Por vencer', x)), [['TOTAL ADEUDADO', prov, '', '', '', '', '', '', '', '', d.total.toFixed(2)]]));
     return;
@@ -3843,7 +3862,7 @@ function exportarReporteProvCsv() {
     const filasP = dv.pend.map(x => ['Pendiente de pago', prov, x.c.concepto || '', x.c.sucursal || '', x.fecha, x.c.folio || '', x.vence, x.dias === null ? '' : String(-x.dias), sit(x), x.monto.toFixed(2), Math.max(x.abonado, 0).toFixed(2), x.saldo.toFixed(2), '', '', '', '', '']);
     const filasG = dv.pagadas.map(x => ['Pagada', prov, x.c.concepto || '', x.c.sucursal || '', x.fecha, x.c.folio || '', '', '', '', x.monto.toFixed(2), x.monto.toFixed(2), '0.00', x.fechaPago, (x.ult && (x.ult.pagar_desde || x.ult.banco_origen)) || '', (x.ult && x.ult.referencia) || '', x.porValidar ? 'Por validar' : '', (x.ult && x.ult.capturado_por) || '']);
     const filasA = pagosRep.map(x => ['Pago realizado', prov, x.concepto, x.c.sucursal || '', String(x.c.fecha_factura || '').slice(0, 10), x.c.folio || '', '', '', '', x.monto.toFixed(2), '', '', x.fecha, x.pagar_desde, x.referencia, x.pendiente ? 'Pendiente de validar' : 'Validado', x.capturado_por]);
-    descargarCsv('reporte_' + slug0 + '_' + hoy + '.csv',
+    descargarCsv('reporte_' + slugArch + '_' + hoy + '.csv',
       ['grupo','proveedor','concepto','sucursal','fecha_factura','folio','vencimiento','dias_para_vencer','situacion','monto','abonado','saldo','fecha_pago','pagado_desde','referencia','estado_pago','capturo'],
       filasP.concat([['TOTAL PENDIENTE', prov].concat(vacio(9), [sumP.toFixed(2)], vacio(5))], filasG, [['TOTAL PAGADO', prov].concat(vacio(7), [sumG.toFixed(2)], vacio(7))],
         filasA, [['TOTAL PAGOS DEL PERIODO', prov].concat(vacio(7), [sumPag.toFixed(2)], vacio(7))]));
@@ -3855,7 +3874,7 @@ function exportarReporteProvCsv() {
   repPagosDe(f.proveedor, cxpPorId).forEach(x => (f.tipo === 'todo' || f.tipo === 'pagos') && mov.push({ fecha: x.fecha, ord: 1,
     fila: ['Pago', x.fecha, prov, x.concepto, '', '', '', x.monto.toFixed(2), '', x.referencia, x.pagar_desde, x.pendiente ? 'Pendiente de validar' : 'Validado', x.capturado_por] }));
   mov.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.ord - b.ord);
-  const slug = slug0;
+  const slug = slugArch;
   descargarCsv((f.tipo === 'todo' ? 'reporte_' : 'reporte_' + f.tipo + '_') + slug + '_' + hoy + '.csv',
     ['tipo','fecha','proveedor','concepto','sucursal','folio','monto_registrado','monto_pagado','saldo_de_la_nota','referencia','pagado_desde','estado','capturo'],
     mov.map(m => m.fila));
