@@ -42,6 +42,14 @@
   .comboOption{padding:8px 10px;font-size:14px;cursor:pointer;}
   .comboOption:hover, .comboOption.activa{background:var(--brand-light);}
   .comboEmpty{padding:8px 10px;font-size:13px;color:var(--muted);font-style:italic;}
+  /* v9.4: "+ Crear proveedor" fijo al pie de la lista del selector; etiqueta "Por validar" en las opciones */
+  .comboNuevo{position:sticky;bottom:0;padding:10px;font-size:13px;font-weight:700;color:var(--brand);background:var(--surface);border-top:1px solid var(--border);cursor:pointer;}
+  .comboNuevo:hover{background:var(--brand-light);}
+  .comboOption .badge{margin-left:6px;font-size:10px;padding:1px 6px;}
+  .provBanner{margin:0 0 12px;padding:9px 14px;background:var(--brand-light);border:1px solid var(--brand);border-radius:10px;font-size:13px;line-height:1.45;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .provInfo{font-size:12px;color:var(--ink-2);background:var(--brand-light);border:1px dashed var(--brand);border-radius:8px;padding:8px 10px;margin:0 0 12px;line-height:1.45;}
+  .provAviso{font-size:12px;background:var(--warning-bg);color:var(--warning);border-radius:8px;padding:8px 10px;margin:8px 0;line-height:1.45;}
+  .provResumen{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:13px;}
   .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:1px solid transparent;font-weight:600;font-size:13px;}
   .btn:disabled{opacity:.55;cursor:not-allowed;}
   .btn-primary{background:var(--brand);color:#fff;width:100%;justify-content:center;}
@@ -300,11 +308,17 @@
   #modalBox{background:var(--surface);border-radius:14px;padding:20px;width:440px;max-width:100%;max-height:88vh;overflow-y:auto;}
   #modalBox.wide{width:680px;}
   #modalBox h2{margin:0 0 14px;font-size:16px;}
+  /* v9.4: segunda capa (alta de proveedor desde el selector del gasto) — por encima del modal (50) y debajo de los avisos (80) */
+  #provOverlay{position:fixed;inset:0;background:rgba(11,11,11,.5);display:flex;align-items:center;justify-content:center;z-index:55;padding:16px;}
+  #provOverlay.hidden{display:none;}
+  #provBox{background:var(--surface);border-radius:14px;padding:20px;width:680px;max-width:100%;max-height:88vh;overflow-y:auto;}
+  #provBox h2{margin:0 0 14px;font-size:16px;}
+  :is(#modalBox,#provBox) .viewTitle{color:var(--ink);} /* el subtítulo "Cuentas bancarias" salía casi invisible sobre fondo blanco */
   .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
   .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .formGrid .full{grid-column:1 / -1;}
   /* v7.6: lo que se captura se ve en MAYÚSCULAS (y se guarda así). Lista = SEL_MAYUS en el script. */
-  #modalBox :is(#cxp_concepto,#cxp_sucursal,#cxp_folio,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia){text-transform:uppercase;}
+  :is(#modalBox,#provBox) :is(#cxp_concepto,#cxp_sucursal,#cxp_folio,#pg_referencia,#pg_banco_origen,#pg_notas,#rec_concepto,#rec_sucursal,#rec_notas,#suc_nombre,#pv_nombre,#pv_rfc,#pv_telefono,#pv_notas,.cta_banco,.cta_titular,.cta_cliente,.cta_referencia){text-transform:uppercase;}
 
   /* v7.6: aviso de fechas (Editar / Aceptar) encima del formulario abierto */
   #avisoOverlay{position:fixed;inset:0;background:rgba(11,11,11,.55);display:flex;align-items:center;justify-content:center;z-index:80;padding:16px;}
@@ -413,7 +427,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v9.3 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.4 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -432,13 +446,18 @@
       </div>
     </header>
     <div class="navWrap"><nav class="tabs" id="tabs"></nav><nav class="subtabs hidden" id="subtabs"></nav></div>
-    <div id="avisoParcial" class="avisoParcial hidden"><b>Vista de capturista.</b> Aquí solo aparecen los gastos que tú capturaste, aunque el administrador ya los haya validado o pagado. Los totales, saldos y reportes suman únicamente esos gastos, no los de toda la empresa.</div>
+    <div id="avisoParcial" class="avisoParcial hidden"><b>Vista de capturista.</b> Aquí solo aparecen los gastos que tú capturaste, aunque el administrador ya los haya validado o pagado. Los totales, saldos y reportes suman únicamente esos gastos, no los de toda la empresa. Los proveedores nuevos que des de alta quedan por validar por el administrador, pero puedes usarlos de inmediato.</div>
     <main id="main"></main>
   </div>
 
   <!-- MODAL -->
   <div id="modalOverlay" class="hidden">
     <div id="modalBox"></div>
+  </div>
+
+  <!-- v9.4: alta de proveedor desde el selector del gasto (se abre ENCIMA del formulario del gasto sin cerrarlo) -->
+  <div id="provOverlay" class="hidden">
+    <div id="provBox"></div>
   </div>
 
   <!-- LIGHTBOX: imagen de un adjunto (evidencia/comprobante) agrandada, tamaño acotado -->
@@ -641,6 +660,15 @@ async function loadData() {
 
 // v8.2: un gasto queda "por validar" cuando lo captura un usuario sin permiso de validar (el servidor decide el estado).
 function gastoPorValidar(c) { return !!c && c.estado === 'pendiente_validacion'; }
+
+// v9.4: proveedores por validar. Los da de alta el capturista desde el selector del gasto y se pueden usar de inmediato;
+// el administrador los valida (el servidor decide el estado y quién puede editarlos).
+function provPorValidar(p) { return !!p && p.estado === 'pendiente_validacion'; }
+function provPorValidarId(id) { return provPorValidar(state.proveedores.find(p => String(p.id) === String(id))); }
+function badgeProvPorValidar(p) { return provPorValidar(p) ? ' <span class="badge badge-validar" title="Lo dio de alta un capturista: falta que el administrador lo valide">Por validar</span>' : ''; }
+function nombreProvConEstado(p) { return (p.nombre || '') + (provPorValidar(p) ? ' (por validar)' : ''); }
+// Solo para decidir si se muestra el botón: el servidor impone el permiso de verdad.
+function puedeEditarProv(p) { return can(['admin']) || (state.rol === 'capturista' && provPorValidar(p) && (p.capturado_por || '') === (state.nombre || '')); }
 
 async function loadUsuarios() {
   const r = await api('getUsuarios', {});
@@ -1414,6 +1442,7 @@ function renderDashboard() {
   const totalVencido = pendientes.filter(c => c.est === 'vencida').reduce((s, c) => s + c.saldo, 0);
   const totalValidar = state.pagos.filter(p => p.estado === 'pendiente_validacion').length;
   const totalGastosValidar = state.cxp.filter(gastoPorValidar).length;
+  const totalProvValidar = state.proveedores.filter(provPorValidar).length;
   const nVencido = pendientes.filter(c => c.est === 'vencida').length;
 
   // v8.1: la semana va de lunes a domingo. "Vence esta semana" = de hoy al domingo (lo ya vencido se cuenta aparte).
@@ -1503,7 +1532,7 @@ function renderDashboard() {
   const main = document.getElementById('main');
   main.innerHTML = `
     <div class="viewTitle"><span>Dashboard</span></div>
-    ${dashTarjetasHtml({ totalPendiente, nPend: pendientes.length, totalVencido, nVencido, venceSemana, vencidoSemana, pagosSemana, lunes: lunesSem, domingo: domingoSem, nPagosVal: totalValidar, nGastosVal: totalGastosValidar })}
+    ${dashTarjetasHtml({ totalPendiente, nPend: pendientes.length, totalVencido, nVencido, venceSemana, vencidoSemana, pagosSemana, lunes: lunesSem, domingo: domingoSem, nPagosVal: totalValidar, nGastosVal: totalGastosValidar, nProvVal: totalProvValidar })}
     <div class="chartsGrid">
       <div class="card"><div class="cardTitle">Vencimientos por semana</div>${dashVencimientosSemanaHtml(dataSemanaVenc)}</div>
       <div class="card"><div class="cardTitle">Pendiente por sucursal</div>${svgBarChart(dataSucursal, { fmt: money })}</div>
@@ -1672,7 +1701,7 @@ function renderCapturaCxp(c, provId, logError) {
         <button type="button" class="masDetalleToggle" onclick="toggleMasDetalleCxp(this)"><span class="chev">▸</span> Ver proveedor, fechas, UUID CFDI y notas</button>
         <div class="masDetalleBody hidden">
           <div class="captInfo">
-            <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}</span></div>
+            <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}${badgeProvPorValidar(state.proveedores.find(p => String(p.id) === String(c.proveedor_id)))}</span></div>
             ${c.capturado_por && !can(['capturista']) ? `<div class="captRow"><span class="captLbl">Capturó</span><span class="captVal">${esc(c.capturado_por)}</span></div>` : ''}
             ${c.recurrente_id ? `<div class="captRow"><span class="captLbl">Origen</span><span class="captVal">🔁 Generada automáticamente (Gastos Recurrentes)</span></div>` : ''}
             <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
@@ -1756,7 +1785,7 @@ function cxpFiltradas() {
   return state.cxp.map(c => {
       const saldo = saldoDesdeIndice(c.id, c.monto, pagosPorCxp);
       const prov = provPorId.get(String(c.proveedor_id));
-      return { ...c, saldo, est: estadoCxp(c, saldo), provNombre: prov ? prov.nombre : '(sin proveedor)' };
+      return { ...c, saldo, est: estadoCxp(c, saldo), provNombre: prov ? prov.nombre : '(sin proveedor)', provPend: provPorValidar(prov) };
     })
     .filter(c => {
       if (f.sucursal && c.sucursal !== f.sucursal) return false;
@@ -1798,7 +1827,7 @@ function renderCxp() {
         <option value="">Todas</option>${sucursales.map(s => `<option value="${esc(s)}" ${state.filtrosCxp.sucursal===s?'selected':''}>${esc(s)}</option>`).join('')}
       </select></div>
       <div class="f"><label>Proveedor</label><select id="fProveedor" onchange="state.filtrosCxp.proveedor=this.value; renderCxpTable();">
-        <option value="">Todos</option>${proveedoresOrdenados().map(p => `<option value="${p.id}" ${String(state.filtrosCxp.proveedor)===String(p.id)?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+        <option value="">Todos</option>${proveedoresOrdenados().map(p => `<option value="${p.id}" ${String(state.filtrosCxp.proveedor)===String(p.id)?'selected':''}>${esc(nombreProvConEstado(p))}</option>`).join('')}
       </select></div>
       <div class="f"><label>Vence desde</label><input type="date" value="${esc(state.filtrosCxp.desde)}" onchange="state.filtrosCxp.desde=fechaInputValida(this.value); renderCxpTable();"></div>
       <div class="f"><label>Vence hasta</label><input type="date" value="${esc(state.filtrosCxp.hasta)}" onchange="state.filtrosCxp.hasta=fechaInputValida(this.value); renderCxpTable();"></div>
@@ -1848,32 +1877,38 @@ let __lotePorValidar = [];
 function confirmarValidarGasto(id) {
   const c = state.cxp.find(x => String(x.id) === String(id));
   if (!c) { toast('No se encontró ese gasto.', 'error'); return; }
+  const provPend = state.proveedores.find(p => String(p.id) === String(c.proveedor_id) && provPorValidar(p));
   openModal(`
     <h2>Validar gasto</h2>
     <p>¿Confirmas que este gasto fue capturado correctamente y debe marcarse como <b>validado</b>?</p>
     <p class="muted" style="font-size:13px">${esc(proveedorNombre(c.proveedor_id))} · ${esc(c.concepto || '(sin concepto)')} · ${money(c.monto)}</p>
+    ${provPend ? `<div class="provAviso"><b>El proveedor también está por validar.</b> Al confirmar se validan el gasto y el proveedor; revisa sus datos y su cuenta:</div>${htmlResumenProveedor(provPend)}` : ''}
     <div class="modalActions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-ok" onclick="validarGastos(['${esc(c.id)}'])">Confirmar</button>
+      <button class="btn btn-ok" onclick="validarGastos(['${esc(c.id)}'], ${provPend ? 'true' : 'false'})">${provPend ? 'Validar gasto y proveedor' : 'Confirmar'}</button>
     </div>
-  `);
+  `, provPend ? { wide: true } : undefined);
 }
 function confirmarValidarLote() {
   __lotePorValidar = cxpFiltradas().filter(gastoPorValidar).map(c => String(c.id));
   if (!__lotePorValidar.length) return;
+  const idsLote = new Set(__lotePorValidar);
+  const provsPend = [...new Set(state.cxp.filter(c => idsLote.has(String(c.id))).map(c => String(c.proveedor_id)))]
+    .map(i => state.proveedores.find(p => String(p.id) === i)).filter(provPorValidar);
   openModal(`
     <h2>Validar gastos</h2>
     <p>¿Confirmas que estos <b>${__lotePorValidar.length}</b> gastos fueron capturados correctamente y deben marcarse como <b>validados</b>?</p>
+    ${provsPend.length ? `<div class="provAviso"><b>${nPlural(provsPend.length, 'proveedor', 'proveedores')} de estos gastos también ${provsPend.length === 1 ? 'está' : 'están'} por validar.</b> Al confirmar se validarán junto con los gastos. Si quieres revisarlos antes, cancela y valídalos en la pestaña Proveedores.</div>${provsPend.map(htmlResumenProveedor).join('')}` : ''}
     <div class="modalActions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-ok" onclick="validarGastos(__lotePorValidar)">Confirmar</button>
+      <button class="btn btn-ok" onclick="validarGastos(__lotePorValidar, ${provsPend.length ? 'true' : 'false'})">${provsPend.length ? 'Validar gastos y proveedores' : 'Confirmar'}</button>
     </div>
-  `);
+  `, provsPend.length ? { wide: true } : undefined);
 }
-async function validarGastos(ids) {
+async function validarGastos(ids, incluirProveedores) {
   try {
     showLoading(true);
-    for (let i = 0; i < ids.length; i += 100) await api('validarGasto', { ids: ids.slice(i, i + 100) });
+    for (let i = 0; i < ids.length; i += 100) await api('validarGasto', { ids: ids.slice(i, i + 100), incluirProveedores: !!incluirProveedores });
     await loadData();
     closeModal(); showLoading(false);
     toast(ids.length === 1 ? 'Gasto validado.' : ids.length + ' gastos validados.', 'ok');
@@ -1910,7 +1945,7 @@ function renderCxpRow(c, extraClass) {
   const dias = c.dias !== undefined ? c.dias : diasVencimiento(c);
   return `
       <tr${extraClass ? ` class="${extraClass}"` : ''}>
-        <td>${esc(c.provNombre)}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}</div>` : ''}</td>
+        <td>${esc(c.provNombre)}${c.provPend ? ' <span class="badge badge-validar" title="El proveedor lo dio de alta un capturista y falta validarlo">Prov. por validar</span>' : ''}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}</div>` : ''}</td>
         <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<span class="clipIcon" title="Tiene evidencia adjunta">${SVG_CLIP}</span>` : ''}</div></td>
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
@@ -2097,6 +2132,8 @@ const COMBO_PROVEEDOR_ONCHANGE = {
   cxp_proveedor_id: 'actualizarCuentasDestinoCxp',
   rec_proveedor_id: 'actualizarCuentasDestinoRecurrente'
 };
+// v9.4: solo el selector del gasto ofrece "+ Crear proveedor" (administrador y capturista); el de recurrentes es del administrador y no lo necesita.
+const COMBO_PROVEEDOR_NUEVO = { cxp_proveedor_id: true };
 
 function proveedoresOrdenados() {
   return [...state.proveedores].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
@@ -2130,9 +2167,19 @@ function comboProveedorRenderLista(fieldId) {
   const cont = document.getElementById(fieldId + '_list');
   if (!cont) return;
   const lista = comboProveedorListaFiltrada(fieldId);
-  cont.innerHTML = lista.length
-    ? lista.map(p => `<div class="comboOption" role="option" data-id="${esc(p.id)}" onmousedown="event.preventDefault()" onclick="comboProveedorSeleccionar('${fieldId}','${esc(p.id)}')">${esc(p.nombre)}</div>`).join('')
-    : `<div class="comboEmpty">Sin resultados</div>`;
+  const q = (document.getElementById(fieldId + '_q').value || '').trim();
+  const nuevo = (COMBO_PROVEEDOR_NUEVO[fieldId] && can(['admin', 'capturista']))
+    ? `<div class="comboNuevo" role="option" data-nuevo="1" onmousedown="event.preventDefault()" onclick="comboProveedorNuevo('${fieldId}')">+ ${q ? 'Crear proveedor «' + esc(q.toUpperCase()) + '»' : 'Nuevo proveedor'}</div>` : '';
+  cont.innerHTML = (lista.length
+    ? lista.map(p => `<div class="comboOption" role="option" data-id="${esc(p.id)}" onmousedown="event.preventDefault()" onclick="comboProveedorSeleccionar('${fieldId}','${esc(p.id)}')">${esc(p.nombre)}${badgeProvPorValidar(p)}</div>`).join('')
+    : `<div class="comboEmpty">Sin resultados</div>`) + nuevo;
+}
+
+// v9.4: abre el alta de proveedor encima del formulario del gasto (sin cerrarlo) con lo que ya se escribió como nombre.
+function comboProveedorNuevo(fieldId) {
+  const q = (document.getElementById(fieldId + '_q')?.value || '').trim();
+  document.getElementById(fieldId + '_list')?.classList.add('hidden');
+  formProveedor(null, { desdeGasto: fieldId, nombre: q });
 }
 
 function comboProveedorAbrir(fieldId) {
@@ -2178,7 +2225,10 @@ function comboProveedorTeclado(event, fieldId) {
     comboProveedorAbrir(fieldId);
   }
   const opciones = Array.from(cont.querySelectorAll('.comboOption'));
-  if (!opciones.length) return;
+  if (!opciones.length) { // v9.4: sin coincidencias, Enter abre el alta de proveedor
+    if (event.key === 'Enter' && cont.querySelector('.comboNuevo')) { event.preventDefault(); comboProveedorNuevo(fieldId); }
+    return;
+  }
   let idx = opciones.findIndex(o => o.classList.contains('activa'));
   if (event.key === 'ArrowDown') {
     event.preventDefault();
@@ -2454,6 +2504,7 @@ function formPago(cxpId, pagoId) {
   openModal(`
     <h2>${pago ? 'Editar pago' : 'Registrar pago'} — ${esc(proveedorNombre(c.proveedor_id))}</h2>
     <p style="color:var(--muted);font-size:12px;margin-top:-8px">Saldo pendiente: <b>${money(saldo)}</b></p>
+    ${provPorValidar(prov) ? `<div class="provAviso"><b>Proveedor por validar.</b> El administrador aún no lo valida: confirma que la cuenta destino sea correcta antes de pagar.</div>` : ''}
     <form onsubmit="return guardarPago(event, '${cxpId}', '${pagoIdEstable}', ${pago ? 'true' : 'false'})">
       <div class="formGrid">
         <div class="field"><label>Monto a pagar</label><input type="number" step="0.01" id="pg_monto" max="${saldo}" value="${pago ? pago.monto : saldo}" required></div>
@@ -2516,20 +2567,26 @@ async function guardarPago(ev, cxpId, pagoId, esEdicion) {
 }
 
 function confirmarValidarPago(id) {
+  const pg = state.pagos.find(x => String(x.id) === String(id));
+  const c = pg ? state.cxp.find(x => String(x.id) === String(pg.cxp_id)) : null;
+  const provPend = c ? state.proveedores.find(p => String(p.id) === String(c.proveedor_id) && provPorValidar(p)) : null;
   openModal(`
     <h2>Validar pago</h2>
     <p>¿Confirmas que este pago fue capturado correctamente y debe marcarse como <b>validado</b>?</p>
+    ${provPend ? `<div class="provAviso"><b>El proveedor de este pago sigue por validar.</b> Revisa sus datos y su cuenta antes de validar:</div>${htmlResumenProveedor(provPend)}` : ''}
     <div class="modalActions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-ok" onclick="validarPago('${id}')">Confirmar</button>
+      ${provPend
+        ? `<button class="btn btn-ghost" onclick="validarPago('${id}', false)">Validar solo el pago</button><button class="btn btn-ok" onclick="validarPago('${id}', true)">Validar pago y proveedor</button>`
+        : `<button class="btn btn-ok" onclick="validarPago('${id}')">Confirmar</button>`}
     </div>
-  `);
+  `, provPend ? { wide: true } : undefined);
 }
 
-async function validarPago(id) {
+async function validarPago(id, incluirProveedor) {
   try {
     showLoading(true);
-    await api('validarPago', { id });
+    await api('validarPago', { id, incluirProveedor: !!incluirProveedor });
     await loadData();
     closeModal(); showLoading(false);
     toast('Pago validado.', 'ok');
@@ -2912,10 +2969,13 @@ function renderProveedores() {
     <div class="viewTitle"><span>Proveedores</span>
       <div class="actions">${can(['admin']) ? `<button class="btn btn-primary btn-sm" onclick="formProveedor()">+ Nuevo proveedor</button>` : ''}</div>
     </div>
+    <div id="proveedoresBanner"></div>
     <div id="proveedoresTableWrap"></div>
   `;
   renderProveedoresTable();
 }
+
+function irProveedoresPorValidar() { state.provSoloPend = true; setView('proveedores'); }
 
 function renderProveedoresTable() {
   const wrap = document.getElementById('proveedoresTableWrap');
@@ -2930,7 +2990,22 @@ function renderProveedoresTable() {
     banco: p => (p.cuentas||[])[0]?.banco || '',
     cuenta: p => (p.cuentas||[])[0]?.clabe || ''
   };
-  const lista = sortRows(state.proveedores, state.sortProveedores, getters);
+  // v9.4: aviso arriba (administrador: validar; capturista: sus altas pendientes) y filtro "solo por validar"
+  const pend = state.proveedores.filter(provPorValidar);
+  if (!pend.length) state.provSoloPend = false;
+  const banner = document.getElementById('proveedoresBanner');
+  if (banner) {
+    banner.innerHTML = !pend.length ? '' : can(['admin'])
+      ? `<div class="provBanner"><span><b>${nPlural(pend.length, 'proveedor', 'proveedores')} por validar.</b> Los dieron de alta capturistas; revisa sus datos y sus cuentas bancarias antes de validar.</span>
+           <span class="rowActions"><button type="button" class="btn btn-ghost btn-sm" onclick="state.provSoloPend=!state.provSoloPend; renderProveedoresTable()">${state.provSoloPend ? 'Ver todos' : 'Ver solo por validar'}</button>
+           <button type="button" class="btn btn-ok btn-sm" onclick="confirmarValidarProveedores()">✓ Validar todos (${pend.length})</button></span></div>`
+      : state.rol === 'capturista'
+        ? `<div class="provBanner"><span>Tienes <b>${nPlural(pend.length, 'proveedor', 'proveedores')} por validar</b> por el administrador. Mientras tanto puedes usarlos en tus gastos.</span></div>` : '';
+  }
+  const nGastos = new Map(), nRec = new Map();
+  state.cxp.forEach(c => nGastos.set(String(c.proveedor_id), (nGastos.get(String(c.proveedor_id)) || 0) + 1));
+  state.recurrentes.forEach(r => nRec.set(String(r.proveedor_id), (nRec.get(String(r.proveedor_id)) || 0) + 1));
+  const lista = sortRows(state.provSoloPend ? pend : state.proveedores, state.sortProveedores, getters);
   wrap.innerHTML = `<div class="tableWrap"><table>
       <thead><tr>
         ${sortTh('Nombre','nombre','sortProveedores','renderProveedoresTable')}
@@ -2944,18 +3019,22 @@ function renderProveedoresTable() {
         const cuentas = p.cuentas || [];
         const principal = cuentas[0];
         const extra = cuentas.length > 1 ? ` <span class="badge badge-muted" title="Tiene ${cuentas.length} cuentas registradas">+${cuentas.length - 1} más</span>` : '';
+        const conMov = (nGastos.get(String(p.id)) || 0) + (nRec.get(String(p.id)) || 0) > 0;
         return `
         <tr>
-          <td>${esc(p.nombre)}</td>
+          <td>${esc(p.nombre)}${badgeProvPorValidar(p)}${can(['admin']) && provPorValidar(p) && p.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(p.capturado_por)}</div>` : ''}</td>
           <td>${esc(principal?.cliente || '—')}</td>
           <td>${esc(principal?.referencia || '—')}</td>
           <td>${esc(principal?.banco || '—')}</td>
           <td style="font-variant-numeric:tabular-nums">${esc(principal?.clabe || '—')}${extra}</td>
           <td><div class="rowActions">
+            ${can(['admin']) && provPorValidar(p) ? `<button class="btn btn-ok btn-sm" onclick="confirmarValidarProveedores(['${p.id}'])">✓ Validar</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="repAbrirProveedor('${p.id}')">Reporte</button>
             <button class="btn btn-ghost btn-sm" onclick="verCuentasProveedor('${p.id}')">Ver cuentas</button>
-            ${can(['admin']) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
-            ${can(['admin']) ? `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor (y sus CxP/pagos)')">Eliminar</button>` : ''}
+            ${puedeEditarProv(p) ? `<button class="btn btn-ghost btn-sm" onclick="formProveedor('${p.id}')">Editar</button>` : ''}
+            ${can(['admin']) ? (conMov
+              ? `<button class="btn btn-ghost btn-sm" title="Tiene gastos registrados: no se puede eliminar; se fusiona con otro proveedor" onclick="formFusionarProveedor('${p.id}')">Fusionar…</button>`
+              : `<button class="btn btn-danger btn-sm" onclick="confirmarEliminar('prov','${p.id}','este proveedor')">Eliminar</button>`) : ''}
           </div></td>
         </tr>`;
       }).join('') || `<tr><td colspan="6" class="emptyState">Sin proveedores.</td></tr>`}
@@ -2981,7 +3060,7 @@ function verCuentasProveedor(id) {
         </tr>`).join('')}</tbody>
     </table></div>`}
     <div class="modalActions">
-      ${can(['admin']) ? `<button class="btn btn-ghost" onclick="closeModal(); formProveedor('${id}')">Editar cuentas</button>` : ''}
+      ${p && puedeEditarProv(p) ? `<button class="btn btn-ghost" onclick="closeModal(); formProveedor('${id}')">Editar cuentas</button>` : ''}
       <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
     </div>
   `, { wide: cuentas.length > 0 });
@@ -2989,18 +3068,31 @@ function verCuentasProveedor(id) {
 
 let __pvCuentasTmp = [];
 
-function formProveedor(id) {
+let __pvDesdeGasto = null; // id del selector (p. ej. 'cxp_proveedor_id') cuando el alta se abre desde el formulario de un gasto
+let __pvValidar = false;   // "Guardar y validar" (solo administrador)
+
+function formProveedor(id, opts) {
+  opts = opts || {};
   const p = id ? state.proveedores.find(x => String(x.id) === String(id)) : null;
+  __pvDesdeGasto = opts.desdeGasto || null;
+  __pvValidar = false;
   __pvCuentasTmp = (p?.cuentas || []).map(c => ({ ...c }));
   // Mismo criterio que en formCxp: el id se fija al abrir el formulario, no al guardar, para que
   // un reintento (tras un timeout o falla de Google) sobreescriba el mismo registro en vez de
   // crear un proveedor duplicado.
   const idEstable = id || ('prov_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
-  openModal(`
+  const esAdmin = can(['admin']), pend = provPorValidar(p);
+  const info = !p && !esAdmin
+    ? `<div class="provInfo">Este proveedor quedará <b>por validar</b> por el administrador, pero puedes usarlo de inmediato en tu gasto.</div>`
+    : (p && pend ? (esAdmin
+        ? `<div class="provInfo"><b>Por validar</b> · lo dio de alta ${esc(p.capturado_por || 'un capturista')}. Revisa los datos y las cuentas bancarias antes de validarlo.</div>`
+        : `<div class="provInfo">Sigue <b>por validar</b> por el administrador: todavía puedes corregir sus datos.</div>`) : '');
+  const html = `
     <h2>${p ? 'Editar' : 'Nuevo'} proveedor</h2>
-    <form onsubmit="return guardarProveedor(event, '${idEstable}')">
+    ${info}
+    <form id="pvForm" onsubmit="return guardarProveedor(event, '${idEstable}')">
       <div class="formGrid">
-        <div class="field full"><label>Nombre</label><input id="pv_nombre" value="${esc(p?.nombre||'')}" required></div>
+        <div class="field full"><label>Nombre</label><input id="pv_nombre" value="${esc(p ? p.nombre : (opts.nombre || ''))}" required></div>
         <div class="field"><label>RFC</label><input id="pv_rfc" value="${esc(p?.rfc||'')}"></div>
         <div class="field"><label>Email</label><input type="email" id="pv_email" value="${esc(p?.email||'')}"></div>
         <div class="field"><label>Teléfono</label><input id="pv_telefono" value="${esc(p?.telefono||'')}"></div>
@@ -3010,15 +3102,29 @@ function formProveedor(id) {
         <div class="viewTitle" style="margin-bottom:6px"><span style="font-size:14px">Cuentas bancarias del proveedor</span>
           <div class="actions"><button type="button" class="btn btn-ghost btn-sm" onclick="agregarCuentaProveedorTmp()">+ Agregar cuenta</button></div>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Registra todas las cuentas donde este proveedor puede recibir pago. Si al pagar una no sirve, se podrá elegir otra desde la misma CxP sin tener que volver aquí.</p>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px">${esAdmin ? 'Registra todas las cuentas donde este proveedor puede recibir pago. Si al pagar una no sirve, se podrá elegir otra desde la misma CxP sin tener que volver aquí.' : 'Si la tienes, registra la cuenta donde este proveedor recibe el pago. El administrador la revisará al validar el proveedor.'}</p>
         <div id="pvCuentasList">${renderCuentasProveedorRows()}</div>
       </div>
       <div class="modalActions">
-        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="button" class="btn btn-ghost" onclick="cerrarFormProv()">Cancelar</button>
+        ${esAdmin && pend ? `<button type="button" class="btn btn-ok" onclick="__pvValidar=true; document.getElementById('pvForm').requestSubmit()">Guardar y validar</button>` : ''}
         <button type="submit" class="btn btn-primary">Guardar</button>
       </div>
-    </form>
-  `, { wide: true });
+    </form>`;
+  if (__pvDesdeGasto) {
+    document.getElementById('provBox').innerHTML = html;
+    document.getElementById('provOverlay').classList.remove('hidden');
+    setTimeout(() => { const el = document.getElementById(opts.nombre ? 'pv_rfc' : 'pv_nombre'); if (el) { try { el.focus(); } catch (e) {} } }, 40);
+  } else openModal(html, { wide: true });
+}
+
+// Cierra el formulario de proveedor donde esté abierto (segunda capa del selector o modal normal).
+function cerrarFormProv() {
+  if (__pvDesdeGasto) {
+    document.getElementById('provOverlay').classList.add('hidden');
+    document.getElementById('provBox').innerHTML = '';
+    __pvDesdeGasto = null;
+  } else closeModal();
 }
 
 function renderCuentasProveedorRows() {
@@ -3068,15 +3174,76 @@ function eliminarCuentaProveedorTmp(btn) {
   document.getElementById('pvCuentasList').innerHTML = renderCuentasProveedorRows();
 }
 
+// v9.4: nombre normalizado (sin acentos/signos) para detectar proveedores parecidos en el portal. El servidor revisa lo exacto.
+function nombreProvNorm(s) { return normalizarBusqueda(s).replace(/[^a-z0-9]+/g, ' ').trim(); }
+function proveedorParecido(nombre, idActual) {
+  const a = nombreProvNorm(nombre);
+  if (a.length < 4) return null;
+  return state.proveedores.find(p => {
+    if (String(p.id) === String(idActual)) return false;
+    const b = nombreProvNorm(p.nombre);
+    return b.length >= 4 && (a.includes(b) || b.includes(a));
+  }) || null;
+}
+
+// Devuelve 'seguir' | 'volver' (corregir) | 'usar' (se seleccionó el proveedor existente en el gasto).
+async function revisarProveedorRepetido(id, nombre, rfc) {
+  let co = [];
+  try { showLoading(true); const r = await api('checkProveedor', { id, nombre, rfc }); co = r.coincidencias || []; }
+  catch (e) { co = []; } // sin red: al guardar el servidor vuelve a revisar
+  finally { showLoading(false); }
+  const visible = co.find(c => c.visible), oculto = co.find(c => !c.visible);
+  const admin = can(['admin']);
+  if (visible) {
+    const motivo = visible.campo === 'rfc' ? 'el mismo RFC' : 'el mismo nombre';
+    const datos = [['Proveedor existente', visible.nombre], ['Estado', visible.estado === 'validado' ? 'Validado' : 'Por validar']];
+    if (__pvDesdeGasto) {
+      const campo = __pvDesdeGasto;
+      const usar = await avisoAccion({ titulo: 'Este proveedor ya existe', aviso: 'Ya hay un proveedor con ' + motivo + '.', datos,
+        pregunta: 'Elige “Usar el existente” para seleccionarlo en tu gasto, o “Editar” para corregir los datos.', okTxt: 'Usar el existente', foco: 'pv_nombre' });
+      if (!usar) return 'volver';
+      cerrarFormProv(); comboProveedorSeleccionar(campo, visible.id);
+      return 'usar';
+    }
+    const seguir = await avisoAccion({ titulo: 'Posible proveedor repetido', aviso: 'Ya hay un proveedor con ' + motivo + '.', datos,
+      pregunta: admin ? 'Elige “Editar” para corregirlo o “Continuar” solo si de verdad es otro proveedor.' : 'No se puede registrar dos veces el mismo proveedor. Elige “Editar” para corregirlo.',
+      okTxt: 'Continuar', sinContinuar: !admin, foco: 'pv_nombre' });
+    return seguir ? 'seguir' : 'volver';
+  }
+  if (oculto) {
+    await avisoAccion({ titulo: 'Este proveedor ya existe', aviso: 'Ya hay un proveedor con ' + (oculto.campo === 'rfc' ? 'el mismo RFC' : 'el mismo nombre') + ' que todavía no aparece en tu lista (otra persona lo dio de alta y falta validarlo).',
+      pregunta: 'No se puede registrar dos veces. Avisa al administrador para que lo valide.', sinContinuar: true, foco: 'pv_nombre' });
+    return 'volver';
+  }
+  const par = proveedorParecido(nombre, id);
+  if (par) {
+    const seguir = await avisoAccion({ titulo: 'Se parece a un proveedor existente', aviso: 'Ya existe «' + par.nombre + '».', datos: [['Estado', provPorValidar(par) ? 'Por validar' : 'Validado']],
+      pregunta: 'Si es el mismo, elige “Editar”, cancela y selecciónalo de la lista. Elige “Crear de todos modos” solo si es otro proveedor.', okTxt: 'Crear de todos modos', foco: 'pv_nombre' });
+    return seguir ? 'seguir' : 'volver';
+  }
+  return 'seguir';
+}
+
 async function guardarProveedor(ev, id) {
   ev.preventDefault();
+  const validar = __pvValidar; __pvValidar = false;
   leerCuentasProveedorDesdeDOM();
   const cuentas = __pvCuentasTmp.filter(c => c.cliente || c.referencia || c.banco || c.clabe || c.titular);
+  const nombre = aMayus(document.getElementById('pv_nombre').value).trim();
+  const rfc = aMayus(document.getElementById('pv_rfc').value).trim();
+  if (!nombre) { toast('Escribe el nombre del proveedor.', 'error'); return false; }
+  const previo = state.proveedores.find(x => String(x.id) === String(id));
+  const desdeGasto = __pvDesdeGasto;
+  // Solo se revisa si es nuevo o si cambió el nombre o el RFC.
+  if (!previo || aMayus(previo.nombre || '').trim() !== nombre || aMayus(previo.rfc || '').trim() !== rfc) {
+    const r = await revisarProveedorRepetido(id, nombre, rfc);
+    if (r !== 'seguir') return false;
+  }
   const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
   const record = {
     id, // ya viene fijo desde formProveedor — seguro reintentar con el mismo id.
-    nombre: aMayus(document.getElementById('pv_nombre').value),
-    rfc: aMayus(document.getElementById('pv_rfc').value),
+    nombre,
+    rfc,
     email: document.getElementById('pv_email').value,
     telefono: aMayus(document.getElementById('pv_telefono').value),
     notas: aMayus(document.getElementById('pv_notas').value),
@@ -3085,12 +3252,87 @@ async function guardarProveedor(ev, id) {
   try {
     showLoading(true);
     await api('save', { entity: 'prov', record });
+    if (validar) await api('validarProveedor', { ids: [id] });
     await loadData();
-    closeModal(); showLoading(false);
-    toast('Proveedor guardado.', 'ok');
-    renderProveedores();
+    cerrarFormProv(); showLoading(false);
+    if (desdeGasto) {
+      comboProveedorSeleccionar(desdeGasto, id); // lo deja elegido en el gasto y refresca sus cuentas
+      toast(can(['admin']) ? 'Proveedor creado y seleccionado.' : 'Proveedor dado de alta y seleccionado. Queda por validar por el administrador; ya puedes usarlo en este gasto.', 'ok');
+    } else {
+      toast(validar ? 'Proveedor guardado y validado.' : 'Proveedor guardado.', 'ok');
+      renderProveedores();
+    }
   } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
   return false;
+}
+
+// ── v9.4: validar proveedores (solo administrador; el servidor lo vuelve a comprobar) ──
+let __loteProv = [];
+function htmlResumenProveedor(p) {
+  const ctas = p.cuentas || [];
+  return `<div class="provResumen"><b>${esc(p.nombre)}</b>${p.rfc ? ' · RFC ' + esc(p.rfc) : ' · <span class="muted">sin RFC</span>'}${p.telefono ? ' · ' + esc(p.telefono) : ''}
+    <div class="capturoTxt">Capturó: ${esc(p.capturado_por || '—')}</div>
+    ${ctas.length ? ctas.map(c => `<div style="font-size:12px;margin-top:3px">🏦 ${esc(c.banco || '—')} · ${esc(c.clabe || '—')} · ${esc(c.titular || 'sin titular')}${c.referencia ? ' · ref. ' + esc(c.referencia) : ''}</div>`).join('')
+      : `<div style="font-size:12px;margin-top:3px;color:var(--muted)">Sin cuentas bancarias registradas</div>`}</div>`;
+}
+function confirmarValidarProveedores(ids) {
+  const lista = (ids && ids.length ? ids.map(i => state.proveedores.find(p => String(p.id) === String(i))) : state.proveedores).filter(provPorValidar);
+  if (!lista.length) return;
+  __loteProv = lista.map(p => String(p.id));
+  openModal(`
+    <h2>${lista.length === 1 ? 'Validar proveedor' : 'Validar ' + lista.length + ' proveedores'}</h2>
+    <p style="font-size:13px">Revisa los datos antes de validar: una cuenta bancaria equivocada manda el pago al lugar equivocado.</p>
+    ${lista.map(htmlResumenProveedor).join('')}
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-ok" onclick="validarProveedores(__loteProv)">Confirmar y validar</button>
+    </div>
+  `, { wide: true });
+}
+async function validarProveedores(ids) {
+  try {
+    showLoading(true);
+    await api('validarProveedor', { ids });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast(ids.length === 1 ? 'Proveedor validado.' : ids.length + ' proveedores validados.', 'ok');
+    setView(state.view);
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+// ── v9.4: fusionar un proveedor repetido con el correcto (un proveedor con gastos no se puede eliminar) ──
+function formFusionarProveedor(id) {
+  const o = state.proveedores.find(x => String(x.id) === String(id));
+  if (!o) return;
+  const gastos = state.cxp.filter(c => String(c.proveedor_id) === String(id));
+  const idsG = new Set(gastos.map(c => String(c.id)));
+  const nPagos = state.pagos.filter(p => idsG.has(String(p.cxp_id))).length;
+  const nRec = state.recurrentes.filter(r => String(r.proveedor_id) === String(id)).length;
+  const destinos = proveedoresOrdenados().filter(p => String(p.id) !== String(id) && !provPorValidar(p));
+  openModal(`
+    <h2>Fusionar proveedor</h2>
+    <p style="font-size:13px">Se pasarán <b>${nPlural(gastos.length, 'gasto', 'gastos')}</b> (con ${nPlural(nPagos, 'pago', 'pagos')}), <b>${nPlural(nRec, 'gasto recurrente', 'gastos recurrentes')}</b> y las cuentas bancarias de <b>${esc(o.nombre)}</b> al proveedor que elijas. Después <b>${esc(o.nombre)}</b> se elimina. No se pierde ningún gasto ni pago.</p>
+    <div class="field"><label>Pasar todo a…</label>
+      <select id="fusDestino"><option value="">— Elige el proveedor correcto —</option>${destinos.map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join('')}</select>
+    </div>
+    <p style="font-size:12px;color:var(--muted)">Solo aparecen proveedores ya validados. Esta acción no se puede deshacer.</p>
+    <div class="modalActions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="fusionarProveedor('${esc(id)}')">Fusionar</button>
+    </div>
+  `);
+}
+async function fusionarProveedor(origenId) {
+  const destino = document.getElementById('fusDestino').value;
+  if (!destino) { toast('Elige el proveedor al que se pasará todo.', 'error'); return; }
+  try {
+    showLoading(true);
+    const r = await api('fusionarProveedor', { origen_id: origenId, destino_id: destino });
+    await loadData();
+    closeModal(); showLoading(false);
+    toast('Proveedores fusionados: ' + nPlural(r.gastos || 0, 'gasto', 'gastos') + ' pasaron a ' + proveedorNombre(destino) + '.', 'ok');
+    renderProveedores();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
 }
 
 /* ---------------- Vista: Mis Cuentas (cuentas de origen) ---------------- */
@@ -3526,7 +3768,7 @@ function renderReporteProv() {
     <div class="filters repNoPrint">
       <div class="f fGrow"><label>Proveedor</label><select onchange="repSetProveedor(this.value)">
         <option value="">Todos (resumen)</option>
-        ${provs.map(p => `<option value="${esc(p.id)}" ${String(p.id) === String(f.proveedor) ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}
+        ${provs.map(p => `<option value="${esc(p.id)}" ${String(p.id) === String(f.proveedor) ? 'selected' : ''}>${esc(nombreProvConEstado(p))}</option>`).join('')}
       </select></div>
       <div class="f"><label>Sucursal</label><select onchange="repSetSucursal(this.value)">
         <option value="">Todas las sucursales</option>
@@ -4441,6 +4683,7 @@ function dashTarjetasHtml(d) {
   const validar = '<div class="kpi dCard"><div class="dTitle">Por validar</div>'
     + fila(d.nPagosVal ? 'warn' : '', 'Pagos', d.nPagosVal, 'por validar', d.nPagosVal ? 'irPagosPendientes()' : '')
     + fila(d.nGastosVal ? 'warn' : '', 'Gastos', d.nGastosVal, 'por validar', d.nGastosVal ? 'irGastosPorValidar()' : '')
+    + fila(d.nProvVal ? 'warn' : '', 'Proveedores', d.nProvVal, 'por validar', d.nProvVal ? 'irProveedoresPorValidar()' : '')
     + '</div>';
   return '<div class="kpis dCards">' + total + semana + validar + '</div>';
 }
@@ -4638,8 +4881,8 @@ function exportarPagosCsv() {
   descargarCsv('pagos_' + new Date().toISOString().slice(0,10) + '.csv', ['id','cxp_id','monto','fecha','referencia','clave_rastreo','banco_origen','cuenta_destino','notas','capturado_por','estado','validado_por','fecha_validacion'], rows);
 }
 function exportarProveedoresCsv() {
-  const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc, p.email, p.telefono, p.notas]);
-  descargarCsv('proveedores_' + new Date().toISOString().slice(0,10) + '.csv', ['id','nombre','rfc','email','telefono','notas'], rows);
+  const rows = state.proveedores.map(p => [p.id, p.nombre, p.rfc, p.email, p.telefono, p.notas, provPorValidar(p) ? 'POR VALIDAR' : 'VALIDADO']);
+  descargarCsv('proveedores_' + new Date().toISOString().slice(0,10) + '.csv', ['id','nombre','rfc','email','telefono','notas','estado'], rows);
 }
 function exportarRecurrentesCsv() {
   const rows = state.recurrentes.map(r => [r.id, proveedorNombre(r.proveedor_id), r.concepto, r.sucursal, r.monto, labelFrecuencia(Number(r.frecuencia_meses)||1), r.proxima_fecha_vencimiento, r.dias_anticipacion, r.activo ? 'Activo' : 'Pausado', r.notas]);
