@@ -73,6 +73,9 @@
   nav.tabs button:hover{color:var(--brand);}
 
   main{padding:18px 20px 60px;max-width:1280px;margin:0 auto;}
+  .avisoParcial{width:calc(100% - 40px);max-width:1240px;margin:12px auto -6px;padding:9px 14px;background:var(--brand-light);border:1px solid var(--brand);border-radius:10px;font-size:13px;line-height:1.45;box-sizing:border-box;}
+  .capturoTxt{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;}
+  @media print{.avisoParcial{display:none !important;}}
   .viewTitle{font-size:18px;margin:4px 0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--bg-ink);}
   .viewTitle .actions{display:flex;gap:8px;flex-wrap:wrap;}
 
@@ -410,7 +413,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v9.2 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.3 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -429,6 +432,7 @@
       </div>
     </header>
     <div class="navWrap"><nav class="tabs" id="tabs"></nav><nav class="subtabs hidden" id="subtabs"></nav></div>
+    <div id="avisoParcial" class="avisoParcial hidden"><b>Vista de capturista.</b> Aquí solo aparecen los gastos que tú capturaste, aunque el administrador ya los haya validado o pagado. Los totales, saldos y reportes suman únicamente esos gastos, no los de toda la empresa.</div>
     <main id="main"></main>
   </div>
 
@@ -1313,7 +1317,7 @@ const TABS = [
   { id:'proveedores', label:'Proveedores',      roles:['admin','capturista','tesorero','viewer'] },
   { id:'repprov',     label:'Reporte × Proveedor', roles:['admin','capturista','tesorero','viewer'] },
   { id:'pagos',       label:'Pagos Realizados', roles:['admin','capturista','tesorero','viewer'] },
-  { id:'recurrentes', label:'Gastos Recurrentes', roles:['admin','capturista','tesorero','viewer'] },
+  { id:'recurrentes', label:'Gastos Recurrentes', roles:['admin','tesorero','viewer'] }, // v9.3: el capturista no los ve (el servidor tampoco se los entrega)
   { id:'aging',       label:'Antigüedad',       roles:['admin','capturista','tesorero','viewer'] },
   { id:'cuentas',     label:'Mis Cuentas',      roles:['admin'] },
   { id:'usuarios',    label:'Usuarios',         roles:['admin'] },
@@ -1669,6 +1673,7 @@ function renderCapturaCxp(c, provId, logError) {
         <div class="masDetalleBody hidden">
           <div class="captInfo">
             <div class="captRow"><span class="captLbl">Proveedor</span><span class="captVal">${esc(proveedorNombre(c.proveedor_id))}</span></div>
+            ${c.capturado_por && !can(['capturista']) ? `<div class="captRow"><span class="captLbl">Capturó</span><span class="captVal">${esc(c.capturado_por)}</span></div>` : ''}
             ${c.recurrente_id ? `<div class="captRow"><span class="captLbl">Origen</span><span class="captVal">🔁 Generada automáticamente (Gastos Recurrentes)</span></div>` : ''}
             <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
             <div class="captRow"><span class="captLbl">UUID CFDI</span><span class="captVal" style="font-size:11px">${esc(c.uuid_cfdi || '—')}</span></div>
@@ -1769,7 +1774,7 @@ function cxpFiltradas() {
       if (f.estado === 'porvalidar' && !gastoPorValidar(c)) return false;
       if (f.texto) {
         const t = f.texto.toLowerCase();
-        const hay = (c.concepto || '') + ' ' + c.provNombre + ' ' + (c.folio || '') + ' ' + (c.sucursal || '');
+        const hay = (c.concepto || '') + ' ' + c.provNombre + ' ' + (c.folio || '') + ' ' + (c.sucursal || '') + (can(['capturista']) ? '' : ' ' + (c.capturado_por || ''));
         if (!hay.toLowerCase().includes(t)) return false;
       }
       return true;
@@ -1788,7 +1793,7 @@ function renderCxp() {
       <div class="actions">${can(['admin','capturista']) ? `<button class="btn btn-primary btn-sm" onclick="formCxp()">+ Nueva CxP</button>` : ''}</div>
     </div>
     <div class="filters">
-      <div class="f fGrow"><label>Buscar</label><input id="fTexto" placeholder="Proveedor, concepto, folio…" value="${esc(state.filtrosCxp.texto)}" oninput="state.filtrosCxp.texto=this.value; renderCxpTableDebounced();"></div>
+      <div class="f fGrow"><label>Buscar</label><input id="fTexto" placeholder="${can(['capturista']) ? 'Proveedor, concepto, folio…' : 'Proveedor, concepto, folio, quién capturó…'}" value="${esc(state.filtrosCxp.texto)}" oninput="state.filtrosCxp.texto=this.value; renderCxpTableDebounced();"></div>
       <div class="f"><label>Sucursal</label><select id="fSucursal" onchange="state.filtrosCxp.sucursal=this.value; renderCxpTable();">
         <option value="">Todas</option>${sucursales.map(s => `<option value="${esc(s)}" ${state.filtrosCxp.sucursal===s?'selected':''}>${esc(s)}</option>`).join('')}
       </select></div>
@@ -1905,7 +1910,7 @@ function renderCxpRow(c, extraClass) {
   const dias = c.dias !== undefined ? c.dias : diasVencimiento(c);
   return `
       <tr${extraClass ? ` class="${extraClass}"` : ''}>
-        <td>${esc(c.provNombre)}</td>
+        <td>${esc(c.provNombre)}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}</div>` : ''}</td>
         <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<span class="clipIcon" title="Tiene evidencia adjunta">${SVG_CLIP}</span>` : ''}</div></td>
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
@@ -2247,6 +2252,7 @@ function datosGastoDup(c) {
 // Devuelve true si se puede continuar con el guardado, false si el usuario decidió corregir (o está bloqueado).
 async function confirmarSinDuplicados(rec, id, previo) {
   if (previo && previo.id && claveGastoDup(previo) === claveGastoDup(rec)) return true; // edición sin tocar proveedor/folio/monto/fecha
+  if (state.rol === 'capturista') return await confirmarDuplicadosServidor(rec, id); // v9.3
   try { showLoading(true); await loadData(); } catch (e) { /* sin red: se revisa con lo que ya está cargado */ } finally { showLoading(false); }
   const d = buscarDuplicadosCxp(rec, id);
   if (d.fuertes.length) {
@@ -2264,6 +2270,47 @@ async function confirmarSinDuplicados(rec, id, previo) {
       titulo: 'Posible gasto duplicado',
       aviso: 'Ya existe ' + (n === 1 ? 'un gasto' : n + ' gastos') + ' de este proveedor con el mismo monto y la misma fecha de factura.',
       datos: datosGastoDup(d.probables[0]),
+      pregunta: 'Elige “Editar” para revisarlo o “Continuar” si es un gasto distinto.',
+      okTxt: 'Continuar', foco: 'cxp_folio' });
+  }
+  return true;
+}
+
+// v9.3: versión para el capturista. Solo ve sus propios gastos, así que el servidor compara contra TODOS y responde si
+// existe una coincidencia y si es suya; de un gasto ajeno no se muestra ningún dato (solo que ya existe).
+async function confirmarDuplicadosServidor(rec, id) {
+  let r;
+  try {
+    showLoading(true);
+    r = await api('checkDuplicado', { id, proveedor_id: rec.proveedor_id, folio: rec.folio, monto: rec.monto, fecha_factura: rec.fecha_factura });
+  } catch (e) { return true; } // sin red: no se bloquea aquí; el servidor vuelve a revisar al guardar
+  finally { showLoading(false); }
+  const fuertes = r.fuertes || [], probables = r.probables || [];
+  const folio = (rec.folio || '').trim().toUpperCase();
+  const datos = (m, conMonto) => {
+    const mio = m && m.propio ? state.cxp.find(x => String(x.id) === String(m.id)) : null;
+    if (mio) return datosGastoDup(mio);
+    const d = [['Proveedor', proveedorNombre(rec.proveedor_id)]];
+    if (conMonto) d.push(['Monto', money(Number(rec.monto) || 0)], ['Fecha factura', rec.fecha_factura ? fmtDMA(String(rec.fecha_factura).slice(0, 10)) : '—']);
+    else d.push(['Folio', folio]);
+    d.push(['Registrado por', m && m.propio ? 'ti (recarga la lista para verlo)' : 'otra persona (no aparece en tu lista)']);
+    return d;
+  };
+  if (fuertes.length) {
+    const n = fuertes.length;
+    return await avisoAccion({
+      titulo: 'Este gasto ya está registrado',
+      aviso: 'Ya existe ' + (n === 1 ? 'un gasto' : n + ' gastos') + ' de este proveedor con el folio ' + folio + '.',
+      datos: datos(fuertes[0], false),
+      pregunta: 'No se puede grabar dos veces el mismo gasto. Elige “Editar” para corregir el folio; si de verdad es un gasto distinto, avisa al administrador.',
+      okTxt: 'Continuar', sinContinuar: true, foco: 'cxp_folio' });
+  }
+  if (probables.length) {
+    const n = probables.length;
+    return await avisoAccion({
+      titulo: 'Posible gasto duplicado',
+      aviso: 'Ya existe ' + (n === 1 ? 'un gasto' : n + ' gastos') + ' de este proveedor con el mismo monto y la misma fecha de factura.',
+      datos: datos(probables[0], true),
       pregunta: 'Elige “Editar” para revisarlo o “Continuar” si es un gasto distinto.',
       okTxt: 'Continuar', foco: 'cxp_folio' });
   }
@@ -3699,7 +3746,7 @@ function repAdeudoHtml(prov, pagosPorCxp, pie) {
   `;
 }
 
-/* ---------------- v9.1: reporte completo del proveedor en dos divisiones ---------------- */
+/* ---------------- v9.1: reporte completo del proveedor en tres bloques ---------------- */
 // División 1 «Pendientes de pago»: notas con saldo, con los días que faltan para su vencimiento (no depende del periodo:
 // es lo que se debe hoy). División 2 «Pagadas»: notas liquidadas con su fecha de pago (se filtran por el periodo según
 // la fecha de pago).
@@ -4681,6 +4728,7 @@ async function bootApp() {
   document.getElementById('whoNombre').textContent = state.nombre;
   document.getElementById('whoRol').textContent = ROLES_LABEL[state.rol] || state.rol;
   document.getElementById('whoAvatar').textContent = (state.nombre || '?').slice(0,1).toUpperCase();
+  document.getElementById('avisoParcial').classList.toggle('hidden', state.rol !== 'capturista'); // v9.3
   showLoading(true);
   try {
     await loadData();
