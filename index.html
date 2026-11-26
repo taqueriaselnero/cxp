@@ -207,6 +207,9 @@
   .quitarBtn{background:none;border:none;color:var(--critical);font-size:11.5px;font-weight:700;cursor:pointer;padding:4px;flex:0 0 auto;}
   .clipIcon{display:inline-flex;color:var(--brand);flex:0 0 auto;}
   .clipIcon svg{width:14px;height:14px;}
+  /* v9.5: el clip es un botón que abre la evidencia directo (lightbox); "Ver" abre el detalle del gasto */
+  button.clipIcon{background:none;border:none;padding:5px;margin:-5px 0;border-radius:7px;cursor:pointer;align-items:center;justify-content:center;font:inherit;transition:background .12s;}
+  button.clipIcon:hover,button.clipIcon:focus-visible{background:var(--brand-light);outline:none;}
 
 
   /* v7.2: subida de adjuntos en celular/tablet (pantalla táctil o <=640px). En PC sigue la caja
@@ -427,7 +430,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v9.4 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.5 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -940,6 +943,15 @@ function money(n) {
   n = Number(n) || 0;
   return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+// v9.5: "26 nov, 8:44 a.m." (sin año si es el actual). Hora del equipo de quien mira; el detalle completo va en el título (globo).
+function fmtCaptura(iso) {
+  const dt = new Date(iso); if (!iso || isNaN(dt)) return '';
+  const opt = { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' };
+  if (dt.getFullYear() !== new Date().getFullYear()) opt.year = 'numeric';
+  return dt.toLocaleString('es-MX', opt).replace(/\./g, '');
+}
+function fmtCapturaLarga(iso) { const dt = new Date(iso); return !iso || isNaN(dt) ? '' : dt.toLocaleString('es-MX', { dateStyle:'full', timeStyle:'short' }); }
 
 function fmtFecha(d) {
   if (!d) return '—';
@@ -1945,8 +1957,8 @@ function renderCxpRow(c, extraClass) {
   const dias = c.dias !== undefined ? c.dias : diasVencimiento(c);
   return `
       <tr${extraClass ? ` class="${extraClass}"` : ''}>
-        <td>${esc(c.provNombre)}${c.provPend ? ' <span class="badge badge-validar" title="El proveedor lo dio de alta un capturista y falta validarlo">Prov. por validar</span>' : ''}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}</div>` : ''}</td>
-        <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<span class="clipIcon" title="Tiene evidencia adjunta">${SVG_CLIP}</span>` : ''}</div></td>
+        <td>${esc(c.provNombre)}${c.provPend ? ' <span class="badge badge-validar" title="El proveedor lo dio de alta un capturista y falta validarlo">Prov. por validar</span>' : ''}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}${c.capturado_en ? ` · <span class="capturoFecha" title="${esc(fmtCapturaLarga(c.capturado_en))}">${esc(fmtCaptura(c.capturado_en))}</span>` : ''}</div>` : ''}</td>
+        <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<button type="button" class="clipIcon" data-evidencia="${c.id}" onclick="abrirLightbox('${esc(c.adjunto_evidencia_url)}')" title="Ver la evidencia" aria-label="Ver la evidencia del gasto">${SVG_CLIP}</button>` : ''}</div></td>
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
         <td>${fmtFecha(c.fecha_vencimiento)}</td>
