@@ -83,6 +83,7 @@
   main{padding:18px 20px 60px;max-width:1280px;margin:0 auto;}
   .avisoParcial{width:calc(100% - 40px);max-width:1240px;margin:12px auto -6px;padding:9px 14px;background:var(--brand-light);border:1px solid var(--brand);border-radius:10px;font-size:13px;line-height:1.45;box-sizing:border-box;}
   .capturoTxt{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;}
+  .capturoFecha{display:block;}
   @media print{.avisoParcial{display:none !important;}}
   .viewTitle{font-size:18px;margin:4px 0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--bg-ink);}
   .viewTitle .actions{display:flex;gap:8px;flex-wrap:wrap;}
@@ -430,7 +431,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v9.5 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.6 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -944,11 +945,10 @@ function money(n) {
   return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// v9.5: "26 nov, 8:44 a.m." (sin año si es el actual). Hora del equipo de quien mira; el detalle completo va en el título (globo).
+// v9.6: "26 nov 2026, 8:44 a.m." (siempre con año). Hora del equipo de quien mira; el detalle completo va en el título (globo).
 function fmtCaptura(iso) {
   const dt = new Date(iso); if (!iso || isNaN(dt)) return '';
-  const opt = { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' };
-  if (dt.getFullYear() !== new Date().getFullYear()) opt.year = 'numeric';
+  const opt = { day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit' };
   return dt.toLocaleString('es-MX', opt).replace(/\./g, '');
 }
 function fmtCapturaLarga(iso) { const dt = new Date(iso); return !iso || isNaN(dt) ? '' : dt.toLocaleString('es-MX', { dateStyle:'full', timeStyle:'short' }); }
@@ -1957,7 +1957,7 @@ function renderCxpRow(c, extraClass) {
   const dias = c.dias !== undefined ? c.dias : diasVencimiento(c);
   return `
       <tr${extraClass ? ` class="${extraClass}"` : ''}>
-        <td>${esc(c.provNombre)}${c.provPend ? ' <span class="badge badge-validar" title="El proveedor lo dio de alta un capturista y falta validarlo">Prov. por validar</span>' : ''}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}${c.capturado_en ? ` · <span class="capturoFecha" title="${esc(fmtCapturaLarga(c.capturado_en))}">${esc(fmtCaptura(c.capturado_en))}</span>` : ''}</div>` : ''}</td>
+        <td>${esc(c.provNombre)}${c.provPend ? ' <span class="badge badge-validar" title="El proveedor lo dio de alta un capturista y falta validarlo">Prov. por validar</span>' : ''}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}${c.capturado_en ? `<span class="capturoFecha" title="${esc(fmtCapturaLarga(c.capturado_en))}">${esc(fmtCaptura(c.capturado_en))}</span>` : ''}</div>` : ''}</td>
         <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<button type="button" class="clipIcon" data-evidencia="${c.id}" onclick="abrirLightbox('${esc(c.adjunto_evidencia_url)}')" title="Ver la evidencia" aria-label="Ver la evidencia del gasto">${SVG_CLIP}</button>` : ''}</div></td>
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
