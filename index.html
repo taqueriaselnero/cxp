@@ -431,7 +431,7 @@
         <input type="password" id="loginPin" autocomplete="current-password" required>
       </div>
       <button type="submit" class="btn btn-primary" id="loginBtn">Iniciar sesión</button>
-      <p class="footNote">v9.6 · Datos seguros en Supabase</p>
+      <p class="footNote">v9.7 · Datos seguros en Supabase</p>
     </form>
   </div>
 
@@ -450,7 +450,7 @@
       </div>
     </header>
     <div class="navWrap"><nav class="tabs" id="tabs"></nav><nav class="subtabs hidden" id="subtabs"></nav></div>
-    <div id="avisoParcial" class="avisoParcial hidden"><b>Vista de capturista.</b> Aquí solo aparecen los gastos que tú capturaste, aunque el administrador ya los haya validado o pagado. Los totales, saldos y reportes suman únicamente esos gastos, no los de toda la empresa. Los proveedores nuevos que des de alta quedan por validar por el administrador, pero puedes usarlos de inmediato.</div>
+    <div id="avisoParcial" class="avisoParcial hidden"><b>Vista de capturista.</b> Aquí aparecen los gastos que tú capturaste, aunque el administrador ya los haya validado o pagado, y, solo para consulta (marcados «Solo lectura»), los de los tipos de gasto que el administrador te autorizó. Solo puedes capturar gastos de proveedores de esos tipos. Los totales, saldos y reportes suman únicamente esos gastos, no los de toda la empresa. Los proveedores nuevos que des de alta quedan por validar por el administrador, pero puedes usarlos de inmediato.</div>
     <main id="main"></main>
   </div>
 
@@ -545,6 +545,7 @@ const state = {
   sortRepSucProv:    { col: null, dir: 'asc' },
   repAbiertosSuc:    { prov: true, gastos: false, pagos: false },
   sortSucursales:    { col: null, dir: 'asc' },
+  sortTipos:         { col: null, dir: 'asc' },
   flujoMes: null, // null = mes actual; {y, m} = otro mes (no sobrevive un F5)
   pagosBloquesAbiertos: {}, // Pagos Realizados: 'semana' y meses anteriores abiertos/cerrados (solo en memoria; no sobrevive un F5)
   sortRecurrentes: { col: null, dir: 'asc' },
@@ -659,6 +660,7 @@ async function loadData() {
   const r = await api('getData', {});
   state.proveedores = r.proveedores; state.cxp = r.cxp; state.pagos = r.pagos;
   state.recurrentes = r.recurrentes || []; state.config = r.config;
+  state.misTipos = Array.isArray(r.mis_tipos) ? r.mis_tipos : []; // v9.7: tipos de gasto autorizados al capturista [{nombre, activo}]
   __ultimaCarga = Date.now();
 }
 
@@ -1364,7 +1366,8 @@ const TABS = [
   { id:'auditoria',   label:'Auditoría',        roles:['admin'] },
   { id:'exportar',    label:'Exportar',         roles:['admin','capturista','tesorero','viewer'] },
   { id:'repsuc',      label:'Reporte × Sucursal', roles:['admin','capturista','tesorero','viewer'] },
-  { id:'sucursales',  label:'Sucursales',       roles:['admin'] }
+  { id:'sucursales',  label:'Sucursales',       roles:['admin'] },
+  { id:'tipos',       label:'Tipos de gasto',   roles:['admin'] }
 ];
 
 // v8.0: las 11 vistas se agrupan en 6 pestañas; las que tienen varias vistas muestran una segunda fila de sub-pestañas.
@@ -1374,7 +1377,7 @@ const GRUPOS = [
   { id:'pagos',     label:'Pagos Realizados', views:[{ id:'pagos', label:'Pagos Realizados' }] },
   { id:'prov',      label:'Proveedores',      views:[{ id:'proveedores', label:'Proveedores' }, { id:'recurrentes', label:'Gastos Recurrentes' }] },
   { id:'reportes',  label:'Reportes',         views:[{ id:'repprov', label:'Por proveedor' }, { id:'repsuc', label:'Por sucursal' }, { id:'aging', label:'Antigüedad' }, { id:'exportar', label:'Exportar' }] },
-  { id:'admin',     label:'Administración',   views:[{ id:'cuentas', label:'Mis Cuentas' }, { id:'usuarios', label:'Usuarios' }, { id:'auditoria', label:'Auditoría' }, { id:'sucursales', label:'Sucursales' }] }
+  { id:'admin',     label:'Administración',   views:[{ id:'cuentas', label:'Mis Cuentas' }, { id:'usuarios', label:'Usuarios' }, { id:'auditoria', label:'Auditoría' }, { id:'sucursales', label:'Sucursales' }, { id:'tipos', label:'Tipos de gasto' }] }
 ];
 const ULTIMA_SUB = {}; // última sub-pestaña visitada por grupo (en memoria)
 function vistasPermitidas(g) { return g.views.filter(v => { const t = TABS.find(x => x.id === v.id); return t && can(t.roles); }); }
@@ -1418,6 +1421,7 @@ async function setView(view) {
     else if (view === 'auditoria') { showLoading(true); try { await loadLog(); } finally { showLoading(false); } renderAuditoria(); }
     else if (view === 'exportar') renderExportar();
     else if (view === 'sucursales') renderSucursales();
+    else if (view === 'tipos') renderTipos();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -1717,6 +1721,7 @@ function renderCapturaCxp(c, provId, logError) {
             ${c.capturado_por && !can(['capturista']) ? `<div class="captRow"><span class="captLbl">Capturó</span><span class="captVal">${esc(c.capturado_por)}</span></div>` : ''}
             ${c.recurrente_id ? `<div class="captRow"><span class="captLbl">Origen</span><span class="captVal">🔁 Generada automáticamente (Gastos Recurrentes)</span></div>` : ''}
             <div class="captRow"><span class="captLbl">Sucursal</span><span class="captVal">${esc(c.sucursal || '—')}</span></div>
+            ${c.tipo_efectivo ? `<div class="captRow"><span class="captLbl">Tipo de gasto</span><span class="captVal">${esc(c.tipo_efectivo)}${c.tipo_gasto ? '' : ' <span style="color:var(--muted);font-size:11px">(el de su proveedor)</span>'}</span></div>` : ''}
             <div class="captRow"><span class="captLbl">UUID CFDI</span><span class="captVal" style="font-size:11px">${esc(c.uuid_cfdi || '—')}</span></div>
             <div class="captRow"><span class="captLbl">Fecha factura</span><span class="captVal">${fmtFecha(c.fecha_factura)}</span></div>
             <div class="captRow"><span class="captLbl">Fecha vencimiento</span><span class="captVal">${fmtFecha(c.fecha_vencimiento)}</span></div>
@@ -1773,7 +1778,7 @@ function renderCapturaCxp(c, provId, logError) {
 
     <div class="modalActions">
       ${provId ? `<button class="btn btn-ghost" onclick="verNotasProveedorDashboard('${provId}')">← Volver</button>` : ''}
-      ${can(['admin','capturista']) ? `<button class="btn btn-ghost" onclick="closeModal(); formCxp('${c.id}');">Editar esta nota</button>` : ''}
+      ${can(['admin','capturista']) && !c.ajeno ? `<button class="btn btn-ghost" onclick="closeModal(); formCxp('${c.id}');">Editar esta nota</button>` : ''}
       <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
     </div>
   `, { wide: true });
@@ -1934,8 +1939,8 @@ async function validarGastos(ids, incluirProveedores) {
 function opcionesCxpMenu(c) {
   const items = [];
   if (can(['admin']) && gastoPorValidar(c)) items.push(`<button onclick="cerrarMenusCxp(); confirmarValidarGasto('${c.id}')">✓ Validar gasto</button>`);
-  if (can(['admin','capturista','tesorero']) && c.saldo > 0.01) items.push(`<button onclick="cerrarMenusCxp(); formPago('${c.id}')">💰 Registrar pago</button>`);
-  if (can(['admin','capturista'])) items.push(`<button onclick="cerrarMenusCxp(); formCxp('${c.id}')">✏️ Editar</button>`);
+  if (can(['admin','capturista','tesorero']) && c.saldo > 0.01 && !c.ajeno) items.push(`<button onclick="cerrarMenusCxp(); formPago('${c.id}')">💰 Registrar pago</button>`);
+  if (can(['admin','capturista']) && !c.ajeno) items.push(`<button onclick="cerrarMenusCxp(); formCxp('${c.id}')">✏️ Editar</button>`);
   if (can(['admin'])) items.push(`<button class="danger" onclick="cerrarMenusCxp(); confirmarEliminar('cxp','${c.id}','esta CxP')">🗑️ Eliminar</button>`);
   if (!items.length) return '';
   return `<div class="optMenuWrap">
@@ -1957,7 +1962,7 @@ function renderCxpRow(c, extraClass) {
   const dias = c.dias !== undefined ? c.dias : diasVencimiento(c);
   return `
       <tr${extraClass ? ` class="${extraClass}"` : ''}>
-        <td>${esc(c.provNombre)}${c.provPend ? ' <span class="badge badge-validar" title="El proveedor lo dio de alta un capturista y falta validarlo">Prov. por validar</span>' : ''}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}${c.capturado_en ? `<span class="capturoFecha" title="${esc(fmtCapturaLarga(c.capturado_en))}">${esc(fmtCaptura(c.capturado_en))}</span>` : ''}</div>` : ''}</td>
+        <td>${esc(c.provNombre)}${c.provPend ? ' <span class="badge badge-validar" title="El proveedor lo dio de alta un capturista y falta validarlo">Prov. por validar</span>' : ''}${c.ajeno ? ' <span class="badge badge-muted" title="Lo capturó otro usuario y se te muestra solo para consulta: no se puede editar ni pagar desde aquí">Solo lectura</span>' : ''}${can(['admin']) && c.capturado_por ? `<div class="capturoTxt">Capturó: ${esc(c.capturado_por)}${c.capturado_en ? `<span class="capturoFecha" title="${esc(fmtCapturaLarga(c.capturado_en))}">${esc(fmtCaptura(c.capturado_en))}</span>` : ''}</div>` : ''}</td>
         <td><div class="conceptoCelda"><button class="verGastoBtn" onclick="verCapturaCxp('${c.id}')" title="Ver detalle del gasto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button><span>${esc(c.concepto || '(sin concepto)')}${c.recurrente_id ? ` <span class="badge badge-muted" title="Generada automáticamente desde Gastos Recurrentes">🔁 recurrente</span>` : ''}</span>${c.adjunto_evidencia_url ? `<button type="button" class="clipIcon" data-evidencia="${c.id}" onclick="abrirLightbox('${esc(c.adjunto_evidencia_url)}')" title="Ver la evidencia" aria-label="Ver la evidencia del gasto">${SVG_CLIP}</button>` : ''}</div></td>
         <td>${esc(c.folio || '')}</td>
         <td class="num">${money(c.saldo)}</td>
@@ -2171,7 +2176,8 @@ function htmlComboProveedor(fieldId, valorInicial) {
 
 function comboProveedorListaFiltrada(fieldId) {
   const q = normalizarBusqueda(document.getElementById(fieldId + '_q').value);
-  const todos = proveedoresOrdenados();
+  const actual = document.getElementById(fieldId)?.value; // al editar un gasto propio se conserva su proveedor aunque ya no sea de sus tipos
+  const todos = proveedoresOrdenados().filter(p => fieldId !== 'cxp_proveedor_id' || provPermitidoCxp(p) || String(p.id) === String(actual));
   return q ? todos.filter(p => normalizarBusqueda(p.nombre).includes(q)) : todos;
 }
 
@@ -2395,10 +2401,12 @@ function formCxp(id) {
       <div class="formGrid">
         <div class="field full"><label>Proveedor</label>
           ${htmlComboProveedor('cxp_proveedor_id', provIdInicial)}
+          ${state.rol === 'capturista' ? `<div style="font-size:11.5px;color:var(--muted);margin-top:4px">${tiposAutorizadosCapt().length ? 'Aparecen los proveedores de tus tipos de gasto (' + esc(tiposAutorizadosCapt().join(', ')) + ').' : 'Todavía no tienes tipos de gasto autorizados: solo puedes usar los proveedores que des de alta tú.'} ¿No encuentras el proveedor? Avisa al administrador.</div>` : ''}
         </div>
         <div class="field full"><label>Concepto</label><input id="cxp_concepto" value="${esc(c?.concepto||'')}" required></div>
         <div class="field"><label>Monto</label><input type="number" step="0.01" id="cxp_monto" value="${c?.monto||''}" required></div>
         <div class="field"><label>Sucursal</label>${campoSucursal('cxp_sucursal', c?.sucursal)}</div>
+        ${can(['admin']) ? `<div class="field"><label>Tipo de gasto</label>${campoTipo('cxp_tipo', c?.tipo_gasto, 'Según el proveedor')}</div>` : ''}
         <div class="field"><label>Fecha factura</label><input type="date" id="cxp_fecha_factura" value="${esc(c?.fecha_factura||'')}"></div>
         <div class="field"><label>Fecha vencimiento</label><input type="date" id="cxp_fecha_vencimiento" value="${esc(c?.fecha_vencimiento||'')}" required></div>
         <div class="field"><label>Folio</label><input id="cxp_folio" value="${esc(c?.folio||'')}"></div>
@@ -2463,6 +2471,7 @@ async function guardarCxp(ev, id) {
       referencia_sugerida: referenciaDeCuenta(proveedorIdCxp, document.getElementById('cxp_cuenta_destino_id').value) || (previo.instrucciones_pago || {}).referencia_sugerida || '',
       pagar_desde: document.getElementById('cxp_pagar_desde').value
     },
+    ...(can(['admin']) && document.getElementById('cxp_tipo') ? { tipo_gasto: document.getElementById('cxp_tipo').value } : {}),
     ...datosAdjuntoParaGuardar('cxpEvidencia', 'evidencia_b64', 'evidencia_mime', 'evidencia_clear')
   };
   try {
@@ -3000,7 +3009,8 @@ function renderProveedoresTable() {
     cliente: p => (p.cuentas||[])[0]?.cliente || '',
     referencia: p => (p.cuentas||[])[0]?.referencia || '',
     banco: p => (p.cuentas||[])[0]?.banco || '',
-    cuenta: p => (p.cuentas||[])[0]?.clabe || ''
+    cuenta: p => (p.cuentas||[])[0]?.clabe || '',
+    tipo: p => p.tipo_gasto || ''
   };
   // v9.4: aviso arriba (administrador: validar; capturista: sus altas pendientes) y filtro "solo por validar"
   const pend = state.proveedores.filter(provPorValidar);
@@ -3025,6 +3035,7 @@ function renderProveedoresTable() {
         ${sortTh('Referencia','referencia','sortProveedores','renderProveedoresTable')}
         ${sortTh('Banco','banco','sortProveedores','renderProveedoresTable')}
         ${sortTh('Cuenta','cuenta','sortProveedores','renderProveedoresTable')}
+        ${can(['admin']) ? sortTh('Tipo de gasto','tipo','sortProveedores','renderProveedoresTable') : ''}
         <th></th>
       </tr></thead>
       <tbody>${lista.map(p => {
@@ -3039,6 +3050,7 @@ function renderProveedoresTable() {
           <td>${esc(principal?.referencia || '—')}</td>
           <td>${esc(principal?.banco || '—')}</td>
           <td style="font-variant-numeric:tabular-nums">${esc(principal?.clabe || '—')}${extra}</td>
+          ${can(['admin']) ? `<td>${p.tipo_gasto ? esc(p.tipo_gasto) : '<span class="badge badge-muted" title="Sin tipo: ningún capturista ve sus gastos">Sin tipo</span>'}</td>` : ''}
           <td><div class="rowActions">
             ${can(['admin']) && provPorValidar(p) ? `<button class="btn btn-ok btn-sm" onclick="confirmarValidarProveedores(['${p.id}'])">✓ Validar</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="repAbrirProveedor('${p.id}')">Reporte</button>
@@ -3109,6 +3121,8 @@ function formProveedor(id, opts) {
         <div class="field"><label>Email</label><input type="email" id="pv_email" value="${esc(p?.email||'')}"></div>
         <div class="field"><label>Teléfono</label><input id="pv_telefono" value="${esc(p?.telefono||'')}"></div>
         <div class="field full"><label>Notas</label><input id="pv_notas" value="${esc(p?.notas||'')}"></div>
+        ${!esAdmin && !p ? htmlTipoAltaCapturista() : ''}
+        ${esAdmin ? `<div class="field full"><label>Tipo de gasto</label>${campoTipo('pv_tipo', p?.tipo_gasto, 'Sin tipo (los capturistas no verán sus gastos)')}<div style="font-size:11.5px;color:var(--muted);margin-top:4px">Sus gastos heredan este tipo. Los capturistas ven, además de los suyos, los gastos de los tipos que les autorices en Administración › Usuarios.</div></div>` : ''}
       </div>
       <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
         <div class="viewTitle" style="margin-bottom:6px"><span style="font-size:14px">Cuentas bancarias del proveedor</span>
@@ -3211,6 +3225,12 @@ async function revisarProveedorRepetido(id, nombre, rfc) {
     const datos = [['Proveedor existente', visible.nombre], ['Estado', visible.estado === 'validado' ? 'Validado' : 'Por validar']];
     if (__pvDesdeGasto) {
       const campo = __pvDesdeGasto;
+      const pe = state.proveedores.find(p => String(p.id) === String(visible.id));
+      if (pe && !provPermitidoCxp(pe)) {
+        await avisoAccion({ titulo: 'Este proveedor ya existe', aviso: 'Ya hay un proveedor con ' + motivo + ', pero es de un tipo de gasto que no tienes autorizado.', datos,
+          pregunta: 'No puedes capturarle gastos. Avisa al administrador.', sinContinuar: true, foco: 'pv_nombre' });
+        return 'volver';
+      }
       const usar = await avisoAccion({ titulo: 'Este proveedor ya existe', aviso: 'Ya hay un proveedor con ' + motivo + '.', datos,
         pregunta: 'Elige “Usar el existente” para seleccionarlo en tu gasto, o “Editar” para corregir los datos.', okTxt: 'Usar el existente', foco: 'pv_nombre' });
       if (!usar) return 'volver';
@@ -3244,6 +3264,7 @@ async function guardarProveedor(ev, id) {
   const nombre = aMayus(document.getElementById('pv_nombre').value).trim();
   const rfc = aMayus(document.getElementById('pv_rfc').value).trim();
   if (!nombre) { toast('Escribe el nombre del proveedor.', 'error'); return false; }
+  if (!can(['admin']) && document.getElementById('pv_tipo') && !document.getElementById('pv_tipo').value) { toast('Elige el tipo de gasto del proveedor.', 'error'); return false; }
   const previo = state.proveedores.find(x => String(x.id) === String(id));
   const desdeGasto = __pvDesdeGasto;
   // Solo se revisa si es nuevo o si cambió el nombre o el RFC.
@@ -3259,6 +3280,7 @@ async function guardarProveedor(ev, id) {
     email: document.getElementById('pv_email').value,
     telefono: aMayus(document.getElementById('pv_telefono').value),
     notas: aMayus(document.getElementById('pv_notas').value),
+    ...(document.getElementById('pv_tipo') ? { tipo_gasto: document.getElementById('pv_tipo').value } : {}), // administrador: el que elija; capturista (alta con varios tipos): uno de los suyos
     cuentas
   };
   try {
@@ -3456,10 +3478,12 @@ function renderUsuariosTable() {
         ${sortTh('Nombre','nombre','sortUsuarios','renderUsuariosTable')}
         ${sortTh('Usuario','usuario','sortUsuarios','renderUsuariosTable')}
         ${sortTh('Rol','rol','sortUsuarios','renderUsuariosTable')}
+        <th>Gastos de otros que ve</th>
         <th></th>
       </tr></thead>
       <tbody>${lista.map(u => `
         <tr><td>${esc(u.nombre)}</td><td>${esc(u.usuario)}</td><td>${esc(ROLES_LABEL[u.rol] || u.rol)}</td>
+        <td>${u.rol === 'capturista' ? ((u.tipos_visibles || []).length ? esc(u.tipos_visibles.join(', ')) : '<span class="badge badge-muted">Solo los suyos</span>') : '<span style="color:var(--muted)">Todos</span>'}</td>
         <td><div class="rowActions">
           <button class="btn btn-ghost btn-sm" onclick="formUsuario('${u.id}')">Editar</button>
           <button class="btn btn-danger btn-sm" onclick="confirmarEliminarUsuario('${u.id}')">Eliminar</button>
@@ -3482,17 +3506,23 @@ function formUsuario(id) {
       <div class="formGrid">
         <div class="field full"><label>Nombre</label><input id="us_nombre" value="${esc(u?.nombre||'')}" required></div>
         <div class="field"><label>Usuario (login)</label><input id="us_usuario" value="${esc(u?.usuario||'')}" required></div>
-        <div class="field"><label>Rol</label><select id="us_rol">${Object.entries(ROLES_LABEL).map(([k,v]) => `<option value="${k}" ${u?.rol===k?'selected':''}>${v}</option>`).join('')}</select></div>
+        <div class="field"><label>Rol</label><select id="us_rol" onchange="usToggleTipos()">${Object.entries(ROLES_LABEL).map(([k,v]) => `<option value="${k}" ${u?.rol===k?'selected':''}>${v}</option>`).join('')}</select></div>
         <div class="field"><label>Contraseña ${u ? '(vacía = no cambiar)' : ''}</label><input id="us_pin" type="password" autocomplete="new-password" oninput="verificarPinUsuario()" ${u?'':'required'}></div>
         <div class="field"><label>Confirmar contraseña</label><input id="us_pin2" type="password" autocomplete="new-password" oninput="verificarPinUsuario()" ${u?'':'required'}>
           <div id="us_pin_msg" style="font-size:11.5px;font-weight:600;min-height:16px;margin-top:4px;"></div></div>
       </div>
+      ${tiposCatalogo().length || (u?.tipos_visibles || []).length ? `<div id="us_tipos_wrap" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Gastos de otros que puede ver</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Siempre ve los gastos que él mismo captura. Marca los tipos de gasto de otras personas que también puede consultar (solo lectura). Sin marcar = solo los suyos.</p>
+        ${opcionesTiposUsuario(u)}
+      </div>` : ''}
       <div class="modalActions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar</button>
       </div>
     </form>
   `);
+  usToggleTipos();
 }
 
 // v8.7: la contraseña se escribe dos veces. Aviso en vivo (✓ Coinciden / No coinciden) y, al guardar, no se envía nada si difieren.
@@ -3521,7 +3551,8 @@ async function guardarUsuario(ev, id) {
     nombre: document.getElementById('us_nombre').value,
     usuario: document.getElementById('us_usuario').value,
     rol: document.getElementById('us_rol').value,
-    pin: document.getElementById('us_pin').value
+    pin: document.getElementById('us_pin').value,
+    ...(document.querySelector('.us_tipo') ? { tipos_visibles: [...document.querySelectorAll('.us_tipo:checked')].map(x => x.value) } : {})
   };
   try {
     showLoading(true);
@@ -3553,6 +3584,166 @@ async function eliminarUsuario(id) {
     closeModal(); showLoading(false);
     toast('Usuario eliminado.', 'ok');
     renderUsuarios();
+  } catch (err) { showLoading(false); toast(err.message, 'error'); }
+}
+
+/* ---------------- v9.7: tipos de gasto ---------------- */
+// Un capturista solo captura gastos de proveedores cuyo tipo tiene autorizado (o de sus altas que siguen por validar). El servidor lo impone;
+// aquí solo se filtra el selector para no ofrecer lo que se rechazaría.
+function tiposAutorizadosCapt() { return (state.misTipos || []).map(t => t.nombre); }
+function provPermitidoCxp(p) {
+  if (state.rol !== 'capturista') return true;
+  if (provPorValidar(p) && (p.capturado_por || '') === (state.nombre || '')) return true;
+  return !!normTipoTxt(p.tipo_gasto) && tiposAutorizadosCapt().some(t => tipoIgual(t, p.tipo_gasto));
+}
+// Alta de proveedor por un capturista: con un tipo autorizado se asigna solo; con varios elige uno; sin ninguno queda sin tipo.
+function htmlTipoAltaCapturista() {
+  const mis = (state.misTipos || []).filter(t => t.activo !== false);
+  if (mis.length === 1) return `<div class="field full"><label>Tipo de gasto</label><input value="${esc(mis[0].nombre)}" disabled><div style="font-size:11.5px;color:var(--muted);margin-top:4px">Se asigna automáticamente: es el tipo que tienes autorizado.</div></div>`;
+  if (mis.length > 1) return `<div class="field full"><label>Tipo de gasto</label><select id="pv_tipo" required><option value="">Elige un tipo…</option>${mis.map(t => `<option value="${esc(t.nombre)}">${esc(t.nombre)}</option>`).join('')}</select><div style="font-size:11.5px;color:var(--muted);margin-top:4px">Elige uno de los tipos que tienes autorizados.</div></div>`;
+  return '';
+}
+// El catálogo vive en el servidor (config.tipos_gasto = [{nombre, activo}]). El administrador asigna un tipo a cada proveedor
+// (y, si hace falta, a un gasto concreto) y decide qué tipos de gastos AJENOS puede ver cada capturista (solo lectura).
+function normTipoTxt(v) { return String(v == null ? '' : v).trim().replace(/\s+/g, ' '); }
+function tiposCatalogo() { return Array.isArray(state.config && state.config.tipos_gasto) ? state.config.tipos_gasto : []; }
+function tipoIgual(a, b) { return normTipoTxt(a).toLowerCase() === normTipoTxt(b).toLowerCase(); }
+
+// Desplegable de tipo. Valor "-" = sin tipo propio (en el gasto: el de su proveedor). Un valor guardado que ya no esté activo se conserva como opción.
+function campoTipo(id, actual, vacio) {
+  const cat = tiposCatalogo(), act = normTipoTxt(actual);
+  let h = `<select id="${id}"><option value="-">${esc(vacio)}</option>`
+    + cat.filter(t => t.activo !== false).map(t => `<option value="${esc(t.nombre)}" ${tipoIgual(t.nombre, act) ? 'selected' : ''}>${esc(t.nombre)}</option>`).join('');
+  if (act && !cat.some(t => t.activo !== false && tipoIgual(t.nombre, act))) h += `<option value="${esc(act)}" selected>${esc(act)} (inactivo)</option>`;
+  return h + '</select>';
+}
+
+function opcionesTiposUsuario(u) {
+  const marcados = (u && u.tipos_visibles) || [];
+  const cat = tiposCatalogo().filter(t => t.activo !== false || marcados.some(m => tipoIgual(m, t.nombre)));
+  const extra = marcados.filter(m => !tiposCatalogo().some(t => tipoIgual(t.nombre, m)));
+  return [...cat.map(t => ({ nombre: t.nombre, inactivo: t.activo === false })), ...extra.map(n => ({ nombre: n, inactivo: true }))]
+    .map(t => `<label style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px;cursor:pointer"><input type="checkbox" class="us_tipo" value="${esc(t.nombre)}" style="width:auto" ${marcados.some(m => tipoIgual(m, t.nombre)) ? 'checked' : ''}> ${esc(t.nombre)}${t.inactivo ? ' <span style="color:var(--muted)">(inactivo)</span>' : ''}</label>`).join('');
+}
+// El bloque de tipos solo aplica al rol Capturista (los demás roles ven todo).
+function usToggleTipos() {
+  const w = document.getElementById('us_tipos_wrap'), r = document.getElementById('us_rol');
+  if (w && r) w.classList.toggle('hidden', r.value !== 'capturista');
+}
+
+function usoTipo(nombre) {
+  return {
+    prov: state.proveedores.filter(p => tipoIgual(p.tipo_gasto, nombre)).length,
+    gastos: state.cxp.filter(c => tipoIgual(c.tipo_efectivo, nombre)).length
+  };
+}
+
+function renderTipos() {
+  const main = document.getElementById('main');
+  const sinProv = state.proveedores.filter(p => !normTipoTxt(p.tipo_gasto)).length, sinGastos = state.cxp.filter(c => !normTipoTxt(c.tipo_efectivo)).length;
+  main.innerHTML = `
+    <div class="viewTitle"><span>Tipos de gasto</span>
+      <div class="actions"><button class="btn btn-primary btn-sm" onclick="formTipo()">+ Nuevo tipo</button></div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:-6px">Clasifican los gastos por proveedor (Proveedores › Editar) y, si un gasto es la excepción, en el propio gasto. En Administración › Usuarios eliges qué tipos de gastos de otros puede ver cada capturista (solo lectura); lo que no tiene tipo no lo ve ninguno. Al renombrar un tipo se actualizan sus proveedores, gastos y usuarios. No se eliminan: se desactivan.</p>
+    ${sinProv ? `<p style="font-size:12.5px;margin:0 0 10px"><span class="badge badge-validar">Sin tipo</span> ${nPlural(sinProv, 'proveedor', 'proveedores')} y ${nPlural(sinGastos, 'gasto', 'gastos')} sin tipo: ningún capturista los ve (salvo quien los capturó).</p>` : ''}
+    <div id="tiposTableWrap"></div>
+  `;
+  renderTiposTable();
+}
+
+function renderTiposTable() {
+  const wrap = document.getElementById('tiposTableWrap');
+  const base = tiposCatalogo().map(t => ({ nombre: normTipoTxt(t.nombre), activo: t.activo !== false, ...usoTipo(t.nombre) }));
+  const getters = { nombre: t => t.nombre, prov: t => t.prov, gastos: t => t.gastos, activo: t => (t.activo ? 'activo' : 'inactivo') };
+  const lista = state.sortTipos.col ? sortRows(base, state.sortTipos, getters) : base.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  wrap.innerHTML = `<div class="tableWrap"><table>
+    <thead><tr>
+      ${sortTh('Tipo de gasto', 'nombre', 'sortTipos', 'renderTiposTable')}
+      ${sortTh('Proveedores', 'prov', 'sortTipos', 'renderTiposTable')}
+      ${sortTh('Gastos', 'gastos', 'sortTipos', 'renderTiposTable')}
+      ${sortTh('Estado', 'activo', 'sortTipos', 'renderTiposTable')}
+      <th></th>
+    </tr></thead>
+    <tbody>${lista.map(t => `<tr class="${t.activo ? '' : 'sucEstado-off'}">
+        <td><b>${esc(t.nombre)}</b></td>
+        <td class="num">${t.prov}</td>
+        <td class="num">${t.gastos}</td>
+        <td>${t.activo ? '<span class="badge badge-good">Activo</span>' : '<span class="badge badge-muted">Inactivo</span>'}</td>
+        <td><div class="rowActions">
+          <button class="btn btn-ghost btn-sm" data-n="${esc(t.nombre)}" onclick="formTipo(this.dataset.n)">Renombrar</button>
+          <button class="btn btn-ghost btn-sm" data-n="${esc(t.nombre)}" onclick="toggleTipo(this.dataset.n)">${t.activo ? 'Desactivar' : 'Activar'}</button>
+        </div></td></tr>`).join('') || `<tr><td colspan="5" class="emptyState">Sin tipos en el catálogo.</td></tr>`}
+    </tbody>
+  </table></div>`;
+}
+
+function formTipo(original) {
+  const orig = original ? normTipoTxt(original) : '';
+  const uso = orig ? usoTipo(orig) : null;
+  openModal(`
+    <h2>${orig ? 'Renombrar' : 'Nuevo'} tipo de gasto</h2>
+    <form data-orig="${esc(orig)}" onsubmit="return guardarTipo(event, this.dataset.orig)">
+      <div class="formGrid">
+        <div class="field full"><label>Nombre</label><input id="tg_nombre" value="${esc(orig)}" maxlength="40" required autocomplete="off"></div>
+      </div>
+      ${uso ? `<p style="font-size:12px;color:var(--muted);margin:0 0 4px">Se actualizarán ${nPlural(uso.prov, 'proveedor', 'proveedores')}, ${nPlural(uso.gastos, 'gasto', 'gastos')} y los usuarios que hoy usan «${esc(orig)}».</p>` : ''}
+      <div class="modalActions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+async function enviarCatalogoTipos(lista, renombres) {
+  const res = await api('saveTipos', { lista, renombres });
+  await loadData();
+  return res;
+}
+
+async function guardarTipo(ev, original) {
+  ev.preventDefault();
+  const nombre = normTipoTxt(document.getElementById('tg_nombre').value);
+  if (!nombre) { toast('Escribe el nombre del tipo.', 'error'); return false; }
+  const lista = tiposCatalogo().map(t => ({ nombre: normTipoTxt(t.nombre), activo: t.activo !== false }));
+  let renombres = [];
+  if (original) {
+    if (nombre === original) { closeModal(); return false; }
+    if (lista.some(t => tipoIgual(t.nombre, nombre) && !tipoIgual(t.nombre, original))) { toast('Ya existe un tipo con ese nombre.', 'error'); return false; }
+    const it = lista.find(t => t.nombre === original);
+    if (!it) { toast('No se encontró ese tipo.', 'error'); return false; }
+    it.nombre = nombre;
+    renombres = [{ de: original, a: nombre }];
+  } else {
+    if (lista.some(t => tipoIgual(t.nombre, nombre))) { toast('Ya existe un tipo con ese nombre.', 'error'); return false; }
+    lista.push({ nombre, activo: true });
+  }
+  lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const desbloquear = bloquearFormulario(ev.target, 'Guardando…');
+  try {
+    showLoading(true);
+    const res = await enviarCatalogoTipos(lista, renombres);
+    closeModal(); showLoading(false);
+    const a = res.actualizados || { proveedores: 0, cxp: 0, usuarios: 0 };
+    toast(original ? `Tipo renombrado (${a.proveedores} proveedores, ${a.cxp} gastos y ${a.usuarios} usuarios actualizados).` : 'Tipo agregado.', 'ok');
+    renderTipos();
+  } catch (err) { showLoading(false); desbloquear(); toast(err.message, 'error'); }
+  return false;
+}
+
+async function toggleTipo(nombre) {
+  const n = normTipoTxt(nombre);
+  const lista = tiposCatalogo().map(t => ({ nombre: normTipoTxt(t.nombre), activo: t.activo !== false }));
+  const it = lista.find(t => t.nombre === n);
+  if (!it) return;
+  it.activo = !it.activo;
+  try {
+    showLoading(true);
+    await enviarCatalogoTipos(lista, []);
+    showLoading(false);
+    toast(it.activo ? 'Tipo activado.' : 'Tipo desactivado: ya no se puede asignar, y lo que ya lo usa se conserva.', 'ok');
+    renderTipos();
   } catch (err) { showLoading(false); toast(err.message, 'error'); }
 }
 
